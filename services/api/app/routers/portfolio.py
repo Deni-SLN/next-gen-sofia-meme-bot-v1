@@ -19,6 +19,11 @@ class AddHoldingRequest(BaseModel):
 class SellHoldingRequest(BaseModel):
     symbol: str
     sell_pct: float = 100.0
+    mode: str | None = None
+
+
+class SellAllRequest(BaseModel):
+    mode: str | None = None
 
 
 @router.get("/overview")
@@ -41,7 +46,7 @@ def create_holding(body: AddHoldingRequest, db: Session = Depends(get_db)):
 @router.post("/sell")
 def sell_position(body: SellHoldingRequest, db: Session = Depends(get_db)):
     try:
-        return portfolio.sell_holding(db, body.symbol, body.sell_pct)
+        return portfolio.sell_holding(db, body.symbol, body.sell_pct, mode=body.mode)
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -49,6 +54,18 @@ def sell_position(body: SellHoldingRequest, db: Session = Depends(get_db)):
         )
 
 
+@router.post("/sell-all")
+def panic_sell_all(body: SellAllRequest = SellAllRequest(), db: Session = Depends(get_db)):
+    try:
+        return portfolio.sell_all_holdings(db, mode=body.mode)
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"code": "SELL_ALL_FAILED", "message": str(e)}},
+        )
+
+
 @router.post("/reset-paper")
 def reset_paper(db: Session = Depends(get_db)):
     return portfolio.reset_paper_account(db)
+

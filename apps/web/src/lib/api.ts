@@ -113,6 +113,9 @@ export const api = {
       body: JSON.stringify({ password }),
     }),
   getBotStatus: () => request<any>('/bot/status'),
+  getSniperConfig: () => request<any>('/bot/config'),
+  updateSniperConfig: (data: any) =>
+    request<any>('/bot/config', { method: 'PUT', body: JSON.stringify(data) }),
   getBotActivity: (tick: boolean = true, forceTrade: boolean = false) =>
     request<any>(`/bot/activity?tick=${tick ? 'true' : 'false'}${forceTrade ? '&force_trade=true' : ''}`),
   startBot: (mode: string) =>
@@ -121,8 +124,10 @@ export const api = {
   getPortfolio: () => request<any>('/portfolio/overview'),
   addHolding: (data: { symbol: string; quantity: number; avg_entry_price: number; current_price?: number }) =>
     request<any>('/portfolio/holdings', { method: 'POST', body: JSON.stringify(data) }),
-  sellHolding: (symbol: string, sell_pct: number = 100) =>
-    request<any>('/portfolio/sell', { method: 'POST', body: JSON.stringify({ symbol, sell_pct }) }),
+  sellHolding: (symbol: string, sell_pct: number = 100, mode?: string) =>
+    request<any>('/portfolio/sell', { method: 'POST', body: JSON.stringify({ symbol, sell_pct, mode }) }),
+  panicSellAll: (mode?: string) =>
+    request<any>('/portfolio/sell-all', { method: 'POST', body: JSON.stringify({ mode }) }),
   resetPaperAccount: () =>
     request<any>('/portfolio/reset-paper', { method: 'POST' }),
   getSignals: (status?: string) =>
@@ -157,6 +162,12 @@ export const api = {
     request<any>(`/wallets/${walletId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteWallet: (walletId: number) =>
     request<any>(`/wallets/${walletId}`, { method: 'DELETE' }),
+  syncWalletOnchain: (walletId: number, apply_onchain_balance: boolean = false) =>
+    request<any>(`/wallets/${walletId}/sync-onchain`, {
+      method: 'POST',
+      body: JSON.stringify({ apply_onchain_balance }),
+    }),
+
   // Meme Coin Live Market Endpoints
   getFx: () => request<{ usd_idr: number; source: string; updated_at: string }>('/memecoins/fx'),
   getPulse: () => request<any>('/memecoins/pulse'),

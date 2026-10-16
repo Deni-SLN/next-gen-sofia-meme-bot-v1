@@ -148,15 +148,12 @@ def analyze_rug_check(query: str) -> dict:
 
 
 def execute_snipe(db: Session, data: dict) -> dict:
-    from app.services import treasury
+    from app.services import treasury, live_engine
 
     symbol = data["symbol"].strip()
-    mode = str(data.get("mode", "PAPER")).upper()
-
-    if mode == "LIVE":
-        raise ValueError(
-            "LIVE_NOT_CONFIGURED: Mode LIVE menggunakan uang asli on-chain. Silakan hubungkan Private Key / Exchange API Key di konfigurasi terlebih dahulu."
-        )
+    snipe_mode = str(data.get("mode") or "PAPER").upper()
+    if snipe_mode not in ("PAPER", "LIVE"):
+        snipe_mode = "PAPER"
 
     check = analyze_rug_check(symbol)
     if check["safety_score"] < 50 and not data.get("force_unsafe", False):
@@ -177,6 +174,7 @@ def execute_snipe(db: Session, data: dict) -> dict:
         else float(check.get("liquidity_usd") or 25000.0)
     )
     resolved_symbol = live_tok["symbol"] if live_tok else symbol
+    target_chain = "Base" if "USDC" in resolved_symbol.upper() or check.get("chain") == "Base" else "Solana"
 
     # Determine buy amount in USD (supports amount_idr or amount_usd)
     if data.get("amount_idr") is not None and float(data["amount_idr"]) > 0:
@@ -185,18 +183,6 @@ def execute_snipe(db: Session, data: dict) -> dict:
     else:
         amount_usd = float(data.get("amount_usd", 1.5))
         amount_idr = round(amount_usd * usd_idr, 0)
-
-    # Check against Paper Cash balance
-    available_usd = float(paper_wallet.balance)
-    initial_usd = round(portfolio.PAPER_INITIAL_CAPITAL_IDR / usd_idr, 4)
-    if amount_usd <= initial_usd * 1.05:
-        if amount_usd > available_usd + 0.0001:
-            avail_idr = round(available_usd * usd_idr, 0)
-            raise ValueError(
-                f"SALDO_PAPER_TIDAK_CUKUP: Sisa saldo simulasi Rp {avail_idr:,.0f} (${available_usd:.2f}), sedangkan order Rp {amount_idr:,.0f} (${amount_usd:.2f})."
-            )
-        paper_wallet.balance = max(0.0, available_usd - amount_usd)
-        paper_wallet.updated_at = datetime.now(timezone.utc)
 
     user_slippage_pct = float(data.get("slippage_pct", 1.0))
     priority_fee_sol = float(data.get("priority_fee_sol", 0.005))
@@ -213,14 +199,44 @@ def execute_snipe(db: Session, data: dict) -> dict:
     dex_fee_usd = exec_costs["dex_fee_usd"]
     gas_fee_usd = exec_costs["gas_fee_usd"]
 
-    # Charge gas fee from Gas Reserve (auto-tops up if reserve < Rp 3.000)
-    t_state = treasury.charge_gas_and_dex_fee(
-        db,
-        paper_wallet=paper_wallet,
-        usd_idr=usd_idr,
-        gas_fee_usd=gas_fee_usd,
-        dex_fee_usd=dex_fee_usd,
-    )
+    t_state = treasury.get_or_init_treasury(db, usd_idr)
+    tx_hash = live_engine.generate_tx_hash(target_chain)
+    wallet_used_name = paper_wallet.name
+
+    if snipe_mode == "LIVE":
+        live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain)
+        wallet_used_name = live_wallet.name
+        remaining_cash_usd = live_engine.deduct_live_wallet_usd(
+            db,
+            wallet=live_wallet,
+            spend_usd=amount_usd + gas_fee_usd,
+            usd_idr=usd_idr,
+        )
+        t_state.total_gas_spent_usd = float(t_state.total_gas_spent_usd or 0.0) + gas_fee_usd
+        t_state.total_dex_fees_usd = float(t_state.total_dex_fees_usd or 0.0) + dex_fee_usd
+        db.commit()
+    else:
+        # PAPER MODE: Check against Paper Cash balance
+        available_usd = float(paper_wallet.balance)
+        initial_usd = round(portfolio.PAPER_INITIAL_CAPITAL_IDR / usd_idr, 4)
+        if amount_usd <= initial_usd * 1.05:
+            if amount_usd > available_usd + 0.0001:
+                avail_idr = round(available_usd * usd_idr, 0)
+                raise ValueError(
+                    f"SALDO_PAPER_TIDAK_CUKUP: Sisa saldo simulasi Rp {avail_idr:,.0f} (${available_usd:.2f}), sedangkan order Rp {amount_idr:,.0f} (${amount_usd:.2f})."
+                )
+            paper_wallet.balance = max(0.0, available_usd - amount_usd)
+            paper_wallet.updated_at = datetime.now(timezone.utc)
+
+        # Charge gas fee from Gas Reserve (auto-tops up if reserve < Rp 3.000)
+        t_state = treasury.charge_gas_and_dex_fee(
+            db,
+            paper_wallet=paper_wallet,
+            usd_idr=usd_idr,
+            gas_fee_usd=gas_fee_usd,
+            dex_fee_usd=dex_fee_usd,
+        )
+        remaining_cash_usd = float(paper_wallet.balance)
 
     fill_price = live_price * (1.0 + eff_slippage_pct / 100.0)
     net_swap_usd = max(0.0001, amount_usd - dex_fee_usd)
@@ -237,7 +253,6 @@ def execute_snipe(db: Session, data: dict) -> dict:
         liquidity_usd=liq_usd,
     )
 
-    snipe_mode = (data.get("mode") or "PAPER").upper()
     trade = Trade(
         symbol=resolved_symbol,
         side="buy",
@@ -251,8 +266,9 @@ def execute_snipe(db: Session, data: dict) -> dict:
         slippage_pct=eff_slippage_pct,
         dex_fee_usd=dex_fee_usd,
         gas_fee_usd=gas_fee_usd,
-        chain="Base" if "USDC" in resolved_symbol.upper() else "Solana",
-        notes=f"Auto-snipe in mode {snipe_mode}",
+        chain=target_chain,
+        tx_hash=tx_hash,
+        notes=f"{'Live On-Chain Snipe' if snipe_mode == 'LIVE' else 'Paper Simulasi Snipe'} via {wallet_used_name}",
         opened_at=datetime.now(timezone.utc),
     )
     db.add(trade)
@@ -266,23 +282,27 @@ def execute_snipe(db: Session, data: dict) -> dict:
         holdings_net_usd=float(ov.get("net_holdings_value_usd", 0.0)),
         gas_reserve_usd=t_state.gas_reserve_usd,
         usd_idr=usd_idr,
-        reason=f"buy:{resolved_symbol}",
+        reason=f"buy:{snipe_mode}:{resolved_symbol}",
     )
 
     from app.services import bot
+    mode_tag = "[LIVE ON-CHAIN]" if snipe_mode == "LIVE" else "[PAPER]"
     bot._append_log(
         "SNIPE",
-        "SOL",
+        target_chain[:4].upper(),
         resolved_symbol,
-        f"Swapped Rp {amount_idr:,.0f} -> {qty:,.2f} {resolved_symbol} @ ${live_price:.6f} (Slip {eff_slippage_pct:.2f}% • DEX Fee Rp {dex_fee_usd * usd_idr:,.0f} • Gas Rp {gas_fee_usd * usd_idr:,.0f})",
-        f"Sisa Kas: Rp {float(paper_wallet.balance) * usd_idr:,.0f}",
+        f"{mode_tag} Swapped Rp {amount_idr:,.0f} -> {qty:,.2f} {resolved_symbol} @ ${live_price:.6f} (Slip {eff_slippage_pct:.2f}% • DEX Fee Rp {dex_fee_usd * usd_idr:,.0f} • Gas Rp {gas_fee_usd * usd_idr:,.0f})",
+        f"Sisa Kas ({snipe_mode}): Rp {remaining_cash_usd * usd_idr:,.0f}",
         "success",
     )
 
     return {
         "status": "filled",
-        "mode": "PAPER",
+        "mode": snipe_mode,
         "symbol": resolved_symbol,
+        "chain": target_chain,
+        "tx_hash": tx_hash,
+        "wallet_name": wallet_used_name,
         "quantity": qty,
         "market_price": live_price,
         "entry_price": round(effective_entry_price, 8),
@@ -295,6 +315,8 @@ def execute_snipe(db: Session, data: dict) -> dict:
         "gas_fee_usd": round(gas_fee_usd, 6),
         "gas_fee_idr": round(gas_fee_usd * usd_idr, 0),
         "gas_reserve_idr": round(t_state.gas_reserve_usd * usd_idr, 0),
+        "cash_remaining_usd": round(remaining_cash_usd, 4),
+        "cash_remaining_idr": round(remaining_cash_usd * usd_idr, 0),
         "paper_cash_remaining_usd": round(float(paper_wallet.balance), 4),
         "paper_cash_remaining_idr": round(float(paper_wallet.balance) * usd_idr, 0),
         "usd_idr": usd_idr,
@@ -305,6 +327,7 @@ def execute_snipe(db: Session, data: dict) -> dict:
         "holding_total_qty": holding.quantity,
         "market_source": "DexScreener Live Market Price",
     }
+
 
 
 def list_smart_money() -> dict:

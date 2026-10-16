@@ -1,21 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { api, useApiQuery, formatIdr, formatUsd } from '@/lib/api';
+import { api, useApiQuery, formatIdr, formatUsd, getTradingMode } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 
 export default function PulsePage() {
   const pulseQuery = useApiQuery(() => api.getPulse(), []);
   const [presetIdr, setPresetIdr] = useState<number>(30000);
+  const [mode, setMode] = useState<'PAPER' | 'LIVE'>('PAPER');
   const [snipeFeedback, setSnipeFeedback] = useState<string>('');
   const [snipeError, setSnipeError] = useState<string>('');
   const [minSafety, setMinSafety] = useState<number>(0);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      setMode(getTradingMode());
       const saved = localStorage.getItem('sofia_quickbuy_idr');
       if (saved) setPresetIdr(Number(saved));
       const handler = (e: any) => setPresetIdr(Number(e.detail));
+      const modeHandler = (e: any) => setMode(e.detail);
       window.addEventListener('sofia-preset-idr-change', handler);
-      return () => window.removeEventListener('sofia-preset-idr-change', handler);
+      window.addEventListener('sofia-mode-change', modeHandler);
+      return () => {
+        window.removeEventListener('sofia-preset-idr-change', handler);
+        window.removeEventListener('sofia-mode-change', modeHandler);
+      };
     }
   }, []);
 
@@ -32,14 +39,23 @@ export default function PulsePage() {
         slippage_pct: 15,
         priority_fee_sol: 0.005,
         anti_mev: true,
-        mode: 'PAPER',
+        mode: mode,
       });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res }));
+      }
       setSnipeFeedback(
-        `⚡ [PAPER SIMULASI] Berhasil beli ${res.quantity.toLocaleString()} ${res.symbol} pada harga market asli ${formatUsd(
-          res.entry_price
-        )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)} (${formatUsd(
-          res.amount_usd
-        )}). Sisa Kas Paper: ${formatIdr(res.paper_cash_remaining_idr)}.`
+        res.mode === 'LIVE'
+          ? `⚡ [LIVE ON-CHAIN] Berhasil beli ${res.quantity.toLocaleString()} ${res.symbol} @ ${formatUsd(
+              res.entry_price
+            )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)} (${formatUsd(
+              res.amount_usd
+            )}) • Tx: ${String(res.tx_hash || '').slice(0, 16)}... • Sisa Kas Live: ${formatIdr(res.live_cash_remaining_idr)}`
+          : `⚡ [PAPER SIMULASI] Berhasil beli ${res.quantity.toLocaleString()} ${res.symbol} pada harga market asli ${formatUsd(
+              res.entry_price
+            )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)} (${formatUsd(
+              res.amount_usd
+            )}). Sisa Kas Paper: ${formatIdr(res.paper_cash_remaining_idr)}.`
       );
     } catch (err: any) {
       setSnipeError(err?.message || 'Gagal melakukan snipe');

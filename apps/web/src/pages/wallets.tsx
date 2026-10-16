@@ -112,6 +112,28 @@ export default function WalletsPage() {
     }
   };
 
+  const handleSyncOnchain = async (w: any) => {
+    setMsg('');
+    setErr('');
+    try {
+      const res = await api.syncWalletOnchain(w.id, false);
+      const rpc = res.rpc_check || {};
+      const wal = res.wallet || w;
+      if (rpc.rpc_connected && rpc.valid_address) {
+        setMsg(
+          `🌐 [MAINNET RPC VERIFIED • ${rpc.latency_ms}ms] Dompet "${w.name}" (${w.chain}) terhubung ke ${rpc.rpc_endpoint} • Saldo On-Chain publik: ${rpc.onchain_balance ?? 0} ${rpc.token || ''} • Saldo Vault Bot: ${formatUsd(wal.balance_usd)} (${formatIdr(wal.balance_idr)})`
+        );
+      } else {
+        setMsg(
+          `ℹ️ Cek RPC "${w.name}" (${w.chain} • ${rpc.latency_ms ?? 0}ms): ${rpc.note || 'Format alamat kustom / simulasi vault'} • Saldo Vault Aktif: ${formatUsd(wal.balance_usd)} (${formatIdr(wal.balance_idr)})`
+        );
+      }
+      walletsQuery.refetch();
+    } catch (e: any) {
+      setErr(e?.message || 'Gagal mengecek RPC on-chain');
+    }
+  };
+
   return (
     <div className="space-y-3">
       {/* Header Banner */}
@@ -385,6 +407,16 @@ export default function WalletsPage() {
                       </td>
                       <td className="p-3.5 text-right">
                         <div className="inline-flex items-center gap-1.5">
+                          {!isPaperWallet && (
+                            <button
+                              type="button"
+                              onClick={() => handleSyncOnchain(w)}
+                              className="px-2 py-1 rounded bg-cyan-500/15 hover:bg-cyan-500 text-cyan-300 hover:text-obsidian-950 border border-cyan-500/30 font-bold text-[10px] transition"
+                              title="Cek Koneksi & Saldo Mainnet RPC (Solana / Base)"
+                            >
+                              🌐 Cek RPC
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => startEdit(w)}

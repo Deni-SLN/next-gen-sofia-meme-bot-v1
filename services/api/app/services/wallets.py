@@ -30,6 +30,8 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
 
 
 def list_wallets(db: Session) -> dict:
+    from app.services import live_engine
+
     portfolio.get_or_create_paper_wallet(db)
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
@@ -39,6 +41,27 @@ def list_wallets(db: Session) -> dict:
         "wallets": [_wallet_to_dict(w, usd_idr) for w in items],
         "gates": ["main", "trading", "reserve"],
         "treasury": treasury.get_treasury_summary(db),
+        "live_engine": live_engine.get_live_engine_status(db),
+    }
+
+
+def sync_wallet_onchain(db: Session, wallet_id: int, apply_onchain_balance: bool = False) -> dict:
+    from app.services import live_engine
+
+    w = get_wallet(db, wallet_id)
+    if not w:
+        raise ValueError("WALLET_NOT_FOUND")
+    fx = market.get_fx_rate()
+    usd_idr = fx["usd_idr"]
+    rpc_res = live_engine.query_onchain_wallet_balance(w.address, w.chain)
+    if apply_onchain_balance and rpc_res.get("onchain_balance") is not None and float(rpc_res["onchain_balance"]) > 0:
+        w.balance = float(rpc_res["onchain_balance"])
+        w.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(w)
+    return {
+        "wallet": _wallet_to_dict(w, usd_idr),
+        "rpc_check": rpc_res,
     }
 
 
@@ -82,3 +105,4 @@ def delete_wallet(db: Session, wallet_id: int) -> bool:
     db.delete(w)
     db.commit()
     return True
+

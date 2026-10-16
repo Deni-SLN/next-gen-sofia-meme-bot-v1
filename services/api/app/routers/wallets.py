@@ -87,6 +87,24 @@ def create_wallet(body: WalletCreateRequest, db: Session = Depends(get_db)):
     return _row_to_dict(w)
 
 
+class SyncOnchainRequest(BaseModel):
+    apply_onchain_balance: bool = False
+
+
+@router.get("/live-status")
+def get_live_status(db: Session = Depends(get_db)):
+    from app.services import live_engine
+    return live_engine.get_live_engine_status(db)
+
+
+@router.post("/{wallet_id}/sync-onchain")
+def sync_wallet_rpc(wallet_id: int, body: SyncOnchainRequest = SyncOnchainRequest(), db: Session = Depends(get_db)):
+    try:
+        return wallets.sync_wallet_onchain(db, wallet_id, apply_onchain_balance=body.apply_onchain_balance)
+    except ValueError as e:
+        return JSONResponse(status_code=404, content={"error": {"code": str(e), "message": "Wallet not found"}})
+
+
 @router.get("/{wallet_id}")
 def get_wallet(wallet_id: int, db: Session = Depends(get_db)):
     w = wallets.get_wallet(db, wallet_id)
@@ -110,3 +128,4 @@ def delete_wallet(wallet_id: int, db: Session = Depends(get_db)):
     if not ok:
         return JSONResponse(status_code=404, content={"error": {"code": "WALLET_NOT_FOUND", "message": "Wallet not found"}})
     return {"deleted": True}
+

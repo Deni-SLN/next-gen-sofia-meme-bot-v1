@@ -165,10 +165,13 @@ export default function DashboardPage() {
       setSnipeMsg(
         `⚡ [${res.mode}] Berhasil snipe ${res.quantity.toLocaleString()} ${res.symbol} pada harga market asli ${formatUsd(
           res.entry_price
-        )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)} (${formatUsd(res.amount_usd)}).`
+        )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)} (${formatUsd(res.amount_usd)})${
+          res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 14)}...` : ''
+        }`
       );
       portfolioQuery.refetch();
       perfQuery.refetch();
+      walletsQuery.refetch();
     } catch (err: any) {
       setSnipeErr(err?.message || 'Eksekusi snipe gagal');
     }
@@ -512,7 +515,7 @@ export default function DashboardPage() {
                     NOMINAL SNIPE (RUPIAH)
                   </span>
                   <span className="text-emerald-400 font-medium">
-                    Maks: {formatIdr(paperCashIdr)} ({formatUsd(paperCashUsd)})
+                    Maks: {formatIdr(activeCashIdr)} ({formatUsd(activeCashUsd)})
                   </span>
                 </div>
                 <div className="relative">

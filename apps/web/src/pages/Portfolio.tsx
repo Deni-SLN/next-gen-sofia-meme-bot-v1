@@ -71,19 +71,45 @@ export default function PortfolioPage() {
     setActionMsg('');
     setActionErr('');
     try {
-      const res = await api.sellHolding(symbol, pct);
+      const res = await api.sellHolding(symbol, pct, mode);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res }));
+      }
       setActionMsg(
-        `✅ Berhasil jual ${pct}% (${res.qty_sold} ${res.symbol}) di harga market asli ${formatUsd(
+        `✅ [${res.mode || mode}] Berhasil jual ${pct}% (${res.qty_sold} ${res.symbol}) di harga market asli ${formatUsd(
           res.sell_price_usd
-        )} (${formatIdr(res.sell_price_idr)}). Hasil: ${formatIdr(res.proceeds_idr)} (${formatUsd(
+        )} (${formatIdr(res.sell_price_idr)}). Hasil Bersih: ${formatIdr(res.proceeds_idr)} (${formatUsd(
           res.proceeds_usd
-        )}) | Realized PnL: ${res.realized_pnl_idr >= 0 ? '+' : ''}${formatIdr(res.realized_pnl_idr)}`
+        )}) | Realized PnL: ${res.realized_pnl_idr >= 0 ? '+' : ''}${formatIdr(res.realized_pnl_idr)}${
+          res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 14)}...` : ''
+        }`
       );
       portfolioQuery.refetch();
       perfQuery.refetch();
       walletsQuery.refetch();
     } catch (err: any) {
       setActionErr(err?.message || 'Gagal menjual posisi');
+    }
+  };
+
+  const handlePanicSellAll = async () => {
+    setActionMsg('');
+    setActionErr('');
+    try {
+      const res = await api.panicSellAll(mode);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res }));
+      }
+      setActionMsg(
+        `🚨 [${res.mode || mode}] PANIC SELL ALL selesai! ${res.positions_closed} posisi dilikuidasi • Total Realized PnL: ${
+          res.total_realized_pnl_idr >= 0 ? '+' : ''
+        }${formatIdr(res.total_realized_pnl_idr)} (${formatUsd(res.total_realized_pnl_usd)})`
+      );
+      portfolioQuery.refetch();
+      perfQuery.refetch();
+      walletsQuery.refetch();
+    } catch (err: any) {
+      setActionErr(err?.message || 'Gagal menjalankan Panic Sell All');
     }
   };
 
@@ -257,15 +283,26 @@ export default function PortfolioPage() {
 
         {/* Holdings Table with 1-Click Sell Buttons */}
         <div className="rounded-xl bg-obsidian-900 border border-obsidian-700/80 overflow-hidden">
-          <div className="p-3.5 border-b border-obsidian-800 flex items-center justify-between">
+          <div className="p-3.5 border-b border-obsidian-800 flex flex-wrap items-center justify-between gap-2">
             <div className="font-bold text-xs uppercase tracking-wider text-slate-100">
               Posisi Meme Coin Aktif (Harga Real-Time DexScreener)
             </div>
-            <span className="text-[11px] font-mono text-slate-400">
-              {isLive
-                ? 'Klik tombol Jual untuk eksekusi ke DEX & realisasi dana ke Hot Wallets'
-                : 'Klik tombol Jual untuk realisasi PnL ke Kas Paper'}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-mono text-slate-400">
+                {isLive
+                  ? 'Klik tombol Jual untuk eksekusi ke DEX & realisasi dana ke Hot Wallets'
+                  : 'Klik tombol Jual untuk realisasi PnL ke Kas Paper'}
+              </span>
+              {(d?.holdings || []).length > 0 && (
+                <button
+                  type="button"
+                  onClick={handlePanicSellAll}
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-mono font-extrabold text-[11px] shadow-glow-rose transition"
+                >
+                  🚨 Panic Sell All (100%)
+                </button>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">

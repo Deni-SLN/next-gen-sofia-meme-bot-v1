@@ -166,12 +166,19 @@ def get_overview(db: Session, refresh_live_prices: bool = True) -> dict:
                 reason="live_market_tick",
             )
 
+    from app.services import live_engine
+    live_eq = live_engine.get_live_equity_metrics(db, usd_idr)
+
     return {
         "usd_idr": usd_idr,
         "paper_initial_idr": PAPER_INITIAL_CAPITAL_IDR,
         "paper_initial_usd": initial_capital_usd,
         "paper_cash_usd": round(paper_cash_usd, 4),
         "paper_cash_idr": paper_cash_idr,
+        "live_cash_usd": live_eq["live_cash_usd"],
+        "live_cash_idr": live_eq["live_cash_idr"],
+        "live_total_equity_usd": round(live_eq["live_total_equity_usd"] + total_net_value, 2),
+        "live_total_equity_idr": round((live_eq["live_total_equity_usd"] + total_net_value) * usd_idr, 0),
         "gas_reserve_usd": round(t_state.gas_reserve_usd, 4),
         "gas_reserve_idr": round(t_state.gas_reserve_usd * usd_idr, 0),
         "total_gas_spent_idr": round((t_state.total_gas_spent_usd or 0.0) * usd_idr, 0),
@@ -235,8 +242,11 @@ def add_holding(
 def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | None = None) -> dict:
     """
     Sell a percentage (e.g. 25, 50, 100) of a holding at the 100% real live DexScreener market price,
-    deducting real exit slippage, DEX swap fee (0.25%), and network gas fee from Gas Reserve.
+    deducting real exit slippage, DEX swap fee (0.25%), and network gas fee.
+    Supports both PAPER mode and LIVE mode (crediting the Live Trading Hot Wallet & Neonbase Journal).
     """
+    from app.services import live_engine
+
     existing = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == symbol)).scalar_one_or_none()
     if not existing or existing.quantity <= 0:
         raise ValueError(f"Holding {symbol} tidak ditemukan di portofolio.")
@@ -245,7 +255,9 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     open_buy = db.execute(
         select(Trade).where(Trade.symbol == symbol, Trade.side == "buy").order_by(Trade.id.desc()).limit(1)
     ).scalar_one_or_none()
-    trade_mode = mode or (open_buy.mode if open_buy else "PAPER")
+    trade_mode = (mode or (open_buy.mode if open_buy else "PAPER")).upper()
+    if trade_mode not in ("PAPER", "LIVE"):
+        trade_mode = "PAPER"
 
     paper_wallet, usd_idr = get_or_create_paper_wallet(db)
 
@@ -253,6 +265,7 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     live_tok = market.get_live_token_info(symbol)
     market_price = float(live_tok["price"]) if (live_tok and live_tok.get("price", 0) > 0) else float(existing.current_price)
     liq_usd = float(live_tok["liquidity"]) if (live_tok and live_tok.get("liquidity", 0) > 0) else float(existing.liquidity_usd or 25000.0)
+    target_chain = "Base" if "USDC" in symbol.upper() else "Solana"
 
     pct = max(1.0, min(100.0, float(sell_pct))) / 100.0
     qty_to_sell = existing.quantity * pct
@@ -272,23 +285,42 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     gas_fee_usd = exec_costs["gas_fee_usd"]
     net_proceeds_usd = max(0.0, after_slippage_usd - dex_fee_usd)
 
-    # Charge gas fee from Gas Reserve (auto-topping up if reserve < Rp 3.000)
-    t_state = treasury.charge_gas_and_dex_fee(
-        db,
-        paper_wallet=paper_wallet,
-        usd_idr=usd_idr,
-        gas_fee_usd=gas_fee_usd,
-        dex_fee_usd=dex_fee_usd,
-    )
-
     cost_basis_usd = qty_to_sell * existing.avg_entry_price
     prop_entry_gas_usd = float(existing.entry_costs_usd or 0.0) * pct
     # Net Realized PnL accounts for entry slippage + entry DEX fee + entry gas + exit slippage + exit DEX fee + exit gas
     realized_pnl_usd = net_proceeds_usd - cost_basis_usd - prop_entry_gas_usd - gas_fee_usd
 
-    # Credit net proceeds back to Paper Wallet
-    paper_wallet.balance = float(paper_wallet.balance) + net_proceeds_usd
-    paper_wallet.updated_at = datetime.now(timezone.utc)
+    t_state = treasury.get_or_init_treasury(db, usd_idr)
+    tx_hash = live_engine.generate_tx_hash(target_chain)
+
+    if trade_mode == "LIVE":
+        live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain)
+        net_credit_usd = max(0.0, net_proceeds_usd - gas_fee_usd)
+        remaining_cash_usd = live_engine.credit_live_wallet_usd(db, live_wallet, net_credit_usd)
+        t_state.total_gas_spent_usd = float(t_state.total_gas_spent_usd or 0.0) + gas_fee_usd
+        t_state.total_dex_fees_usd = float(t_state.total_dex_fees_usd or 0.0) + dex_fee_usd
+        wallet_label = live_wallet.name
+    else:
+        # Charge gas fee from Gas Reserve (auto-topping up if reserve < Rp 3.000)
+        t_state = treasury.charge_gas_and_dex_fee(
+            db,
+            paper_wallet=paper_wallet,
+            usd_idr=usd_idr,
+            gas_fee_usd=gas_fee_usd,
+            dex_fee_usd=dex_fee_usd,
+        )
+        # Credit net proceeds back to Paper Wallet
+        paper_wallet.balance = float(paper_wallet.balance) + net_proceeds_usd
+        paper_wallet.updated_at = datetime.now(timezone.utc)
+        remaining_cash_usd = float(paper_wallet.balance)
+        wallet_label = paper_wallet.name
+
+    # If closing 100% of an open buy trade, remove the open placeholder so the closed trade record is clean
+    opened_time = existing.updated_at or datetime.now(timezone.utc)
+    if open_buy and open_buy.status == "open":
+        opened_time = open_buy.opened_at or opened_time
+        if pct >= 0.999:
+            db.delete(open_buy)
 
     # Record closed trade with full fee breakdown
     trade = Trade(
@@ -304,9 +336,10 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
         slippage_pct=exit_slippage_pct,
         dex_fee_usd=dex_fee_usd,
         gas_fee_usd=gas_fee_usd,
-        chain="Base" if "USDC" in symbol.upper() else "Solana",
-        notes=f"Sell execution in mode {trade_mode}",
-        opened_at=existing.updated_at or datetime.now(timezone.utc),
+        chain=target_chain,
+        tx_hash=tx_hash,
+        notes=f"{'Live On-Chain Sell' if trade_mode == 'LIVE' else 'Paper Sell'} ({sell_pct:.0f}%) via {wallet_label}",
+        opened_at=opened_time,
         closed_at=datetime.now(timezone.utc),
     )
     db.add(trade)
@@ -330,12 +363,16 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
         holdings_net_usd=float(ov.get("net_holdings_value_usd", 0.0)),
         gas_reserve_usd=t_state.gas_reserve_usd,
         usd_idr=usd_idr,
-        reason=f"sell:{symbol}",
+        reason=f"sell:{trade_mode}:{symbol}",
     )
 
     return {
         "status": "sold",
+        "mode": trade_mode,
         "symbol": symbol,
+        "chain": target_chain,
+        "tx_hash": tx_hash,
+        "wallet_name": wallet_label,
         "qty_sold": round(qty_to_sell, 4),
         "market_price_usd": market_price,
         "sell_price_usd": round(sell_fill_price, 8),
@@ -349,9 +386,34 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
         "proceeds_idr": round(net_proceeds_usd * usd_idr, 0),
         "realized_pnl_usd": round(realized_pnl_usd, 4),
         "realized_pnl_idr": round(realized_pnl_usd * usd_idr, 0),
+        "cash_remaining_usd": round(remaining_cash_usd, 4),
+        "cash_remaining_idr": round(remaining_cash_usd * usd_idr, 0),
         "paper_cash_usd": round(paper_wallet.balance, 4),
         "paper_cash_idr": round(paper_wallet.balance * usd_idr, 0),
         "gas_reserve_idr": round(t_state.gas_reserve_usd * usd_idr, 0),
+    }
+
+
+def sell_all_holdings(db: Session, mode: str | None = None) -> dict:
+    """Emergency / Panic Sell 100% of all open holdings at live market prices."""
+    holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
+    results = []
+    total_proceeds_idr = 0.0
+    total_pnl_idr = 0.0
+
+    for h in holdings:
+        if h.quantity > 0:
+            res = sell_holding(db, h.symbol, 100.0, mode=mode)
+            results.append(res)
+            total_proceeds_idr += float(res.get("proceeds_idr") or 0.0)
+            total_pnl_idr += float(res.get("realized_pnl_idr") or 0.0)
+
+    return {
+        "status": "liquidated_all",
+        "positions_closed": len(results),
+        "total_proceeds_idr": round(total_proceeds_idr, 0),
+        "total_realized_pnl_idr": round(total_pnl_idr, 0),
+        "results": results,
     }
 
 
@@ -364,3 +426,4 @@ def update_price(db: Session, symbol: str, price: float) -> PortfolioHolding:
     db.commit()
     db.refresh(existing)
     return existing
+

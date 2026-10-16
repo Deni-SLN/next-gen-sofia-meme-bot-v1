@@ -49,9 +49,11 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertEqual(r_auto.status_code, 200)
         self.assertTrue(r_auto.json().get("trade_executed"))
 
+        # Verify LIVE mode bot start now succeeds 100% (no LIVE_NOT_CONFIGURED error)
         r_live = self.client.post("/api/v1/bot/start", json={"mode": "LIVE"}, headers=self.headers)
-        self.assertEqual(r_live.status_code, 400)
-        self.assertEqual(r_live.json()["error"]["code"], "LIVE_NOT_CONFIGURED")
+        self.assertEqual(r_live.status_code, 200)
+        self.assertEqual(r_live.json()["status"], "running")
+        self.assertEqual(r_live.json()["mode"], "LIVE")
 
         r_stop = self.client.post("/api/v1/bot/stop", headers=self.headers)
         self.assertEqual(r_stop.status_code, 200)
@@ -361,8 +363,89 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertIn("Keuntungan / Kerugian ($)", csv_text)
         self.assertIn("Tx Hash Explorer", csv_text)
 
+    def test_live_mode_end_to_end_snipe_sell_and_pumpsniper_config(self):
+        # 1. Test PumpSniper Terminal Config GET & PUT
+        r_cfg = self.client.get("/api/v1/bot/config", headers=self.headers)
+        self.assertEqual(r_cfg.status_code, 200)
+        self.assertIn("relay_mode", r_cfg.json())
+
+        r_upd_cfg = self.client.put(
+            "/api/v1/bot/config",
+            json={
+                "relay_mode": "JITO_0SLOT",
+                "jito_bribe_sol": 0.008,
+                "min_bonding_curve_pct": 20.0,
+                "max_dev_holding_pct": 4.0,
+                "auto_tp_pct": 40.0,
+                "auto_sl_pct": 12.0,
+                "trailing_stop_enabled": True,
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(r_upd_cfg.status_code, 200)
+        self.assertEqual(r_upd_cfg.json()["relay_mode"], "JITO_0SLOT")
+        self.assertEqual(r_upd_cfg.json()["auto_tp_pct"], 40.0)
+
+        # 2. Check Live Wallet Status & On-Chain RPC Check
+        r_live_stat = self.client.get("/api/v1/wallets/live-status", headers=self.headers)
+        self.assertEqual(r_live_stat.status_code, 200)
+        self.assertGreater(r_live_stat.json()["live_cash_usd"], 0)
+        primary_w = r_live_stat.json()["primary_live_wallet"]
+        orig_w_id = primary_w["id"]
+        orig_w_bal = primary_w["balance"]
+
+        # Record max Trade.id before the test so we can cleanly delete all test trades afterward
+        from app.db.session import SessionLocal
+        from app.db.models import Trade
+        with SessionLocal() as db_check:
+            max_id_before = max([t.id for t in db_check.query(Trade).all()] + [0])
+
+        # 3. Execute a LIVE mode Snipe and verify tx_hash + live wallet balance deduction
+        r_snipe_live = self.client.post(
+            "/api/v1/memecoins/snipe",
+            json={"symbol": "BONK", "amount_idr": 20000.0, "mode": "LIVE"},
+            headers=self.headers,
+        )
+        self.assertEqual(r_snipe_live.status_code, 200)
+        snipe_res = r_snipe_live.json()
+        self.assertEqual(snipe_res["mode"], "LIVE")
+        self.assertEqual(snipe_res["status"], "filled")
+        self.assertTrue(len(snipe_res.get("tx_hash", "")) > 16)
+
+        # 4. Execute a LIVE mode Sell (50%) and Panic Sell All (remaining 100%)
+        sniped_sym = snipe_res["symbol"]
+        r_sell_live = self.client.post(
+            "/api/v1/portfolio/sell",
+            json={"symbol": sniped_sym, "sell_pct": 50.0, "mode": "LIVE"},
+            headers=self.headers,
+        )
+        self.assertEqual(r_sell_live.status_code, 200)
+        self.assertEqual(r_sell_live.json()["mode"], "LIVE")
+        self.assertTrue(len(r_sell_live.json().get("tx_hash", "")) > 16)
+
+        r_panic = self.client.post(
+            "/api/v1/portfolio/sell-all",
+            json={"mode": "LIVE"},
+            headers=self.headers,
+        )
+        self.assertEqual(r_panic.status_code, 200)
+        self.assertEqual(r_panic.json()["status"], "liquidated_all")
+
+        # 5. Clean up test LIVE trades & restore primary live wallet balance
+        with SessionLocal() as db_clean:
+            for t in db_clean.query(Trade).filter(Trade.id > max_id_before).all():
+                db_clean.delete(t)
+            db_clean.commit()
+
+        self.client.put(
+            f"/api/v1/wallets/{orig_w_id}",
+            json={"balance": orig_w_bal},
+            headers=self.headers,
+        )
+        self.client.post("/api/v1/portfolio/reset-paper", headers=self.headers)
 
 
 if __name__ == "__main__":
     unittest.main()
+
 
