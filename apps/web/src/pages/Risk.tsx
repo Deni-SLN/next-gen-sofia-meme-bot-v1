@@ -1,73 +1,81 @@
-import { useState } from "react";
-import { useRiskConfig, useUpdateRiskConfig } from "../lib/queries";
-import { Card, QueryState } from "../components/ui";
+import React, { useState, useEffect } from 'react';
+import { api, useApiQuery } from '@/lib/api';
+import { QueryState } from '@/components/QueryState';
 
-const editable: { key: string; label: string; hint: string }[] = [
-  { key: "max_position_allocation_usd", label: "Max position allocation (USD)", hint: "Batas alokasi per posisi" },
-  { key: "max_total_exposure_usd", label: "Max total exposure (USD)", hint: "Batas total eksposur" },
-  { key: "daily_loss_limit_usd", label: "Daily loss limit (USD)", hint: "Batas rugi harian" },
-  { key: "max_drawdown_pct", label: "Max drawdown (%)", hint: "Batas drawdown" },
-  { key: "max_concurrent_positions", label: "Max concurrent positions", hint: "Maks posisi bersamaan" },
-  { key: "cooldown_after_loss_seconds", label: "Cooldown after loss (s)", hint: "Jeda setelah rugi" },
-  { key: "max_slippage_pct", label: "Max slippage (%)", hint: "Slippage maksimum" },
-  { key: "min_liquidity_usd", label: "Min liquidity (USD)", hint: "Likuiditas minimum" },
-  { key: "max_fee_pct", label: "Max fee (%)", hint: "Fee maksimum" },
-  { key: "max_price_impact_pct", label: "Max price impact (%)", hint: "Dampak harga maksimum" },
-  { key: "max_signal_age_seconds", label: "Max signal age (s)", hint: "Umur sinyal maksimum" },
-  { key: "min_risk_reward", label: "Min risk/reward", hint: "R/R minimum" },
-  { key: "max_position_pct_of_equity", label: "Max position % of equity", hint: "% ekuitas per posisi" },
-];
+export default function RiskPage() {
+  const riskQuery = useApiQuery(() => api.getRiskConfig(), []);
+  const [form, setForm] = useState<any>(null);
+  const [savedMsg, setSavedMsg] = useState<string>('');
 
-export default function Risk() {
-  const cfg = useRiskConfig();
-  const update = useUpdateRiskConfig();
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    if (riskQuery.data) {
+      setForm(riskQuery.data);
+    }
+  }, [riskQuery.data]);
 
-  const save = async () => {
-    setMsg(null);
-    const body: Record<string, number> = {};
-    for (const [k, v] of Object.entries(draft)) {
-      const n = Number(v);
-      if (v !== "" && Number.isFinite(n)) body[k] = n;
-    }
-    if (Object.keys(body).length === 0) {
-      setMsg("Tidak ada perubahan.");
-      return;
-    }
-    try {
-      await update.mutateAsync(body);
-      setDraft({});
-      setMsg("Risk config tersimpan (tercatat di audit log).");
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "gagal menyimpan");
-    }
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavedMsg('');
+    await api.updateRiskConfig(form);
+    setSavedMsg('Konfigurasi risiko berhasil disimpan.');
+    riskQuery.refetch();
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Risk Management</h1>
-      <p className="text-xs text-zinc-500">Risk Engine adalah gerbang terakhir sebelum eksekusi — fail-closed, tanpa override AI.</p>
-      <Card title="Risk parameters" action={<button onClick={save} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500">Simpan</button>}>
-        <QueryState isLoading={cfg.isLoading} isError={cfg.isError} error={cfg.error}>
-          <div className="grid gap-3 md:grid-cols-2">
-            {editable.map((f) => (
-              <label key={f.key} className="block rounded-lg border border-zinc-800 p-3">
-                <span className="text-sm font-medium">{f.label}</span>
-                <span className="block text-xs text-zinc-500">{f.hint} · saat ini: {String(cfg.data?.[f.key] ?? "—")}</span>
-                <input
-                  value={draft[f.key] ?? ""}
-                  onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-                  placeholder={`baru (cth: ${cfg.data?.[f.key] ?? ""})`}
-                  inputMode="decimal"
-                  className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm"
-                />
-              </label>
-            ))}
-          </div>
-          {msg && <p className="mt-2 text-xs text-zinc-400">{msg}</p>}
-        </QueryState>
-      </Card>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-100">Risk Management</h1>
+        <p className="text-sm text-slate-400">Atur batas eksposur dan parameter proteksi modal.</p>
+      </div>
+
+      {savedMsg && (
+        <div className="p-4 rounded-xl bg-emerald-950/50 border border-emerald-800 text-emerald-200 text-sm">
+          {savedMsg}
+        </div>
+      )}
+
+      <QueryState isLoading={riskQuery.isLoading} isError={riskQuery.isError} error={riskQuery.error}>
+        {form && (
+          <form onSubmit={handleSave} className="p-6 rounded-xl bg-slate-900 border border-slate-800 space-y-4 max-w-xl">
+            <div>
+              <label className="block text-xs text-slate-400 uppercase mb-1">Max Position Size (%)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={form.max_position_size_pct}
+                onChange={(e) => setForm({ ...form, max_position_size_pct: parseFloat(e.target.value) })}
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 uppercase mb-1">Max Daily Loss (%)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={form.max_daily_loss_pct}
+                onChange={(e) => setForm({ ...form, max_daily_loss_pct: parseFloat(e.target.value) })}
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 uppercase mb-1">Stop Loss (%)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={form.stop_loss_pct}
+                onChange={(e) => setForm({ ...form, stop_loss_pct: parseFloat(e.target.value) })}
+                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium transition"
+            >
+              Simpan Konfigurasi
+            </button>
+          </form>
+        )}
+      </QueryState>
     </div>
   );
 }

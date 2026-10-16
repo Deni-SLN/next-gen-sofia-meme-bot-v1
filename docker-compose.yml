@@ -1,93 +1,29 @@
-# Next Gent Sofia Trade v1 - local/CI stack (Phase 7).
-#
-# Defaults target local development. Before any shared or production use set a
-# real SOFIA_ADMIN_PASSWORD_HASH and SOFIA_SECRET values; the API refuses to
-# boot in a non-dev env with auth disabled or live trading enabled.
-
 services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-sofia}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-sofia}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sofia} -d ${POSTGRES_DB:-sofia}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["alembic", "upgrade", "head"]
-    environment:
-      SOFIA_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sofia}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sofia}
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
-
   api:
     build:
-      context: .
+      context: ./services/api
       dockerfile: Dockerfile
-    environment:
-      SOFIA_ENV: ${SOFIA_ENV:-development}
-      SOFIA_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sofia}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sofia}
-      SOFIA_ADMIN_PASSWORD_HASH: ${SOFIA_ADMIN_PASSWORD_HASH:-}
-      SOFIA_AUTH_DISABLED: ${SOFIA_AUTH_DISABLED:-false}
-      # Live trading stays disabled in V1; the app refuses to start if enabled.
-      SOFIA_LIVE_TRADING_ENABLED: "false"
-    depends_on:
-      db:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "8000:8000"
+    env_file:
+      - .env.example
+    volumes:
+      - ./data:/app/data
     restart: unless-stopped
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["python", "-m", "worker.main"]
-    environment:
-      SOFIA_ENV: ${SOFIA_ENV:-development}
-      SOFIA_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sofia}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sofia}
-    # A worker that imported but then wedged would otherwise look healthy. The
-    # heartbeat file is rewritten on every scheduler tick, so this catches both
-    # an import failure and a stalled loop.
     healthcheck:
-      test:
-        - CMD-SHELL
-        - python -c "import os,sys,time; p=os.environ.get('SOFIA_WORKER_HEARTBEAT','/tmp/sofia-worker.heartbeat'); age=time.time()-os.path.getmtime(p) if os.path.exists(p) else 1e9; sys.exit(0 if age < 120 else 1)"
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
-      timeout: 5s
-      start_period: 20s
+      timeout: 10s
       retries: 3
-    depends_on:
-      db:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
 
   web:
     build:
-      context: .
-      dockerfile: Dockerfile.web
-    depends_on:
-      api:
-        condition: service_started
+      context: ./apps/web
+      dockerfile: Dockerfile
     ports:
-      - "${WEB_PORT:-3000}:80"
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:8000
     restart: unless-stopped
-
-volumes:
-  pgdata:

@@ -1,1 +1,1 @@
-"""Core configuration, logging, security, and error handling."""
+# Core configuration and security

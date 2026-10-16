@@ -11,8 +11,8 @@ integer / boolean, with required keys and per-field bounds - and fails closed
 on anything it does not recognise. Adding a dependency for this would be a
 larger review surface than the thing being validated.
 
-A validator that cannot parse the spec itself raises rather than quietly
-accepting everything.
+A validator that cannot parse the spec itself raises at import time rather than
+quietly accepting everything.
 """
 
 import math
@@ -26,22 +26,11 @@ class SchemaError(ValueError):
     """The schema is malformed. Programming error, not data error."""
 
 
-_KNOWN = {
-    "type",
-    "properties",
-    "required",
-    "items",
-    "max_items",
-    "max_length",
-    "additional_properties",
-}
-
-
 def validate(value, spec, path: str = "$") -> list[str]:
     """Return a list of violations. Empty means valid.
 
-    Unknown spec keywords raise: a typo in a declaration must not silently
-    disable a check.
+    Unknown spec keywords are treated as errors so a typo in a declaration
+    cannot silently disable a check.
     """
     violations: list[str] = []
     _validate(value, spec, path, 0, violations)
@@ -60,8 +49,6 @@ def _validate(value, spec, path: str, depth: int, out: list[str]) -> None:
         raise SchemaError(f"unknown schema keys at {path}: {sorted(unknown)}")
 
     kind = spec.get("type")
-    if kind is None:
-        return  # an empty spec accepts anything, for free-form fields
     if kind == "object":
         _validate_object(value, spec, path, depth, out)
     elif kind == "array":
@@ -69,10 +56,8 @@ def _validate(value, spec, path: str, depth: int, out: list[str]) -> None:
     elif kind == "string":
         if not isinstance(value, str):
             out.append(f"{path}: expected string, got {_type_name(value)}")
-        else:
-            cap = min(spec.get("max_length", MAX_STRING), MAX_STRING)
-            if len(value) > cap:
-                out.append(f"{path}: string longer than {cap}")
+        elif len(value) > min(spec.get("max_length", MAX_STRING), MAX_STRING):
+            out.append(f"{path}: string longer than {spec['max_length']}")
     elif kind == "integer":
         if not _is_int(value):
             out.append(f"{path}: expected integer, got {_type_name(value)}")
@@ -85,6 +70,9 @@ def _validate(value, spec, path: str, depth: int, out: list[str]) -> None:
     elif kind == "null":
         if value is not None:
             out.append(f"{path}: expected null")
+    elif kind is None:
+        # An empty spec accepts anything. Used where a field is free-form.
+        return
     else:
         raise SchemaError(f"unknown type {kind!r} at {path}")
 
@@ -122,7 +110,11 @@ def _validate_array(value, spec, path, depth, out) -> None:
 
 
 def _is_number(value) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def _is_int(value) -> bool:
@@ -140,5 +132,15 @@ def _type_name(value) -> str:
         dict: "object",
     }.get(type(value), type(value).__name__)
 
+
+_KNOWN = {
+    "type",
+    "properties",
+    "required",
+    "items",
+    "max_items",
+    "max_length",
+    "additional_properties",
+}
 
 __all__ = ["MAX_ARRAY", "MAX_STRING", "SchemaError", "validate"]

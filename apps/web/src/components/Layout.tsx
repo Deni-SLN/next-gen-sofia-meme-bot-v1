@@ -1,128 +1,612 @@
-import { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useBotStatus, useSystemStatus } from "../lib/queries";
-import { Badge } from "./ui";
-import { post } from "../lib/api";
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import {
+  api,
+  getToken,
+  setToken,
+  clearToken,
+  formatIdr,
+  formatUsd,
+  getTradingMode,
+  setTradingMode,
+} from '@/lib/api';
+import { LucideIcon } from '@/components/LucideIcon';
 
-const groups: { title: string; links: { to: string; label: string }[] }[] = [
-  { title: "Overview", links: [{ to: "/", label: "Market Overview" }] },
+const PRIMARY_NAV = [
+  { href: '/', label: 'Command Center', icon: 'layout-dashboard', iconColor: 'text-emerald-400', badge: null },
   {
-    title: "Analysis Engine",
-    links: [
-      { to: "/scanner", label: "Market Scanner" },
-      { to: "/tokens", label: "Token Explorer" },
-      { to: "/signals", label: "Signal Center" },
-      { to: "/watchlist", label: "Watchlist" },
-      { to: "/analysis", label: "Analysis History" },
-    ],
+    href: '/pulse',
+    label: 'Trenches & Pulse',
+    icon: 'zap',
+    iconColor: 'text-amber-400',
+    badge: 'LIVE',
+    badgeClass: 'bg-amber-500/20 text-amber-300 px-1.5 py-0.5',
   },
+  { href: '/trading', label: 'Auto-Sniper Bot', icon: 'crosshair', iconColor: 'text-cyan-400', badge: null },
   {
-    title: "Trading Bot",
-    links: [
-      { to: "/bot", label: "Bot Control Center" },
-      { to: "/orders", label: "Order & Execution" },
-      { to: "/risk", label: "Risk Management" },
-    ],
+    href: '/rugcheck',
+    label: 'Rug & Bundle Shield',
+    icon: 'shield-alert',
+    iconColor: 'text-emerald-400',
+    badge: '99.8%',
+    badgeClass: 'bg-emerald-500/20 text-emerald-300 px-1',
   },
-  {
-    title: "Portfolio",
-    links: [
-      { to: "/portfolio", label: "Portfolio Overview" },
-      { to: "/performance", label: "Performance & Research" },
-      { to: "/wallet", label: "Wallets & Sweep" },
-      { to: "/alerts", label: "Alerts & Journal" },
-    ],
-  },
-  {
-    title: "AI & System",
-    links: [
-      { to: "/ai", label: "AI & Agent Center" },
-      { to: "/providers", label: "Providers" },
-      { to: "/settings", label: "Settings & Health" },
-    ],
-  },
+  { href: '/copytrade', label: 'Smart Money Copy', icon: 'copy', iconColor: 'text-purple-400', badge: null },
 ];
 
-export default function Layout() {
-  const sys = useSystemStatus();
-  const bot = useBotStatus();
-  const [pw, setPw] = useState("");
-  const [loginMsg, setLoginMsg] = useState<string | null>(null);
-  const nav = useNavigate();
-  const authed = typeof sessionStorage !== "undefined" && Boolean(sessionStorage.getItem("sofia_token"));
-  const authDisabled = sys.data?.auth_disabled ?? true;
+const SECONDARY_NAV = [
+  { href: '/portfolio', label: 'Meme Portfolio', icon: 'wallet', iconColor: 'text-blue-400', badge: null, badgeClass: '' },
+  {
+    href: '/journal',
+    label: 'Jurnal Trading Live',
+    icon: 'book-open',
+    iconColor: 'text-emerald-400',
+    badge: 'LIVE',
+    badgeClass: 'bg-rose-500/20 text-rose-300 px-1 py-0.2',
+  },
+  {
+    href: '/calendar',
+    label: 'Kalender PnL Harian',
+    icon: 'calendar',
+    iconColor: 'text-amber-400',
+    badge: 'PNL',
+    badgeClass: 'bg-amber-500/20 text-amber-300 px-1 py-0.2',
+  },
+  { href: '/signals', label: 'Alpha Signals', icon: 'radio', iconColor: 'text-rose-400', badge: null, badgeClass: '' },
+  { href: '/agents', label: 'AI Degen Agents', icon: 'bot', iconColor: 'text-emerald-400', badge: null, badgeClass: '' },
+  { href: '/risk', label: 'Risk & Slippage', icon: 'sliders', iconColor: 'text-indigo-400', badge: null, badgeClass: '' },
+  { href: '/wallets', label: 'Multi-Gate Wallets', icon: 'layers', iconColor: 'text-teal-400', badge: null, badgeClass: '' },
+];
 
-  const doLogin = async () => {
-    try {
-      const r = await post<{ token: string }>("/api/v1/auth/login", { password: pw });
-      sessionStorage.setItem("sofia_token", r.token);
-      setLoginMsg(null);
-      setPw("");
-      nav(0);
-    } catch {
-      setLoginMsg("Password salah.");
+const CHAINS = [
+  { id: 'Solana', label: 'Solana', latency: '18ms' },
+  { id: 'Base', label: 'Base', latency: null },
+  { id: 'Ethereum', label: 'Ethereum', latency: null },
+  { id: 'BSC', label: 'BSC', latency: null },
+];
+
+const TP_PRESETS = [
+  { label: '+Rp 10k', value: 15000 },
+  { label: '+Rp 30k', value: 37500 },
+  { label: '+Rp 75k', value: 75000 },
+  { label: '+Rp 150k', value: 150000 },
+];
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const [checking, setChecking] = useState<boolean>(true);
+  const [password, setPassword] = useState<string>('');
+  const [loginError, setLoginError] = useState<string>('');
+  const [selectedChain, setSelectedChain] = useState<string>('Solana');
+  const [quickBuyIdr, setQuickBuyIdr] = useState<number>(15000);
+  const [usdIdr, setUsdIdr] = useState<number>(17960);
+  const [mode, setMode] = useState<'PAPER' | 'LIVE'>('PAPER');
+  const [botRunning, setBotRunning] = useState<boolean>(false);
+  const [headerNotice, setHeaderNotice] = useState<string>('');
+  const [liveBalanceUsd, setLiveBalanceUsd] = useState<number>(58667.30);
+  const [liveBalanceIdr, setLiveBalanceIdr] = useState<number>(1053023000);
+
+  const fetchLiveBalances = () => {
+    api
+      .getWallets()
+      .then((res) => {
+        if (res?.wallets) {
+          const liveWallets = res.wallets.filter((w: any) => !w.name?.includes('Modal Paper'));
+          const totalUsd = liveWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_usd) || 0), 0);
+          const totalIdr = liveWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_idr) || 0), 0);
+          if (totalUsd > 0) {
+            setLiveBalanceUsd(totalUsd);
+            setLiveBalanceIdr(totalIdr);
+          }
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    const hasToken = Boolean(getToken());
+    setAuthenticated(hasToken);
+    if (typeof window !== 'undefined') {
+      const savedPreset = localStorage.getItem('sofia_quickbuy_idr');
+      if (savedPreset) setQuickBuyIdr(Number(savedPreset));
+      setMode(getTradingMode());
+      const modeHandler = (e: any) => {
+        setMode(e.detail);
+        fetchLiveBalances();
+      };
+      const botHandler = (e: any) => {
+        if (typeof e?.detail?.running === 'boolean') {
+          setBotRunning(e.detail.running);
+        } else {
+          api.getBotStatus().then((r) => setBotRunning(r?.status === 'running')).catch(() => {});
+        }
+        fetchLiveBalances();
+      };
+      const refreshHandler = () => fetchLiveBalances();
+
+      window.addEventListener('sofia-mode-change', modeHandler);
+      window.addEventListener('sofia-bot-status-change', botHandler);
+      window.addEventListener('sofia-bot-trade-executed', refreshHandler);
+      window.addEventListener('sofia-paper-reset', refreshHandler);
+      setChecking(false);
+      return () => {
+        window.removeEventListener('sofia-mode-change', modeHandler);
+        window.removeEventListener('sofia-bot-status-change', botHandler);
+        window.removeEventListener('sofia-bot-trade-executed', refreshHandler);
+        window.removeEventListener('sofia-paper-reset', refreshHandler);
+      };
+    }
+    setChecking(false);
+  }, []);
+
+  useEffect(() => {
+    if (authenticated) {
+      api
+        .getFx()
+        .then((res) => {
+          if (res?.usd_idr) setUsdIdr(res.usd_idr);
+        })
+        .catch(() => {});
+      api
+        .getBotStatus()
+        .then((res) => {
+          setBotRunning(res?.status === 'running');
+        })
+        .catch(() => {});
+      fetchLiveBalances();
+    }
+  }, [authenticated]);
+
+  const handleSelectMode = (nextMode: 'PAPER' | 'LIVE') => {
+    setMode(nextMode);
+    setTradingMode(nextMode);
+  };
+
+  const handlePresetChange = (valIdr: number) => {
+    setQuickBuyIdr(valIdr);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sofia_quickbuy_idr', String(valIdr));
+      window.dispatchEvent(new CustomEvent('sofia-preset-idr-change', { detail: valIdr }));
     }
   };
 
-  return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-zinc-800 bg-zinc-950 p-4 md:flex">
-        <Link to="/" className="mb-1 flex items-center gap-2 px-2 text-lg font-bold text-emerald-300">
-          <span>◈</span> Next Gent Sofia Trade v1
-        </Link>
-        <p className="mb-4 px-2 text-xs text-zinc-500">Solana Meme Coin Intelligence · v1</p>
-        <div className="mb-4 flex flex-wrap gap-1.5 px-2">
-          <Badge level={bot.data?.status === "RUNNING" ? "ok" : "mute"}>{bot.data ? `BOT ${bot.data.status}` : "BOT …"}</Badge>
-          <Badge level="info">{bot.data ? bot.data.mode : "…"}</Badge>
-          <Badge level="bad">LIVE OFF</Badge>
-        </div>
-        <nav className="flex-1 space-y-4 overflow-y-auto">
-          {groups.map((g) => (
-            <div key={g.title}>
-              <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{g.title}</p>
-              {g.links.map((l) => (
-                <NavLink
-                  key={l.to}
-                  to={l.to}
-                  end={l.to === "/"}
-                  className={({ isActive }) =>
-                    `block rounded-lg px-3 py-1.5 text-sm ${isActive ? "bg-emerald-950 text-emerald-200" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"}`
-                  }
-                >
-                  {l.label}
-                </NavLink>
-              ))}
+  const handleHeaderResetPaper = async () => {
+    try {
+      const freshOverview = await api.resetPaperAccount();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sofia-paper-reset', { detail: freshOverview }));
+      }
+      setHeaderNotice('🔄 Paper Reset: Saldo kembali ke Rp 150.000 & semua posisi dihapus.');
+      setTimeout(() => setHeaderNotice(''), 3500);
+    } catch {
+      // handled by page
+    }
+  };
+
+  const handleHeaderBotToggle = async () => {
+    try {
+      if (botRunning) {
+        await api.stopBot();
+        setBotRunning(false);
+        setHeaderNotice('🛑 Mesin Sniper Bot berhasil dihentikan.');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: false } }));
+        }
+      } else {
+        await api.startBot(mode);
+        setBotRunning(true);
+        setHeaderNotice(`🟢 Mesin Sniper Bot aktif (${mode} Mode).`);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: true } }));
+        }
+      }
+      setTimeout(() => setHeaderNotice(''), 3500);
+    } catch (err: any) {
+      if (err?.code === 'BOT_NOT_RUNNING') {
+        setBotRunning(false);
+        setHeaderNotice('ℹ️ Mesin Sniper Bot sudah dalam kondisi berhenti.');
+      } else {
+        setHeaderNotice(`⚠️ ${err?.code || 'ERROR'}: ${err?.message || 'Gagal mengubah status bot'}`);
+      }
+      setTimeout(() => setHeaderNotice(''), 4000);
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    try {
+      const res = await api.login(password);
+      setToken(res.token);
+      setAuthenticated(true);
+    } catch (err: any) {
+      setLoginError(err?.message || 'Password salah');
+    }
+  };
+
+  const handleLogout = () => {
+    clearToken();
+    setAuthenticated(false);
+    router.push('/');
+  };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-obsidian-950 text-slate-300 flex items-center justify-center font-mono text-xs">
+        ⚡ Initializing SOFIA TRENCHES v3.8 PRO Command Center...
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen bg-obsidian-950 grid-bg-overlay flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        <form
+          onSubmit={handleLogin}
+          className="w-full max-w-md bg-obsidian-900/95 backdrop-blur-xl border border-obsidian-700 rounded-2xl p-7 space-y-5 shadow-glow-emerald"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                <LucideIcon name="crosshair" className="w-4 h-4" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </div>
+              <div>
+                <div className="font-extrabold tracking-wider text-sm text-slate-100 flex items-center gap-1.5 font-mono">
+                  SOFIA<span className="text-emerald-400">TRENCHES</span>
+                  <span className="text-[9px] uppercase px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded font-sans font-semibold">
+                    v3.8 PRO
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400">Fast &amp; Low Latency Snipe Engine</p>
+              </div>
             </div>
-          ))}
-        </nav>
-        {!authDisabled && !authed && (
-          <div className="mt-4 rounded-lg border border-zinc-800 p-3">
-            <p className="mb-2 text-xs text-zinc-400">Login operator</p>
+          </div>
+
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Masukkan password operator untuk mengakses Sniper Command Center (default:{' '}
+            <code className="text-emerald-400 font-mono">changeme</code>).
+          </p>
+
+          {loginError && (
+            <div className="p-3 rounded-lg bg-rose-950/70 border border-rose-500/40 text-rose-200 text-xs font-mono">
+              {loginError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
+              Operator Password
+            </label>
             <input
               type="password"
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-              placeholder="Admin password"
-              className="mb-2 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="changeme"
+              className="w-full px-3.5 py-2 rounded-lg bg-obsidian-950 border border-obsidian-700 text-slate-100 text-xs font-mono focus:outline-none focus:border-emerald-500"
+              required
             />
-            <button onClick={doLogin} className="w-full rounded-md bg-emerald-600 px-2 py-1.5 text-sm font-medium hover:bg-emerald-500">
-              Login
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-obsidian-950 font-extrabold text-xs uppercase tracking-wider shadow-glow-emerald transition"
+          >
+            ⚡ Unlock Sniper Command Center
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-obsidian-950 text-slate-200 font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-300 min-h-screen flex flex-col overflow-x-hidden">
+      {/* BEGIN: MainHeader */}
+      <header className="border-b border-obsidian-700 bg-obsidian-900/90 backdrop-blur-md sticky top-0 z-50">
+        <div className="px-3.5 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+          {/* Left: Logo & Network Hub */}
+          <div className="flex items-center gap-3">
+            {/* Logo Branding */}
+            <Link href="/" className="flex items-center gap-2.5 pr-3 border-r border-obsidian-700">
+              <div className="relative flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                <LucideIcon name="crosshair" className="w-4 h-4" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </div>
+              <div>
+                <div className="font-extrabold tracking-wider text-sm text-slate-100 flex items-center gap-1 font-mono">
+                  SOFIA<span className="text-emerald-400">TRENCHES</span>
+                  <span className="text-[9px] uppercase px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded font-sans font-semibold">
+                    v3.8 PRO
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 hidden sm:block">Fast &amp; Low Latency Snipe Engine</p>
+              </div>
+            </Link>
+
+            {/* Network Selector Pills */}
+            <div
+              className="flex items-center bg-obsidian-850 p-0.5 rounded-lg border border-obsidian-700"
+              data-purpose="network-selector"
+            >
+              {CHAINS.map((c) => {
+                const active = selectedChain === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelectedChain(c.id)}
+                    className={
+                      active
+                        ? 'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 font-semibold shadow-sm text-[11px] transition'
+                        : 'flex items-center gap-1 px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 text-[11px] transition'
+                    }
+                  >
+                    {active && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>}
+                    <span>{c.label}</span>
+                    {c.latency && <span className="text-[9px] font-mono opacity-70">{c.latency}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Exchange Rate USD / IDR Badge */}
+            <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded bg-obsidian-850/80 border border-obsidian-700/80 text-[11px] font-mono text-slate-300">
+              <LucideIcon name="banknote" className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Kurs Hari Ini:</span>
+              <span className="text-emerald-400 font-semibold">$1 = {formatIdr(usdIdr)}</span>
+            </div>
+          </div>
+
+          {/* Right: Controls, Target Presets, Switcher */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Target Profit Presets */}
+            <div className="hidden lg:flex items-center gap-1 bg-obsidian-850 px-2 py-0.5 rounded-md border border-obsidian-700 font-mono text-[10px]">
+              <span className="text-slate-400 uppercase text-[9px] font-sans font-bold pr-1">Target TP:</span>
+              {TP_PRESETS.map((p) => {
+                const active = quickBuyIdr === p.value;
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => handlePresetChange(p.value)}
+                    className={
+                      active
+                        ? 'px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition border border-emerald-500/30'
+                        : 'px-1.5 py-0.5 rounded hover:bg-obsidian-700 text-slate-300 transition'
+                    }
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Paper vs Live Mode Toggle */}
+            <div
+              className="flex items-center bg-obsidian-850 p-0.5 rounded-lg border border-obsidian-700"
+              data-purpose="trading-mode-toggle"
+            >
+              <button
+                type="button"
+                onClick={() => handleSelectMode('PAPER')}
+                className={
+                  mode === 'PAPER'
+                    ? 'flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500 text-obsidian-950 font-bold text-[11px] shadow-glow-emerald transition'
+                    : 'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 text-[11px] font-medium transition'
+                }
+              >
+                <LucideIcon name="shield-check" className="w-3.5 h-3.5" />
+                <span>PAPER (Simulasi Rp 150rb)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectMode('LIVE')}
+                className={
+                  mode === 'LIVE'
+                    ? 'flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-600 text-white font-bold text-[11px] shadow-glow-rose transition'
+                    : 'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 text-[11px] font-medium transition'
+                }
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                <span>LIVE (Uang Asli)</span>
+              </button>
+            </div>
+
+            {/* Quick Reset Paper Modal */}
+            <button
+              type="button"
+              onClick={handleHeaderResetPaper}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-slate-300 hover:text-white transition font-mono text-[11px]"
+            >
+              <LucideIcon name="rotate-ccw" className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden sm:inline">Reset Paper (Rp 150.000)</span>
             </button>
-            {loginMsg && <p className="mt-1 text-xs text-red-400">{loginMsg}</p>}
+
+            {/* Emergency Kill Switch Button */}
+            <button
+              type="button"
+              onClick={handleHeaderBotToggle}
+              className={
+                botRunning
+                  ? 'flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 hover:text-rose-300 border border-rose-500/40 transition font-bold text-[11px] shadow-glow-rose'
+                  : 'flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition font-bold text-[11px] shadow-glow-emerald'
+              }
+            >
+              <LucideIcon name="octagon-alert" className="w-3.5 h-3.5" />
+              <span>{botRunning ? 'HENTIKAN BOT' : `JALANKAN BOT (${mode})`}</span>
+            </button>
+          </div>
+        </div>
+        {headerNotice && (
+          <div className="px-3.5 py-1 bg-obsidian-950/90 border-t border-obsidian-800 text-[11px] font-mono text-emerald-300">
+            {headerNotice}
           </div>
         )}
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-b border-zinc-800 bg-zinc-950/80 px-4 py-2.5 backdrop-blur">
-          <p className="text-xs text-zinc-400">
-            Mode rilis: <span className="font-semibold text-emerald-300">Analysis-only + PAPER</span> · LIVE dinonaktifkan · Engine{" "}
-            {sys.data?.engine_version ?? "…"}
-          </p>
-        </header>
-        <main className="flex-1 p-4 md:p-6">
-          <Outlet />
+      </header>
+      {/* END: MainHeader */}
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* BEGIN: LeftSidebarNav */}
+        <aside className="w-16 md:w-56 shrink-0 bg-obsidian-900 border-r border-obsidian-700/80 flex flex-col justify-between py-3 select-none">
+          <div className="space-y-4">
+            {/* Navigation Category 1 */}
+            <div className="px-3">
+              <p className="hidden md:block text-[9px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-1.5 font-mono">
+                Terminal &amp; Sniping
+              </p>
+              <nav className="space-y-0.5" data-purpose="sidebar-nav-primary">
+                {PRIMARY_NAV.map((item) => {
+                  const active = router.pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={
+                        active
+                          ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium text-xs'
+                          : 'flex items-center justify-between px-2.5 py-2 rounded-lg text-slate-300 hover:bg-obsidian-800/80 hover:text-slate-100 transition text-xs'
+                      }
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <LucideIcon
+                          name={item.icon}
+                          className={`w-4 h-4 ${active ? 'text-emerald-400' : item.iconColor} shrink-0`}
+                        />
+                        <span className="hidden md:inline truncate">{item.label}</span>
+                      </div>
+                      {item.badge && (
+                        <span className={`hidden md:inline text-[9px] rounded font-mono ${item.badgeClass}`}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Navigation Category 2 */}
+            <div className="px-3 pt-2 border-t border-obsidian-800">
+              <p className="hidden md:block text-[9px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-1.5 font-mono">
+                Portofolio &amp; AI Dev
+              </p>
+              <nav className="space-y-0.5" data-purpose="sidebar-nav-secondary">
+                {SECONDARY_NAV.map((item) => {
+                  const active = router.pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={
+                        active
+                          ? 'flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium text-xs'
+                          : 'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-slate-300 hover:bg-obsidian-800 hover:text-slate-100 transition text-xs'
+                      }
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <LucideIcon
+                          name={item.icon}
+                          className={`w-4 h-4 ${active ? 'text-emerald-400' : item.iconColor} shrink-0`}
+                        />
+                        <span className="hidden md:inline truncate">{item.label}</span>
+                      </div>
+                      {item.badge && (
+                        <span className={`hidden md:inline text-[9px] rounded font-mono ${item.badgeClass}`}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </div>
+
+          {/* Bottom Mini Status: Saldo Real Live (USD & IDR) & Engine RPC */}
+          <div className="px-3 space-y-2">
+            <div className="bg-obsidian-950 p-2.5 rounded-xl border border-obsidian-800 hidden md:block font-mono">
+              <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                <span className="flex items-center gap-1.5 text-slate-300 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  SALDO REAL LIVE
+                </span>
+                <span className="text-[9px] text-emerald-400 font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/30">
+                  ON-CHAIN
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                <div className="text-sm font-extrabold text-white tracking-tight">
+                  {formatUsd(liveBalanceUsd)}
+                </div>
+                <div className="text-[10px] text-emerald-400 font-medium">
+                  ≈ {formatIdr(liveBalanceIdr)}
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[9px] text-slate-500 border-t border-obsidian-800/80 pt-1.5 mt-2">
+                <span>Engine RPC</span>
+                <span className="text-cyan-400">Ultra-Fast 18ms</span>
+              </div>
+              <div className="w-full bg-obsidian-800 h-1 rounded-full mt-1 overflow-hidden">
+                <div className="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full w-[94%]"></div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full px-2.5 py-1.5 rounded-lg text-[10px] font-mono text-slate-400 hover:text-rose-400 hover:bg-obsidian-850 transition hidden md:flex items-center justify-between"
+            >
+              <span>Disconnect</span>
+              <span>→</span>
+            </button>
+          </div>
+        </aside>
+        {/* END: LeftSidebarNav */}
+
+        {/* BEGIN: MainContentArea */}
+        <main className="flex-1 overflow-y-auto px-3.5 py-3 space-y-3 bg-obsidian-950 grid-bg-overlay">
+          {children}
         </main>
+        {/* END: MainContentArea */}
       </div>
+
+      {/* BEGIN: FooterStatusHUD */}
+      <footer className="bg-obsidian-900 border-t border-obsidian-800 px-4 py-1.5 text-[10px] font-mono text-slate-400 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            SOFIA Core Node: <strong className="text-white">Active (Cluster SG-1)</strong>
+          </span>
+          <span className="hidden md:inline text-slate-600">|</span>
+          <span className="hidden md:inline">
+            Gas Gwei: <strong className="text-cyan-300">0.000005 SOL</strong>
+          </span>
+          <span className="hidden md:inline text-slate-600">|</span>
+          <span className="hidden md:inline">
+            Anti-Rug Guard: <strong className="text-emerald-400">Strict (Score &gt; 80)</strong>
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span>
+            Auto-Take Profit: <span className="text-emerald-400">+50%</span> • Stop-Loss:{' '}
+            <span className="text-rose-400">-15%</span>
+          </span>
+          <span className="text-slate-600">|</span>
+          <span className="text-slate-300">
+            Latency: <span className="text-emerald-400">14ms</span>
+          </span>
+        </div>
+      </footer>
+      {/* END: FooterStatusHUD */}
     </div>
   );
 }

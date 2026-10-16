@@ -1,0 +1,524 @@
+import React, { useState, useEffect } from 'react';
+import { api, useApiQuery, formatIdr, formatUsd, getTradingMode } from '@/lib/api';
+import { QueryState } from '@/components/QueryState';
+import { LucideIcon } from '@/components/LucideIcon';
+
+export default function CalendarPage() {
+  const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE' | 'ALL'>('PAPER');
+  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Default to the current global trading mode
+    const initialMode = getTradingMode();
+    setSelectedMode(initialMode === 'LIVE' ? 'LIVE' : 'PAPER');
+  }, []);
+
+  const calendarQuery = useApiQuery(
+    () => api.getDailyCalendar(selectedMode, currentYear, currentMonth),
+    [selectedMode, currentYear, currentMonth]
+  );
+
+  const calData = calendarQuery.data;
+  const usdIdr = calData?.usd_idr || 17960;
+  const summary = calData?.summary;
+  const days: any[] = calData?.days || [];
+
+  // Find selected day or default to today/latest day with trades
+  useEffect(() => {
+    if (days.length > 0 && !selectedDayDate) {
+      const todayDay = days.find((d: any) => d.is_today);
+      if (todayDay) {
+        setSelectedDayDate(todayDay.date);
+      } else {
+        const lastWithTrades = [...days].reverse().find((d: any) => d.trades_count > 0);
+        setSelectedDayDate(lastWithTrades ? lastWithTrades.date : days[days.length - 1]?.date);
+      }
+    }
+  }, [days, selectedDayDate]);
+
+  const selectedDay = days.find((d: any) => d.date === selectedDayDate) || days[0];
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 1) {
+      setCurrentMonth(12);
+      setCurrentYear((y) => y - 1);
+    } else {
+      setCurrentMonth((m) => m - 1);
+    }
+    setSelectedDayDate(null);
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 12) {
+      setCurrentMonth(1);
+      setCurrentYear((y) => y + 1);
+    } else {
+      setCurrentMonth((m) => m + 1);
+    }
+    setSelectedDayDate(null);
+  };
+
+  const handleCurrentMonth = () => {
+    const now = new Date();
+    setCurrentYear(now.getFullYear());
+    setCurrentMonth(now.getMonth() + 1);
+    setSelectedDayDate(null);
+  };
+
+  // Determine pad empty cells for start of month (Monday = 0, Sunday = 6)
+  const firstDayWeekday = days.length > 0 ? days[0].weekday : 0;
+  const emptyPads = Array.from({ length: firstDayWeekday }, (_, i) => i);
+
+  return (
+    <div className="space-y-4">
+      {/* Top Header Card: Title, Mode Separator Switch, and Month Navigator */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 shadow-lg">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400">
+              <LucideIcon name="calendar-days" className="w-4 h-4" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                Kalender PnL Harian
+                <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono">
+                  Daily Performance Audit
+                </span>
+              </h1>
+              <p className="text-xs text-slate-400">
+                Lacak keuntungan bersih harian (100% net setelah slippage, biaya swap DEX &amp; gas fee Solana).
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Center: Mode Separator Switch (PAPER vs LIVE vs ALL) */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-obsidian-950 p-1 rounded-xl border border-obsidian-700">
+            <button
+              type="button"
+              onClick={() => setSelectedMode('PAPER')}
+              className={
+                selectedMode === 'PAPER'
+                  ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-obsidian-950 font-bold text-xs shadow-glow-emerald transition'
+                  : 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-medium transition'
+              }
+            >
+              <LucideIcon name="shield-check" className="w-3.5 h-3.5" />
+              <span>PnL Paper (Simulasi Rp 150rb)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMode('LIVE')}
+              className={
+                selectedMode === 'LIVE'
+                  ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs shadow-glow-rose transition'
+                  : 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-medium transition'
+              }
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>PnL Live (Uang Asli)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMode('ALL')}
+              className={
+                selectedMode === 'ALL'
+                  ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500 text-obsidian-950 font-bold text-xs shadow-glow-cyan transition'
+                  : 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-medium transition'
+              }
+            >
+              <LucideIcon name="layers" className="w-3.5 h-3.5" />
+              <span>Semua Mode</span>
+            </button>
+          </div>
+
+          {/* Month Navigator Controls */}
+          <div className="flex items-center bg-obsidian-950 rounded-xl border border-obsidian-700 p-0.5">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-obsidian-800 transition"
+              title="Bulan Sebelumnya"
+            >
+              <LucideIcon name="chevron-left" className="w-4 h-4" />
+            </button>
+            <span className="px-3 py-1 text-xs font-mono font-bold text-slate-200 min-w-[120px] text-center">
+              {calData?.month_label || `${currentMonth}/${currentYear}`}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-obsidian-800 transition"
+              title="Bulan Berikutnya"
+            >
+              <LucideIcon name="chevron-right" className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleCurrentMonth}
+              className="ml-1 px-2.5 py-1 text-[11px] font-mono rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 hover:text-white transition"
+            >
+              Hari Ini
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <QueryState
+        isLoading={calendarQuery.isLoading}
+        isError={calendarQuery.isError}
+        error={calendarQuery.error}
+      >
+        {/* KPI Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Card 1: Total PnL Month */}
+          <div className="bg-obsidian-900/90 border border-obsidian-700 rounded-xl p-3.5">
+            <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
+              <span>Total PnL Bulan Ini</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-obsidian-800 text-slate-300 font-mono">
+                {selectedMode}
+              </span>
+            </div>
+            <div
+              className={`text-xl font-mono font-extrabold mt-1.5 ${
+                (summary?.total_pnl_usd || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+              }`}
+            >
+              {(summary?.total_pnl_usd || 0) >= 0 ? '+' : ''}
+              {formatUsd(summary?.total_pnl_usd)}
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+              ≈ {(summary?.total_pnl_idr || 0) >= 0 ? '+' : ''}
+              {formatIdr(summary?.total_pnl_idr)}
+            </div>
+            <div className="text-[10px] text-slate-500 mt-1">
+              {summary?.winning_days || 0} Hari Hijau • {summary?.losing_days || 0} Hari Merah
+            </div>
+          </div>
+
+          {/* Card 2: Day & Trade Win Rate */}
+          <div className="bg-obsidian-900/90 border border-obsidian-700 rounded-xl p-3.5">
+            <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
+              <span>Win Rate Hari / Trade</span>
+              <LucideIcon name="badge-percent" className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <div className="text-xl font-mono font-extrabold text-cyan-400 mt-1.5">
+              {summary?.day_win_rate_pct || 0}%{' '}
+              <span className="text-xs font-normal text-slate-400">
+                ({summary?.trade_win_rate_pct || 0}% trade)
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+              {summary?.total_winning_trades || 0} Win / {summary?.total_losing_trades || 0} Loss
+            </div>
+            <div className="text-[10px] text-slate-500 mt-1">
+              Total {summary?.total_trades || 0} Closed Trades
+            </div>
+          </div>
+
+          {/* Card 3: Total Volume & Net Fees */}
+          <div className="bg-obsidian-900/90 border border-obsidian-700 rounded-xl p-3.5">
+            <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
+              <span>Volume &amp; Biaya Total</span>
+              <LucideIcon name="trending-up" className="w-3.5 h-3.5 text-amber-400" />
+            </div>
+            <div className="text-xl font-mono font-extrabold text-slate-200 mt-1.5">
+              {formatUsd(summary?.total_volume_usd)}
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+              ≈ {formatIdr(summary?.total_volume_idr)}
+            </div>
+            <div className="text-[10px] text-amber-400/90 font-mono mt-1">
+              Gas &amp; DEX Fees: {formatIdr(summary?.total_fees_idr)} ({formatUsd(summary?.total_fees_usd)})
+            </div>
+          </div>
+
+          {/* Card 4: Best Green Day */}
+          <div className="bg-obsidian-900/90 border border-obsidian-700 rounded-xl p-3.5">
+            <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
+              <span>Hari Terbaik (Best Day)</span>
+              <LucideIcon name="zap" className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <div className="text-xl font-mono font-extrabold text-emerald-400 mt-1.5">
+              {summary?.best_day ? `+${formatUsd(summary.best_day.pnl_usd)}` : '$0.00'}
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+              {summary?.best_day ? `+${formatIdr(summary.best_day.pnl_idr)}` : 'Rp 0'}
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono mt-1 truncate">
+              {summary?.best_day ? `Tgl ${summary.best_day.date} (${summary.best_day.trades} trades)` : 'Belum ada trade'}
+            </div>
+          </div>
+        </div>
+
+        {/* 7-Column Interactive Monthly Calendar Grid */}
+        <div className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
+                Kalender Harian: {calData?.month_label}
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                (Klik salah satu tanggal untuk melihat rincian order &amp; biaya)
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-[10px] font-mono">
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded bg-emerald-500/30 border border-emerald-500/50"></span>
+                <span>Profit (Hijau)</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded bg-rose-500/30 border border-rose-500/50"></span>
+                <span>Rugi (Merah)</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded bg-obsidian-800 border border-obsidian-700"></span>
+                <span>Netral / Standby</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Weekday Headers */}
+          <div className="grid grid-cols-7 gap-1.5 mb-1.5 text-center text-[10px] font-mono font-bold text-slate-400 uppercase">
+            <div className="py-1">Sen</div>
+            <div className="py-1">Sel</div>
+            <div className="py-1">Rab</div>
+            <div className="py-1">Kam</div>
+            <div className="py-1">Jum</div>
+            <div className="py-1 text-cyan-400">Sab</div>
+            <div className="py-1 text-rose-400">Min</div>
+          </div>
+
+          {/* Calendar Grid Cells */}
+          <div className="grid grid-cols-7 gap-1.5">
+            {/* Empty Pad Cells */}
+            {emptyPads.map((pad) => (
+              <div
+                key={`pad-${pad}`}
+                className="min-h-[88px] rounded-lg bg-obsidian-950/40 border border-obsidian-800/40 opacity-40 pointer-events-none"
+              />
+            ))}
+
+            {/* Days Cells */}
+            {days.map((d: any) => {
+              const isSelected = selectedDayDate === d.date;
+              const hasTrades = d.trades_count > 0;
+              const hasProfit = d.total_pnl_usd > 0.0001;
+              const hasLoss = d.total_pnl_usd < -0.0001;
+
+              let cellStyle = 'bg-obsidian-950 border-obsidian-800 hover:border-obsidian-600';
+              let badgeColor = 'text-slate-400';
+              let pnlColor = 'text-slate-400';
+
+              if (hasProfit) {
+                cellStyle = isSelected
+                  ? 'bg-emerald-950/50 border-emerald-400 ring-2 ring-emerald-400/40 shadow-glow-emerald'
+                  : 'bg-emerald-950/20 border-emerald-500/40 hover:border-emerald-400 hover:bg-emerald-950/30';
+                badgeColor = 'text-emerald-400';
+                pnlColor = 'text-emerald-400';
+              } else if (hasLoss) {
+                cellStyle = isSelected
+                  ? 'bg-rose-950/50 border-rose-400 ring-2 ring-rose-400/40 shadow-glow-rose'
+                  : 'bg-rose-950/20 border-rose-500/40 hover:border-rose-400 hover:bg-rose-950/30';
+                badgeColor = 'text-rose-400';
+                pnlColor = 'text-rose-400';
+              } else if (isSelected) {
+                cellStyle = 'bg-obsidian-850 border-cyan-400 ring-2 ring-cyan-400/40';
+              }
+
+              return (
+                <button
+                  key={d.date}
+                  type="button"
+                  onClick={() => setSelectedDayDate(d.date)}
+                  className={`min-h-[92px] p-2 rounded-lg border text-left transition flex flex-col justify-between ${cellStyle}`}
+                >
+                  {/* Top: Day Number & Today indicator */}
+                  <div className="flex items-center justify-between w-full">
+                    <span
+                      className={`text-xs font-mono font-bold ${
+                        d.is_today ? 'text-cyan-400 underline decoration-cyan-400 decoration-2' : 'text-slate-300'
+                      }`}
+                    >
+                      {d.day_number}
+                    </span>
+                    {d.is_today && (
+                      <span className="text-[8px] font-sans font-extrabold uppercase px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                        Hari Ini
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Middle: Net PnL (USD + IDR) */}
+                  <div className="my-1">
+                    <div className={`text-xs font-mono font-bold ${pnlColor} truncate`}>
+                      {hasProfit ? '+' : ''}
+                      {formatUsd(d.total_pnl_usd)}
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono truncate">
+                      {hasProfit ? '+' : ''}
+                      {formatIdr(d.total_pnl_idr)}
+                    </div>
+                  </div>
+
+                  {/* Bottom: Trades pill & fee */}
+                  <div className="flex items-center justify-between text-[9px] font-mono text-slate-500 w-full pt-1 border-t border-obsidian-800/60">
+                    <span className={hasTrades ? badgeColor : 'text-slate-500'}>
+                      {d.trades_count} {d.trades_count === 1 ? 'Trade' : 'Trades'}
+                    </span>
+                    {d.fees_usd > 0 && (
+                      <span className="text-[8px] text-slate-400" title={`Biaya Swap & Gas: ${formatIdr(d.fees_idr)}`}>
+                        Gas {formatIdr(d.fees_idr)}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Selected Day Trade Inspector Drawer */}
+        <div className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-obsidian-800">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></div>
+              <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                Rincian Transaksi: <span className="font-mono text-cyan-300">{selectedDay?.date || 'Pilih Tanggal'}</span>
+                {selectedDay?.is_today && (
+                  <span className="text-[9px] font-sans font-semibold px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                    HARI INI
+                  </span>
+                )}
+              </h2>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <span className="text-slate-400">
+                Net PnL Hari:{' '}
+                <strong
+                  className={
+                    (selectedDay?.total_pnl_usd || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }
+                >
+                  {(selectedDay?.total_pnl_usd || 0) >= 0 ? '+' : ''}
+                  {formatUsd(selectedDay?.total_pnl_usd)} ({formatIdr(selectedDay?.total_pnl_idr)})
+                </strong>
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-400">
+                Volume: <strong>{formatIdr(selectedDay?.volume_idr)}</strong>
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-400">
+                Biaya Gas/DEX: <strong className="text-amber-300">{formatIdr(selectedDay?.fees_idr)}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Trade Table */}
+          {selectedDay?.trades && selectedDay.trades.length > 0 ? (
+            <div className="overflow-x-auto mt-3">
+              <table className="w-full text-left text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-obsidian-800 text-[10px] text-slate-400 uppercase">
+                    <th className="py-2 px-2">Waktu</th>
+                    <th className="py-2 px-2">Mode</th>
+                    <th className="py-2 px-2">Token / Pair</th>
+                    <th className="py-2 px-2">Side</th>
+                    <th className="py-2 px-2 text-right">Harga Eksekusi</th>
+                    <th className="py-2 px-2 text-right">Qty</th>
+                    <th className="py-2 px-2 text-right">Total Nilai</th>
+                    <th className="py-2 px-2 text-right">Biaya (Slip/DEX/Gas)</th>
+                    <th className="py-2 px-2 text-right">Net PnL (Bersih)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-obsidian-800/60">
+                  {selectedDay.trades.map((t: any) => {
+                    const isWin = (t.pnl_usd || 0) > 0;
+                    return (
+                      <tr key={t.id} className="hover:bg-obsidian-800/40 transition">
+                        <td className="py-2.5 px-2 text-slate-400 text-[11px]">{t.time}</td>
+                        <td className="py-2.5 px-2">
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded font-sans font-bold ${
+                              t.mode === 'LIVE'
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            }`}
+                          >
+                            {t.mode}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 font-bold text-slate-200">
+                          <a
+                            href={`https://dexscreener.com/search?q=${encodeURIComponent(t.symbol)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:text-cyan-400 transition underline decoration-dotted"
+                          >
+                            {t.symbol}
+                          </a>
+                        </td>
+                        <td className="py-2.5 px-2">
+                          <span
+                            className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                              t.side === 'buy'
+                                ? 'bg-cyan-500/20 text-cyan-300'
+                                : 'bg-amber-500/20 text-amber-300'
+                            }`}
+                          >
+                            {t.side}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 text-right text-slate-300">
+                          <div>{formatUsd(t.price)}</div>
+                          <div className="text-[10px] text-slate-500">{formatIdr(t.price_idr)}</div>
+                        </td>
+                        <td className="py-2.5 px-2 text-right text-slate-300">
+                          {Number(t.quantity).toLocaleString()}
+                        </td>
+                        <td className="py-2.5 px-2 text-right text-slate-300">
+                          <div>{formatUsd(t.total_usd)}</div>
+                          <div className="text-[10px] text-slate-500">{formatIdr(t.total_idr)}</div>
+                        </td>
+                        <td className="py-2.5 px-2 text-right text-slate-400 text-[11px]">
+                          <div>{formatIdr(t.total_fee_idr)}</div>
+                          <div className="text-[9px] text-slate-500">
+                            Slip {t.slippage_pct}% • Gas {formatUsd(t.gas_fee_usd)}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-2 text-right font-bold">
+                          <div className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
+                            {isWin ? '+' : ''}
+                            {formatUsd(t.pnl_usd)} ({t.pnl_pct > 0 ? '+' : ''}
+                            {t.pnl_pct}%)
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-normal">
+                            {isWin ? '+' : ''}
+                            {formatIdr(t.pnl_idr)}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-xs font-mono text-slate-400">
+              <p>Tidak ada riwayat closed trade yang tercatat pada {selectedDay?.date || 'tanggal ini'}.</p>
+              {selectedDay?.is_today && (
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Aktifkan Sniper Bot pada mode {selectedMode} atau lakukan snipe manual untuk mencatat transaksi hari ini.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </QueryState>
+    </div>
+  );
+}

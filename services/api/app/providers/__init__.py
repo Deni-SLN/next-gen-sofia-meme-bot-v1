@@ -1,1 +1,1 @@
-"""External data/AI provider adapters."""
+# External providers (LLM, etc.)

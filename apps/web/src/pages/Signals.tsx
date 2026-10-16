@@ -1,70 +1,53 @@
-import { useState } from "react";
-import { useAnalysisRuns, useSignals } from "../lib/queries";
-import { Badge, Card, QueryState } from "../components/ui";
+import React from 'react';
+import { api, useApiQuery } from '@/lib/api';
+import { QueryState } from '@/components/QueryState';
 
-export default function Signals() {
-  const [status, setStatus] = useState("");
-  const signals = useSignals(status || undefined);
-  const runs = useAnalysisRuns();
+export default function SignalsPage() {
+  const signalsQuery = useApiQuery(() => api.getSignals(), []);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Signal Center</h1>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm">
-          <option value="">Semua status</option>
-          {["CREATED", "VALIDATED", "ACTIVE", "WAIT", "REJECTED", "EXPIRED", "INVALIDATED", "EVALUATED"].map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-100">Trading Signals</h1>
+        <p className="text-sm text-slate-400">Sinyal algoritma dan AI yang dihasilkan sistem.</p>
       </div>
-      <p className="text-xs text-zinc-500">Sinyal bukan order — eksekusi hanya terjadi bila bot PAPER berjalan dan risk gate menyetujui.</p>
-      <Card title="Signals">
-        <QueryState isLoading={signals.isLoading} isError={signals.isError} error={signals.error} isEmpty={(signals.data?.items.length ?? 0) === 0} emptyText="Belum ada sinyal.">
-          <ul className="space-y-3">
-            {(signals.data?.items ?? []).map((s) => (
-              <li key={s.id} className="rounded-lg border border-zinc-800 p-3">
-                <div className="mb-1 flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs text-zinc-300">{s.mint_address.slice(0, 16)}…</span>
-                  <Badge level={s.decision === "LONG_CANDIDATE" ? "ok" : s.decision === "REJECT" ? "bad" : "mute"}>{s.decision}</Badge>
-                  <Badge level="info">{s.status}</Badge>
-                  {s.tradable ? <Badge level="ok">TRADABLE</Badge> : <Badge level="mute">NOT TRADABLE</Badge>}
-                </div>
-                <p className="text-xs text-zinc-500">
-                  entry {s.entry_reference ?? "—"} · stop {s.stop_reference ?? "—"} · R/R {s.risk_reward ?? "—"} · coverage {s.coverage ?? "—"}
-                </p>
-                <ul className="mt-1 list-disc pl-5 text-xs text-zinc-400">
-                  {s.reasons.slice(0, 4).map((r, i) => <li key={i}>{r}</li>)}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </QueryState>
-      </Card>
-      <Card title="Analysis History">
-        <QueryState isLoading={runs.isLoading} isError={runs.isError} error={runs.error} isEmpty={(runs.data?.items.length ?? 0) === 0} emptyText="Belum ada analysis run.">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-zinc-500">
-                <th className="py-1">Run</th>
-                <th>Decision</th>
-                <th className="text-right">Score</th>
-                <th className="text-right">Coverage</th>
+
+      <QueryState isLoading={signalsQuery.isLoading} isError={signalsQuery.isError} error={signalsQuery.error}>
+        <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th className="p-4">Symbol</th>
+                <th className="p-4">Direction</th>
+                <th className="p-4">Confidence</th>
+                <th className="p-4">Timeframe</th>
+                <th className="p-4">Source</th>
+                <th className="p-4">Status</th>
               </tr>
             </thead>
             <tbody>
-              {(runs.data?.items ?? []).slice(0, 20).map((r) => (
-                <tr key={r.id} className="border-t border-zinc-800/60">
-                  <td className="py-1.5 font-mono text-xs">{r.id.slice(0, 8)}</td>
-                  <td><Badge level={r.decision === "LONG_CANDIDATE" ? "ok" : "mute"}>{r.decision}</Badge></td>
-                  <td className="text-right font-mono">{r.score ?? "—"}</td>
-                  <td className="text-right font-mono">{r.coverage ?? "—"}</td>
+              {(signalsQuery.data?.signals || []).length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-6 text-center text-slate-500">
+                    Belum ada sinyal tercatat.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                signalsQuery.data.signals.map((s: any) => (
+                  <tr key={s.id} className="border-b border-slate-800/60">
+                    <td className="p-4 font-semibold">{s.symbol}</td>
+                    <td className="p-4 uppercase font-bold text-sky-400">{s.direction}</td>
+                    <td className="p-4 font-mono">{(s.confidence * 100).toFixed(0)}%</td>
+                    <td className="p-4">{s.timeframe}</td>
+                    <td className="p-4">{s.source}</td>
+                    <td className="p-4">{s.status}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
-        </QueryState>
-      </Card>
+        </div>
+      </QueryState>
     </div>
   );
 }
