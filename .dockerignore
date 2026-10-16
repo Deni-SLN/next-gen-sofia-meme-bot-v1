@@ -1,0 +1,18 @@
+# Keep secrets and local state out of the image build context.
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+data/
+backups/
+node_modules/
+dist/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.git/
+.github/
