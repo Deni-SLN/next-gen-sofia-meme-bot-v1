@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import init_db, SessionLocal
-from app.routers import auth, bot, portfolio, signals, ai, risk, performance, wallets, memecoins, journal
+from app.routers import auth, bot, portfolio, signals, ai, risk, performance, wallets, memecoins, journal, news
 from app.services import treasury
 
 
@@ -55,6 +55,7 @@ app.include_router(performance.router, prefix="/api/v1/performance", tags=["Perf
 app.include_router(wallets.router, prefix="/api/v1/wallets", tags=["Wallets"])
 app.include_router(memecoins.router, prefix="/api/v1/memecoins", tags=["Meme Coin Sniper"])
 app.include_router(journal.router, prefix="/api/v1/journal", tags=["Live Trading Journal"])
+app.include_router(news.router, prefix="/api/v1/news", tags=["Berita Indonesia"])
 
 
 @app.get("/health", tags=["Health"])

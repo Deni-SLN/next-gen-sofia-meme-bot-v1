@@ -59,6 +59,14 @@ const SECONDARY_NAV = [
     badge: 'PNL',
     badgeClass: 'bg-amber-500/20 text-amber-300 px-1 py-0.2',
   },
+  {
+    href: '/news',
+    label: 'News & Riset Pasar',
+    icon: 'newspaper',
+    iconColor: 'text-cyan-400',
+    badge: 'ID',
+    badgeClass: 'bg-cyan-500/20 text-cyan-300 px-1.5 py-0.2',
+  },
   { href: '/signals', label: 'Alpha Signals', icon: 'radio', iconColor: 'text-rose-400', badge: null, badgeClass: '' },
   { href: '/agents', label: 'AI Degen Agents', icon: 'bot', iconColor: 'text-emerald-400', badge: null, badgeClass: '' },
   { href: '/risk', label: 'Risk & Slippage', icon: 'sliders', iconColor: 'text-indigo-400', badge: null, badgeClass: '' },
@@ -69,7 +77,7 @@ const MOBILE_BOTTOM_NAV = [
   { href: '/', label: 'Home', icon: 'layout-dashboard' },
   { href: '/pulse', label: 'Pulse', icon: 'zap' },
   { href: '/trading', label: 'Sniper', icon: 'crosshair' },
-  { href: '/portfolio', label: 'Portfolio', icon: 'wallet' },
+  { href: '/news', label: 'News', icon: 'newspaper' },
   { href: '/journal', label: 'Jurnal', icon: 'book-open' },
 ];
 

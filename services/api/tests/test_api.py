@@ -463,6 +463,28 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.client.delete(f"/api/v1/wallets/{temp_w_id}", headers=self.headers)
         self.client.post("/api/v1/portfolio/reset-paper", headers=self.headers)
 
+    def test_indonesian_news_feed_categories(self):
+        import time
+        now_ts = int(time.time())
+        max_age_sec = 7 * 86400 + 120
+        for cat in ("all", "crypto", "saham", "emas", "ekonomi", "teknologi"):
+            r_news = self.client.get(f"/api/v1/news?category={cat}&limit=6&refresh=true", headers=self.headers)
+            self.assertEqual(r_news.status_code, 200)
+            payload = r_news.json()
+            self.assertEqual(payload["category"], cat)
+            self.assertEqual(payload["max_age_days"], 7)
+            self.assertEqual(payload["sort_order"], "newest_first")
+            articles = payload.get("articles", [])
+            if articles:
+                # Assert thumbnail image_url and direct link on each item
+                for art in articles:
+                    self.assertTrue(art["url"].startswith("http"))
+                    self.assertTrue(art.get("image_url", "").startswith("http"))
+                    self.assertLessEqual(now_ts - int(art["published_ts"]), max_age_sec)
+                # Assert strictly sorted from newest to oldest
+                timestamps = [int(a["published_ts"]) for a in articles]
+                self.assertEqual(timestamps, sorted(timestamps, reverse=True))
+
 
 if __name__ == "__main__":
     unittest.main()

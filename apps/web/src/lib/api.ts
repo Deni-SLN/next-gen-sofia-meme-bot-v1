@@ -224,5 +224,15 @@ export const api = {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
   },
+  // Indonesian News Feed Endpoints (Crypto, Saham, Emas, Ekonomi, Teknologi)
+  getNews: (category: string = 'all', q?: string, refresh: boolean = false, limit: number = 24) => {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (q) params.append('q', q);
+    if (refresh) params.append('refresh', 'true');
+    if (limit) params.append('limit', String(limit));
+    const qs = params.toString();
+    return request<any>(`/news${qs ? `?${qs}` : ''}`);
+  },
 };
 
