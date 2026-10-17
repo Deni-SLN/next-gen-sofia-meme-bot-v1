@@ -18,6 +18,39 @@ const RELAY_OPTIONS = [
   { id: 'MAINNET_STD', label: '🌐 Mainnet Standard RPC', desc: 'Tanpa biaya bribe tambahan' },
 ];
 
+const BOT_STRATEGY_MODES = [
+  {
+    id: 'SAFE',
+    badge: '🛡️ SAFE MODE',
+    title: 'Safe (Konservatif)',
+    subtitle: 'Token Lulus (Migrated) & Likuiditas Tinggi',
+    desc: 'Hanya membeli koin yang sudah lulus ke Raydium/PumpSwap dengan Likuiditas > $20K & Safety Score ≥ 82. Risiko rendah.',
+    stats: 'Min Score: 82 • TP: +15% / SL: -6% • Speed: 4.0s',
+    activeClass: 'border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-glow-emerald',
+    badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+  },
+  {
+    id: 'DEFAULT',
+    badge: '⚖️ DEFAULT MODE',
+    title: 'Default (Seimbang)',
+    subtitle: 'Final Stretch & Migrated Pool',
+    desc: 'Seimbang antara keamanan kontrak (Score ≥ 70) dan momentum orderflow 5m pada pool Final Stretch & Migrated.',
+    stats: 'Min Score: 70 • TP: +25% / SL: -8% • Speed: 3.0s',
+    activeClass: 'border-cyan-500 bg-cyan-500/15 text-cyan-300',
+    badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+  },
+  {
+    id: 'AGGRESSIVE',
+    badge: '🔥 AGRESIF (DEXSCREENER + GMGN)',
+    title: 'Agresif (Khusus Koin Baru & Cepat)',
+    subtitle: 'DexScreener Latest Profiles v1 + GMGN.ai Trench Radar',
+    desc: 'Khusus menyergap meme coin BARU MUNCUL (Umur < 3 Jam, MCap < $500K) via DexScreener & GMGN.ai. Memblokir 100% koin lama (BONK, PEPE, WIF, POPCAT).',
+    stats: 'Max Umur: 180m • Max MCap: $500K • Quick TP: +8% / SL: -5% • 1.2s',
+    activeClass: 'border-amber-500 bg-amber-500/15 text-amber-300',
+    badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+  },
+] as const;
+
 const QUICK_SNIPE_PRESETS = [15000, 30000, 50000, 100000];
 
 export default function TradingPage() {
@@ -25,8 +58,10 @@ export default function TradingPage() {
   const portfolioQuery = useApiQuery(() => api.getPortfolio(), []);
   const walletsQuery = useApiQuery(() => api.getWallets(), []);
   const configQuery = useApiQuery(() => api.getSniperConfig(), []);
+  const pulseQuery = useApiQuery(() => api.getPulse(), []);
 
   const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE'>('PAPER');
+  const [strategyMode, setStrategyMode] = useState<'SAFE' | 'DEFAULT' | 'AGGRESSIVE'>('DEFAULT');
   const [actionError, setActionError] = useState<string>('');
   const [actionSuccess, setActionSuccess] = useState<string>('');
 
@@ -36,32 +71,54 @@ export default function TradingPage() {
   const [slippage, setSlippage] = useState<number>(1.5);
   const [minBondingPct, setMinBondingPct] = useState<number>(15);
   const [maxDevHoldPct, setMaxDevHoldPct] = useState<number>(5);
-  const [autoTpPct, setAutoTpPct] = useState<number>(35);
-  const [autoSlPct, setAutoSlPct] = useState<number>(15);
+  const [onlyNewCreations, setOnlyNewCreations] = useState<boolean>(false);
+  const [maxTokenAgeMinutes, setMaxTokenAgeMinutes] = useState<number>(2880);
+  const [maxMarketCapUsd, setMaxMarketCapUsd] = useState<number>(50000000);
+  const [autoTpPct, setAutoTpPct] = useState<number>(25);
+  const [autoSlPct, setAutoSlPct] = useState<number>(8);
   const [trailingStop, setTrailingStop] = useState<boolean>(true);
-  const [trailingPct, setTrailingPct] = useState<number>(8);
+  const [trailingPct, setTrailingPct] = useState<number>(5);
   const [multiWalletRot, setMultiWalletRot] = useState<boolean>(true);
-  const [snipeAmountIdr, setSnipeAmountIdr] = useState<number>(25000);
+  const [snipeAmountIdr, setSnipeAmountIdr] = useState<number>(20000);
 
-  // 1-Click Terminal Snipe Bar State
-  const [terminalSymbol, setTerminalSymbol] = useState<string>('BONK');
+  // 1-Click Terminal Snipe Bar State (defaults to newest creation from DexScreener/GMGN instead of BONK)
+  const [terminalSymbol, setTerminalSymbol] = useState<string>('');
+  const [terminalContract, setTerminalContract] = useState<string>('');
   const [terminalAmountIdr, setTerminalAmountIdr] = useState<number>(25000);
   const [isSniping, setIsSniping] = useState<boolean>(false);
+
+  const newCreationsList: any[] = pulseQuery.data?.new_creations || [];
+
+  useEffect(() => {
+    if (!terminalSymbol && newCreationsList.length > 0) {
+      const freshest = newCreationsList[0];
+      setTerminalSymbol(freshest.base_symbol || freshest.symbol || '');
+      setTerminalContract(freshest.contract || '');
+    }
+  }, [newCreationsList, terminalSymbol]);
 
   useEffect(() => {
     if (configQuery.data) {
       const c = configQuery.data;
+      if (c.strategy_mode && ['SAFE', 'DEFAULT', 'AGGRESSIVE'].includes(c.strategy_mode)) {
+        setStrategyMode(c.strategy_mode);
+      }
       if (c.relay_mode) setRelayMode(c.relay_mode);
       if (c.jito_bribe_sol !== undefined) setJitoTip(Number(c.jito_bribe_sol));
-      if (c.max_slippage_pct !== undefined) setSlippage(Number(c.max_slippage_pct));
+      const slipVal = c.slippage_pct !== undefined ? c.slippage_pct : c.max_slippage_pct;
+      if (slipVal !== undefined) setSlippage(Number(slipVal));
       if (c.min_bonding_curve_pct !== undefined) setMinBondingPct(Number(c.min_bonding_curve_pct));
       if (c.max_dev_holding_pct !== undefined) setMaxDevHoldPct(Number(c.max_dev_holding_pct));
+      if (c.only_new_creations !== undefined) setOnlyNewCreations(Boolean(c.only_new_creations));
+      if (c.max_token_age_minutes !== undefined) setMaxTokenAgeMinutes(Number(c.max_token_age_minutes));
+      if (c.max_market_cap_usd !== undefined) setMaxMarketCapUsd(Number(c.max_market_cap_usd));
       if (c.auto_tp_pct !== undefined) setAutoTpPct(Number(c.auto_tp_pct));
       if (c.auto_sl_pct !== undefined) setAutoSlPct(Number(c.auto_sl_pct));
       if (c.trailing_stop_enabled !== undefined) setTrailingStop(Boolean(c.trailing_stop_enabled));
       if (c.trailing_stop_pct !== undefined) setTrailingPct(Number(c.trailing_stop_pct));
       if (c.multi_wallet_rotation !== undefined) setMultiWalletRot(Boolean(c.multi_wallet_rotation));
-      if (c.snipe_amount_idr !== undefined) setSnipeAmountIdr(Number(c.snipe_amount_idr));
+      const buyVal = c.buy_amount_idr !== undefined ? c.buy_amount_idr : c.snipe_amount_idr;
+      if (buyVal !== undefined) setSnipeAmountIdr(Number(buyVal));
     }
   }, [configQuery.data]);
 
@@ -113,6 +170,49 @@ export default function TradingPage() {
     setActionSuccess('');
   };
 
+  const handleSelectStrategyMode = async (newStrat: 'SAFE' | 'DEFAULT' | 'AGGRESSIVE') => {
+    setStrategyMode(newStrat);
+    setActionError('');
+    setActionSuccess('');
+    if (newStrat === 'AGGRESSIVE' && newCreationsList.length > 0) {
+      setTerminalSymbol(newCreationsList[0].base_symbol || newCreationsList[0].symbol);
+      setTerminalContract(newCreationsList[0].contract || '');
+    }
+    try {
+      const updated = await api.updateSniperConfig({
+        strategy_mode: newStrat,
+        apply_preset: true,
+      });
+      if (updated) {
+        setRelayMode(updated.relay_mode || 'JITO_0SLOT');
+        setJitoTip(Number(updated.jito_bribe_sol || 0.005));
+        setSlippage(Number(updated.slippage_pct || 1.2));
+        setMinBondingPct(Number(updated.min_bonding_curve_pct || 15));
+        setMaxDevHoldPct(Number(updated.max_dev_holding_pct || 10));
+        setOnlyNewCreations(Boolean(updated.only_new_creations));
+        setMaxTokenAgeMinutes(Number(updated.max_token_age_minutes || 180));
+        setMaxMarketCapUsd(Number(updated.max_market_cap_usd || 500000));
+        setAutoTpPct(Number(updated.auto_tp_pct || 20));
+        setAutoSlPct(Number(updated.auto_sl_pct || 8));
+        setTrailingStop(Boolean(updated.trailing_stop_enabled));
+        setTrailingPct(Number(updated.trailing_stop_pct || 5));
+        setSnipeAmountIdr(Number(updated.buy_amount_idr || 20000));
+      }
+      setActionSuccess(
+        newStrat === 'AGGRESSIVE'
+          ? '🔥 Mode AGRESIF (DexScreener + GMGN.ai) diaktifkan! Koin lama (BONK/PEPE/WIF) diblokir 100%. Bot kini hanya menyergap koin meme BARU MUNCUL (< 180 menit, MCap < $500K) & menjual otomatis koin lama jika ada di portofolio.'
+          : newStrat === 'SAFE'
+          ? '🛡️ Mode SAFE diaktifkan! Bot hanya membeli token yang sudah lulus (Migrated) dengan Likuiditas > $20K & Safety Score ≥ 82.'
+          : '⚖️ Mode DEFAULT diaktifkan! Bot berjalan seimbang pada pool Final Stretch & Migrated.'
+      );
+      configQuery.refetch();
+      botQuery.refetch();
+      pulseQuery.refetch();
+    } catch (err: any) {
+      setActionError(err?.message || 'Gagal mengubah mode strategi bot');
+    }
+  };
+
   const handlePowerButton = async () => {
     setActionError('');
     setActionSuccess('');
@@ -124,11 +224,13 @@ export default function TradingPage() {
           window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: false } }));
         }
       } else {
-        await api.startBot(selectedMode);
+        await api.startBot(selectedMode, strategyMode);
         setActionSuccess(
           selectedMode === 'PAPER'
-            ? '🟢 Mesin PumpSniper Bot berjalan dalam Mode PAPER (Data Market 100% Asli + Modal Simulasi Rp 150.000).'
-            : `🔴 Mesin PumpSniper Bot berjalan dalam Mode LIVE ON-CHAIN (${relayMode})! Seluruh transaksi terekam di Jurnal Trading.`
+            ? `🟢 Mesin PumpSniper Bot berjalan dalam Mode PAPER • Strategi ${strategyMode} (${
+                strategyMode === 'AGGRESSIVE' ? 'DexScreener+GMGN New-Meme Sniper 1.2s' : strategyMode === 'SAFE' ? 'Token Lulus & Aman' : 'Seimbang'
+              }).`
+            : `🔴 Mesin PumpSniper Bot berjalan dalam Mode LIVE ON-CHAIN • Strategi ${strategyMode} (${relayMode})!`
         );
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: true } }));
@@ -145,22 +247,29 @@ export default function TradingPage() {
     setActionSuccess('');
     try {
       await api.updateSniperConfig({
+        strategy_mode: strategyMode,
+        apply_preset: false,
         relay_mode: relayMode,
         jito_bribe_sol: jitoTip,
+        slippage_pct: slippage,
         max_slippage_pct: slippage,
         min_bonding_curve_pct: minBondingPct,
         max_dev_holding_pct: maxDevHoldPct,
+        only_new_creations: onlyNewCreations,
+        max_token_age_minutes: maxTokenAgeMinutes,
+        max_market_cap_usd: maxMarketCapUsd,
         auto_tp_pct: autoTpPct,
         auto_sl_pct: autoSlPct,
         trailing_stop_enabled: trailingStop,
         trailing_stop_pct: trailingPct,
         multi_wallet_rotation: multiWalletRot,
+        buy_amount_idr: snipeAmountIdr,
         snipe_amount_idr: snipeAmountIdr,
       });
       setActionSuccess(
-        `✅ Konfigurasi PumpSniper Terminal tersimpan! Relay: ${relayMode} • Auto TP: +${autoTpPct}% • SL: -${autoSlPct}% • Trailing Stop: ${
-          trailingStop ? `AKTIF (${trailingPct}%)` : 'OFF'
-        }`
+        `✅ Konfigurasi [${strategyMode}] tersimpan! Max Umur Koin: ${maxTokenAgeMinutes}m • Max MCap: $${Number(
+          maxMarketCapUsd
+        ).toLocaleString()} • Auto TP: +${autoTpPct}% • SL: -${autoSlPct}%`
       );
       configQuery.refetch();
     } catch (err: any) {
@@ -170,28 +279,31 @@ export default function TradingPage() {
 
   const handleTerminalSnipe = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!terminalSymbol.trim()) return;
+    if (!terminalSymbol.trim() && !terminalContract.trim()) return;
     setActionError('');
     setActionSuccess('');
     setIsSniping(true);
     try {
       const res = await api.snipeToken({
-        symbol: terminalSymbol.trim(),
+        symbol: terminalSymbol.trim() || terminalContract.trim(),
+        contract: terminalContract.trim() || undefined,
         amount_idr: terminalAmountIdr,
         slippage_pct: slippage,
         priority_fee_sol: jitoTip,
         anti_mev: relayMode !== 'MAINNET_STD',
+        force_unsafe: strategyMode === 'AGGRESSIVE',
+        block_legacy_tokens: strategyMode === 'AGGRESSIVE',
         mode: selectedMode,
       });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res }));
       }
       setActionSuccess(
-        `⚡ [${res.mode}] 1-Click Snipe sukses! Beli ${Number(res.quantity || 0).toLocaleString()} ${res.symbol} @ ${formatUsd(
-          res.entry_price
-        )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)}${
-          res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 16)}...` : ''
-        }`
+        `⚡ [${res.mode}] 1-Click Snipe sukses! Beli ${Number(res.quantity || 0).toLocaleString()} ${res.symbol} (${
+          res.launchpad || 'DEX'
+        } • Umur ${res.age || 'baru'}) @ ${formatUsd(res.entry_price)} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(
+          res.amount_idr
+        )}${res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 16)}...` : ''}`
       );
       portfolioQuery.refetch();
       walletsQuery.refetch();
@@ -306,6 +418,17 @@ export default function TradingPage() {
                 >
                   MODE {selectedMode}
                 </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-extrabold border ${
+                    strategyMode === 'AGGRESSIVE'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : strategyMode === 'SAFE'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                  }`}
+                >
+                  STRATEGI: {strategyMode}
+                </span>
               </div>
               <div className="text-xs font-mono text-slate-400 pt-0.5">
                 {selectedMode === 'PAPER' ? (
@@ -371,9 +494,159 @@ export default function TradingPage() {
               >
                 {isRunning
                   ? '⏹ HENTIKAN BOT SEKARANG'
-                  : `▶️ JALANKAN BOT (${selectedMode})`}
+                  : `▶️ JALANKAN BOT (${selectedMode} • ${strategyMode})`}
               </button>
             </div>
+          </div>
+
+          {/* 3 BOT TRADING STRATEGY MODES: SAFE, DEFAULT, AGGRESSIVE */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <LucideIcon name="zap" className="w-3.5 h-3.5 text-amber-400" />
+                Pilih Mode Strategi Bot Trading (Safe, Default, Agresif)
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                Klik mode di bawah untuk otomatis menyesuaikan target koin &amp; kecepatan trading
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono">
+              {BOT_STRATEGY_MODES.map((m) => {
+                const isSelected = strategyMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => handleSelectStrategyMode(m.id as 'SAFE' | 'DEFAULT' | 'AGGRESSIVE')}
+                    className={`text-left p-3.5 rounded-xl border transition flex flex-col justify-between ${
+                      isSelected
+                        ? m.activeClass
+                        : 'bg-obsidian-950 border-obsidian-800 hover:border-obsidian-700 text-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${m.badgeClass}`}>
+                          {m.badge}
+                        </span>
+                        {isSelected && (
+                          <span className="text-[10px] font-extrabold uppercase text-white bg-slate-900/80 px-2 py-0.5 rounded">
+                            ✓ AKTIF
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm font-extrabold text-white mt-1">{m.title}</div>
+                      <div className="text-[11px] font-bold text-cyan-300">{m.subtitle}</div>
+                      <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed font-sans">{m.desc}</p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[10px] font-bold text-slate-200">
+                      {m.stats}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Live Radar Koin Meme Baru (DexScreener Token Profiles v1 + GMGN.ai Trench) */}
+          <div className="p-3 rounded-xl bg-obsidian-950 border border-amber-500/30 space-y-2.5 font-mono text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold text-[10px]">
+                  🔥 DEXSCREENER + GMGN.AI NEW CREATIONS RADAR
+                </span>
+                <span className="text-[11px] text-slate-300">
+                  Koin meme baru muncul (&lt; 3 jam) • Bebas koin lama (BONK/PEPE/WIF diblokir di Mode Agresif)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => pulseQuery.refetch()}
+                className="px-2.5 py-1 rounded bg-obsidian-900 hover:bg-obsidian-800 border border-obsidian-700 text-cyan-300 text-[10px] font-bold"
+              >
+                🔄 Refresh DexScreener + GMGN
+              </button>
+            </div>
+
+            {newCreationsList.length === 0 ? (
+              <div className="text-[11px] text-slate-400 py-1">
+                Memuat daftar meme coin yang baru rilis dari DexScreener Token Profiles v1 &amp; GMGN.ai...
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                {newCreationsList.slice(0, 4).map((tok: any) => {
+                  const isPicked =
+                    terminalSymbol === tok.base_symbol ||
+                    terminalSymbol === tok.symbol ||
+                    (tok.contract && terminalContract === tok.contract);
+                  return (
+                    <div
+                      key={tok.contract || tok.symbol}
+                      className={`p-2.5 rounded-lg border transition flex flex-col justify-between gap-1.5 ${
+                        isPicked
+                          ? 'bg-amber-500/15 border-amber-500/60'
+                          : 'bg-obsidian-900/90 border-obsidian-800 hover:border-obsidian-700'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-extrabold text-white text-xs truncate">{tok.symbol}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-bold shrink-0">
+                            Umur {tok.age}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 flex items-center justify-between mt-0.5">
+                          <span>{tok.launchpad}</span>
+                          <span className="text-amber-300 font-bold">
+                            MCap ${(Number(tok.market_cap || 0) / 1000).toFixed(1)}K
+                          </span>
+                        </div>
+                        {tok.contract && (
+                          <div className="text-[9px] text-slate-500 truncate mt-0.5" title={tok.contract}>
+                            CA: {tok.contract.slice(0, 6)}...{tok.contract.slice(-4)}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-obsidian-800/80 text-[9px]">
+                        <div className="flex items-center gap-1.5">
+                          {tok.gmgn_url && (
+                            <a
+                              href={tok.gmgn_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-400 hover:underline font-bold"
+                            >
+                              GMGN.ai ↗
+                            </a>
+                          )}
+                          {tok.dex_url && (
+                            <a
+                              href={tok.dex_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-cyan-400 hover:underline"
+                            >
+                              DexScreener ↗
+                            </a>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTerminalSymbol(tok.base_symbol || tok.symbol);
+                            setTerminalContract(tok.contract || '');
+                          }}
+                          className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-obsidian-950 font-extrabold"
+                        >
+                          Pilih Target
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 1-Click Terminal Snipe Bar (Inspired by PumpSniper Terminal) */}
@@ -381,17 +654,25 @@ export default function TradingPage() {
             onSubmit={handleTerminalSnipe}
             className="p-3 rounded-xl bg-obsidian-950 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3 font-mono text-xs"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 font-extrabold text-[10px]">
                 ⚡ 1-CLICK TERMINAL SNIPE
               </span>
               <input
                 type="text"
                 value={terminalSymbol}
-                onChange={(e) => setTerminalSymbol(e.target.value)}
-                placeholder="Paste Mint CA / Simbol (PEPE, WIF, BONK)..."
-                className="w-52 sm:w-64 px-3 py-1.5 rounded-lg bg-obsidian-900 border border-obsidian-700 text-white font-bold focus:outline-none focus:border-emerald-500"
+                onChange={(e) => {
+                  setTerminalSymbol(e.target.value);
+                  setTerminalContract('');
+                }}
+                placeholder="Paste Mint CA / Simbol Koin Baru DexScreener & GMGN..."
+                className="w-56 sm:w-64 px-3 py-1.5 rounded-lg bg-obsidian-900 border border-obsidian-700 text-white font-bold focus:outline-none focus:border-emerald-500"
               />
+              {terminalContract && (
+                <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded">
+                  CA: {terminalContract.slice(0, 6)}...{terminalContract.slice(-4)}
+                </span>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
@@ -433,7 +714,7 @@ export default function TradingPage() {
           </form>
 
           {/* PumpSniper Pro Parameters Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 font-mono text-xs">
             {/* Relay Selector */}
             <div className="p-3 rounded-lg bg-obsidian-950 border border-obsidian-800 space-y-1.5">
               <label className="text-slate-400 block uppercase text-[10px]">
@@ -453,6 +734,35 @@ export default function TradingPage() {
               <span className="text-[10px] text-slate-500 block">
                 {RELAY_OPTIONS.find((r) => r.id === relayMode)?.desc}
               </span>
+            </div>
+
+            {/* Filter Koin Baru (DexScreener + GMGN.ai) */}
+            <div className="p-3 rounded-lg bg-obsidian-950 border border-amber-500/30 space-y-1.5">
+              <label className="text-amber-300 block uppercase text-[10px] font-bold">
+                Filter Koin Baru (DexScreener / GMGN)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input
+                    type="number"
+                    step="15"
+                    value={maxTokenAgeMinutes}
+                    onChange={(e) => setMaxTokenAgeMinutes(Number(e.target.value))}
+                    className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-amber-300 font-bold"
+                  />
+                  <span className="text-[9px] text-slate-400">Max Umur (Menit)</span>
+                </div>
+                <div>
+                  <input
+                    type="number"
+                    step="50000"
+                    value={maxMarketCapUsd}
+                    onChange={(e) => setMaxMarketCapUsd(Number(e.target.value))}
+                    className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-cyan-300 font-bold"
+                  />
+                  <span className="text-[9px] text-slate-400">Max MCap ($)</span>
+                </div>
+              </div>
             </div>
 
             {/* Jito Tip & Slippage */}
@@ -543,9 +853,21 @@ export default function TradingPage() {
             </div>
           </div>
 
-          {/* Bottom Row: Trailing Stop, Multi-Wallet Rotation, and Save Config Button */}
+          {/* Bottom Row: Trailing Stop, Multi-Wallet Rotation, Only New Creations, and Save Config Button */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-obsidian-800 font-mono text-xs">
             <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer text-amber-300">
+                <input
+                  type="checkbox"
+                  checked={onlyNewCreations}
+                  onChange={(e) => setOnlyNewCreations(e.target.checked)}
+                  className="rounded border-obsidian-700 bg-obsidian-950 text-amber-500"
+                />
+                <span>
+                  🔥 Wajib Koin Baru (Blokir BONK/PEPE/WIF)
+                </span>
+              </label>
+
               <label className="flex items-center gap-2 cursor-pointer text-slate-300">
                 <input
                   type="checkbox"

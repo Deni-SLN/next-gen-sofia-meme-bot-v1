@@ -34,6 +34,7 @@ export default function PulsePage() {
     try {
       const res = await api.snipeToken({
         symbol: token.base_symbol || token.symbol,
+        contract: token.contract || undefined,
         amount_idr: presetIdr,
         price: token.price,
         slippage_pct: 15,
@@ -94,9 +95,16 @@ export default function PulsePage() {
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-sky-300">
                         {t.launchpad}
                       </span>
-                      <span className="text-[10px] font-mono text-emerald-400">{t.age}</span>
+                      <span className="text-[10px] font-mono text-emerald-400">Umur {t.age}</span>
                     </div>
-                    <div className="text-xs text-slate-400">{t.name}</div>
+                    <div className="text-xs text-slate-400 flex items-center gap-2">
+                      <span>{t.name}</span>
+                      {t.contract && (
+                        <span className="text-[10px] font-mono text-slate-500" title={t.contract}>
+                          ({t.contract.slice(0, 6)}...{t.contract.slice(-4)})
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs font-mono font-bold text-slate-100 mt-1">
                       {formatUsd(t.price)}{' '}
                       <span className="text-[11px] font-normal text-emerald-400">
@@ -154,7 +162,7 @@ export default function PulsePage() {
                   </div>
                 </div>
 
-                {/* Security Badges */}
+                {/* Security Badges + GMGN & DexScreener Links */}
                 <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] font-mono">
                   <div className="flex flex-wrap gap-1.5">
                     <span
@@ -169,17 +177,34 @@ export default function PulsePage() {
                     <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
                       B/S 5m: {t.buys_5m ?? 0}/{t.sells_5m ?? 0}
                     </span>
+                    {t.gmgn_smart_degens !== undefined && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        GMGN Smart: {t.gmgn_smart_degens}W
+                      </span>
+                    )}
                   </div>
-                  {t.dex_url && (
-                    <a
-                      href={t.dex_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sky-400 hover:underline"
-                    >
-                      DexScreener ↗
-                    </a>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {t.gmgn_url && (
+                      <a
+                        href={t.gmgn_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-emerald-400 hover:underline font-bold"
+                      >
+                        GMGN.ai ↗
+                      </a>
+                    )}
+                    {t.dex_url && (
+                      <a
+                        href={t.dex_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sky-400 hover:underline"
+                      >
+                        DexScreener ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -194,10 +219,10 @@ export default function PulsePage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-100 flex items-center gap-2">
-            🔥 Trenches & Pulse Radar (100% Real-Time DexScreener)
+            🔥 Trenches &amp; Pulse Radar (DexScreener Latest Profiles v1 + GMGN.ai Trench)
           </h1>
           <p className="text-sm text-slate-400">
-            Data harga, volume, dan likuiditas asli dari jaringan DEX saat ini • Kurs: $1 = {formatIdr(usdIdr)}
+            Data harga, umur koin baru, volume, dan likuiditas asli dari jaringan DEX • Kurs: $1 = {formatIdr(usdIdr)}
           </p>
         </div>
 

@@ -32,22 +32,53 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
 
     def test_bot_lifecycle_and_activity_stream(self):
         self.client.post("/api/v1/portfolio/reset-paper", headers=self.headers)
-        r_start = self.client.post("/api/v1/bot/start", json={"mode": "PAPER"}, headers=self.headers)
+        r_start = self.client.post("/api/v1/bot/start", json={"mode": "PAPER", "strategy_mode": "SAFE"}, headers=self.headers)
         self.assertEqual(r_start.status_code, 200)
         self.assertEqual(r_start.json()["status"], "running")
         self.assertEqual(r_start.json()["mode"], "PAPER")
+        self.assertEqual(r_start.json()["strategy_mode"], "SAFE")
+        self.assertEqual(r_start.json()["sniper_config"]["min_safety_score"], 82)
 
-        # Verify live bot activity stream while running
+        # Switch to AGGRESSIVE mode (DexScreener + GMGN.ai New Meme Sniper)
+        r_agg = self.client.put(
+            "/api/v1/bot/config",
+            json={"strategy_mode": "AGGRESSIVE", "apply_preset": True},
+            headers=self.headers,
+        )
+        self.assertEqual(r_agg.status_code, 200)
+        self.assertEqual(r_agg.json()["strategy_mode"], "AGGRESSIVE")
+        self.assertEqual(r_agg.json()["tick_interval_ms"], 1200)
+        self.assertEqual(r_agg.json()["auto_tp_pct"], 8.0)
+        self.assertTrue(r_agg.json()["only_new_creations"])
+        self.assertEqual(r_agg.json()["max_token_age_minutes"], 180)
+        self.assertEqual(r_agg.json()["max_market_cap_usd"], 500000.0)
+
+        # Verify BONK is strictly blocked when block_legacy_tokens=True (Aggressive mode rule)
+        r_block_bonk = self.client.post(
+            "/api/v1/memecoins/snipe",
+            json={"symbol": "BONK", "amount_idr": 15000.0, "block_legacy_tokens": True, "mode": "PAPER"},
+            headers=self.headers,
+        )
+        self.assertEqual(r_block_bonk.status_code, 400)
+        self.assertEqual(r_block_bonk.json()["error"]["code"], "LEGACY_TOKEN_BLOCKED")
+
+        # Verify live bot activity stream while running in AGGRESSIVE mode (fast-tracks to stage 4!)
         r_act = self.client.get("/api/v1/bot/activity?tick=true", headers=self.headers)
         self.assertEqual(r_act.status_code, 200)
         self.assertEqual(r_act.json()["status"], "running")
+        self.assertEqual(r_act.json()["strategy_mode"], "AGGRESSIVE")
         self.assertIn("current_stage", r_act.json())
         self.assertGreaterEqual(len(r_act.json()["logs"]), 1)
 
-        # Verify autonomous bot trading at Stage 4 (force_trade=true)
+        # Verify autonomous bot trading at Stage 4 (force_trade=true) NEVER buys BONK/PEPE/WIF
         r_auto = self.client.get("/api/v1/bot/activity?tick=true&force_trade=true", headers=self.headers)
         self.assertEqual(r_auto.status_code, 200)
         self.assertTrue(r_auto.json().get("trade_executed"))
+        action_sym = str((r_auto.json().get("trade_action") or {}).get("symbol") or "").upper().split("/")[0]
+        self.assertNotIn(action_sym, {"BONK", "PEPE", "WIF", "POPCAT", "DOGE", "SHIB"})
+
+        # Reset strategy back to DEFAULT
+        self.client.put("/api/v1/bot/config", json={"strategy_mode": "DEFAULT", "apply_preset": True}, headers=self.headers)
 
         # Verify LIVE mode bot start now succeeds 100% (no LIVE_NOT_CONFIGURED error)
         r_live = self.client.post("/api/v1/bot/start", json={"mode": "LIVE"}, headers=self.headers)

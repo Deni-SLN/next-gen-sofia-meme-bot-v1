@@ -118,8 +118,8 @@ export const api = {
     request<any>('/bot/config', { method: 'PUT', body: JSON.stringify(data) }),
   getBotActivity: (tick: boolean = true, forceTrade: boolean = false) =>
     request<any>(`/bot/activity?tick=${tick ? 'true' : 'false'}${forceTrade ? '&force_trade=true' : ''}`),
-  startBot: (mode: string) =>
-    request<any>('/bot/start', { method: 'POST', body: JSON.stringify({ mode }) }),
+  startBot: (mode: string, strategy_mode?: string) =>
+    request<any>('/bot/start', { method: 'POST', body: JSON.stringify({ mode, strategy_mode }) }),
   stopBot: () => request<any>('/bot/stop', { method: 'POST' }),
   getPortfolio: () => request<any>('/portfolio/overview'),
   addHolding: (data: { symbol: string; quantity: number; avg_entry_price: number; current_price?: number }) =>
@@ -174,6 +174,7 @@ export const api = {
   rugCheck: (q: string) => request<any>(`/memecoins/rugcheck?q=${encodeURIComponent(q)}`),
   snipeToken: (data: {
     symbol: string;
+    contract?: string;
     amount_usd?: number;
     amount_idr?: number;
     price?: number;
@@ -181,6 +182,7 @@ export const api = {
     priority_fee_sol?: number;
     anti_mev?: boolean;
     force_unsafe?: boolean;
+    block_legacy_tokens?: boolean;
     mode?: string;
   }) => request<any>('/memecoins/snipe', { method: 'POST', body: JSON.stringify(data) }),
   getSmartMoney: () => request<any>('/memecoins/smart-money'),
@@ -281,6 +283,18 @@ export const api = {
     purchased_at?: string;
     notes?: string;
   }) => request<any>('/gold/holdings', { method: 'POST', body: JSON.stringify(data) }),
+  updateGoldHolding: (
+    holdingId: number,
+    data: {
+      weight_grams?: number;
+      buy_price_per_gram_idr?: number;
+      total_cost_idr?: number;
+      brand?: string;
+      label?: string;
+      purchased_at?: string;
+      notes?: string;
+    }
+  ) => request<any>(`/gold/holdings/${holdingId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteGoldHolding: (holdingId: number) =>
     request<any>(`/gold/holdings/${holdingId}`, { method: 'DELETE' }),
   simulateGoldSell: (data: {

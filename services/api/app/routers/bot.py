@@ -20,21 +20,30 @@ def _row_to_dict(obj) -> dict:
 
 class StartBotRequest(BaseModel):
     mode: str = "PAPER"
+    strategy_mode: str | None = None
 
 
 class SniperConfigUpdateRequest(BaseModel):
+    strategy_mode: str | None = None
+    apply_preset: bool | None = None
     relay_mode: str | None = None
     slippage_pct: float | None = None
+    max_slippage_pct: float | None = None
     priority_fee_sol: float | None = None
     jito_bribe_sol: float | None = None
     anti_mev: bool | None = None
     buy_amount_idr: float | None = None
+    snipe_amount_idr: float | None = None
     min_safety_score: int | None = None
     min_liquidity_usd: float | None = None
     min_bonding_curve_pct: float | None = None
     max_bonding_curve_pct: float | None = None
     max_dev_holding_pct: float | None = None
     max_top10_holding_pct: float | None = None
+    only_new_creations: bool | None = None
+    max_token_age_minutes: int | None = None
+    max_market_cap_usd: float | None = None
+    min_5m_buys: int | None = None
     require_mint_revoked: bool | None = None
     require_freeze_revoked: bool | None = None
     require_lp_burned: bool | None = None
@@ -45,13 +54,17 @@ class SniperConfigUpdateRequest(BaseModel):
     trailing_stop_pct: float | None = None
     time_stop_minutes: int | None = None
     multi_wallet_rotation: bool | None = None
+    max_open_positions: int | None = None
+    tick_interval_ms: int | None = None
 
 
 @router.get("/status")
 def get_status(db: Session = Depends(get_db)):
     state = bot.get_bot_status(db)
     data = _row_to_dict(state)
-    data["sniper_config"] = bot.get_sniper_config()
+    cfg = bot.get_sniper_config()
+    data["sniper_config"] = cfg
+    data["strategy_mode"] = cfg.get("strategy_mode", "DEFAULT")
     return data
 
 
@@ -77,9 +90,11 @@ def get_activity(
 @router.post("/start")
 def start(body: StartBotRequest, db: Session = Depends(get_db)):
     try:
-        state = bot.start_bot(db, body.mode)
+        state = bot.start_bot(db, body.mode, strategy_mode=body.strategy_mode)
         data = _row_to_dict(state)
-        data["sniper_config"] = bot.get_sniper_config()
+        cfg = bot.get_sniper_config()
+        data["sniper_config"] = cfg
+        data["strategy_mode"] = cfg.get("strategy_mode", "DEFAULT")
         return data
     except ValueError as e:
         code = str(e)

@@ -17,14 +17,20 @@ HEADERS = {
 TROY_OUNCE_TO_GRAM = 31.1034768
 
 # Default Spread & Tax constants in Indonesia (PMK 48/2023 / PPh Pasal 22)
-# Physical Gold (Antam / UBS / Galeri24) typically has ~8.2% retail minting premium above world spot,
-# and buyback price is ~9.0% below retail buy price (around ~1.5% below world spot).
+# Physical Gold (Antam / Hartadinata / UBS / Galeri24) retail minting premium above world spot,
+# and buyback spread below retail buy price.
 ANTAM_RETAIL_PREMIUM_PCT = 8.2
 ANTAM_BUYBACK_SPREAD_PCT = 9.0
+
+HARTADINATA_RETAIL_PREMIUM_PCT = 6.5
+HARTADINATA_BUYBACK_SPREAD_PCT = 8.2
+
 UBS_RETAIL_PREMIUM_PCT = 6.8
 UBS_BUYBACK_SPREAD_PCT = 8.5
+
 GALERI24_RETAIL_PREMIUM_PCT = 7.2
 GALERI24_BUYBACK_SPREAD_PCT = 8.5
+
 DIGITAL_RETAIL_PREMIUM_PCT = 1.5
 DIGITAL_BUYBACK_SPREAD_PCT = 3.0
 
@@ -38,7 +44,7 @@ def _round_idr_500(val: float) -> int:
 
 
 def fetch_live_gold_market(force_refresh: bool = False) -> Dict[str, Any]:
-    """Fetch live XAU/USD (GC=F) from Yahoo Finance and convert to IDR/gram + Antam/UBS/Digital prices."""
+    """Fetch live XAU/USD (GC=F) from Yahoo Finance and convert to IDR/gram + Antam/Hartadinata/UBS/Galeri24/Digital prices."""
     now = time.time()
     if not force_refresh and _GOLD_CACHE["data"] and (now - _GOLD_CACHE["ts"] < GOLD_CACHE_TTL_SEC):
         return _GOLD_CACHE["data"]
@@ -97,6 +103,7 @@ def fetch_live_gold_market(force_refresh: bool = False) -> Dict[str, Any]:
                             spot_gram = (c / TROY_OUNCE_TO_GRAM) * usd_idr
                             antam_gram = _round_idr_500(spot_gram * (1.0 + ANTAM_RETAIL_PREMIUM_PCT / 100.0))
                             buyback_gram = _round_idr_500(antam_gram * (1.0 - ANTAM_BUYBACK_SPREAD_PCT / 100.0))
+                            hrta_gram = _round_idr_500(spot_gram * (1.0 + HARTADINATA_RETAIL_PREMIUM_PCT / 100.0))
                             history_points.append(
                                 {
                                     "date": dt_str,
@@ -104,6 +111,7 @@ def fetch_live_gold_market(force_refresh: bool = False) -> Dict[str, Any]:
                                     "spot_idr_gram": round(spot_gram),
                                     "antam_buy_idr": antam_gram,
                                     "antam_buyback_idr": buyback_gram,
+                                    "hartadinata_buy_idr": hrta_gram,
                                 }
                             )
     except Exception:
@@ -119,6 +127,14 @@ def fetch_live_gold_market(force_refresh: bool = False) -> Dict[str, Any]:
     antam_buy_idr = _round_idr_500(spot_idr_per_gram * (1.0 + ANTAM_RETAIL_PREMIUM_PCT / 100.0))
     antam_buyback_idr = _round_idr_500(antam_buy_idr * (1.0 - ANTAM_BUYBACK_SPREAD_PCT / 100.0))
     antam_change_idr = _round_idr_500(change_idr_per_gram * (1.0 + ANTAM_RETAIL_PREMIUM_PCT / 100.0))
+
+    hartadinata_buy_idr = _round_idr_500(spot_idr_per_gram * (1.0 + HARTADINATA_RETAIL_PREMIUM_PCT / 100.0))
+    hartadinata_buyback_idr = _round_idr_500(
+        hartadinata_buy_idr * (1.0 - HARTADINATA_BUYBACK_SPREAD_PCT / 100.0)
+    )
+    hartadinata_change_idr = _round_idr_500(
+        change_idr_per_gram * (1.0 + HARTADINATA_RETAIL_PREMIUM_PCT / 100.0)
+    )
 
     ubs_buy_idr = _round_idr_500(spot_idr_per_gram * (1.0 + UBS_RETAIL_PREMIUM_PCT / 100.0))
     ubs_buyback_idr = _round_idr_500(ubs_buy_idr * (1.0 - UBS_BUYBACK_SPREAD_PCT / 100.0))
@@ -146,6 +162,8 @@ def fetch_live_gold_market(force_refresh: bool = False) -> Dict[str, Any]:
         buy_total = _round_idr_500(antam_buy_idr * weight * mult)
         buy_pph22_npwp = _round_idr_500(buy_total * 1.0025)  # PPh 22 pembelian 0.25%
         buyback_total = _round_idr_500(antam_buyback_idr * weight)
+        hrta_buy_total = _round_idr_500(hartadinata_buy_idr * weight * mult)
+        hrta_buyback_total = _round_idr_500(hartadinata_buyback_idr * weight)
         denominations.append(
             {
                 "weight_grams": weight,
@@ -153,6 +171,8 @@ def fetch_live_gold_market(force_refresh: bool = False) -> Dict[str, Any]:
                 "antam_buy_idr": buy_total,
                 "antam_buy_with_tax_idr": buy_pph22_npwp,
                 "antam_buyback_idr": buyback_total,
+                "hartadinata_buy_idr": hrta_buy_total,
+                "hartadinata_buyback_idr": hrta_buyback_total,
             }
         )
 
@@ -173,6 +193,14 @@ def fetch_live_gold_market(force_refresh: bool = False) -> Dict[str, Any]:
             "spread_idr": antam_buy_idr - antam_buyback_idr,
             "spread_pct": ANTAM_BUYBACK_SPREAD_PCT,
             "change_idr": antam_change_idr,
+        },
+        "hartadinata": {
+            "brand": "Hartadinata (EmasKita / HRTA)",
+            "buy_price_idr": hartadinata_buy_idr,
+            "buyback_price_idr": hartadinata_buyback_idr,
+            "spread_idr": hartadinata_buy_idr - hartadinata_buyback_idr,
+            "spread_pct": HARTADINATA_BUYBACK_SPREAD_PCT,
+            "change_idr": hartadinata_change_idr,
         },
         "ubs": {
             "brand": "UBS Gold",
@@ -216,7 +244,9 @@ def fetch_live_gold_market(force_refresh: bool = False) -> Dict[str, Any]:
 
 def _brand_reference_prices(brand: str, market_data: Dict[str, Any]) -> Dict[str, float]:
     b = (brand or "Antam").strip().lower()
-    if "ubs" in b:
+    if "hartadinata" in b or "hrta" in b or "emaskita" in b or "ardore" in b:
+        ref = market_data["hartadinata"]
+    elif "ubs" in b:
         ref = market_data["ubs"]
     elif "galeri" in b or "pegadaian" in b:
         ref = market_data["galeri24"]
@@ -229,6 +259,64 @@ def _brand_reference_prices(brand: str, market_data: Dict[str, Any]) -> Dict[str
         "buyback_price_idr": float(ref["buyback_price_idr"]),
         "spread_pct": float(ref["spread_pct"]),
     }
+
+
+def _normalize_cost_and_price_per_gram(
+    weight_grams: float,
+    buy_price_per_gram_idr: Optional[float],
+    total_cost_idr: Optional[float],
+    spot_idr_per_gram: float,
+) -> tuple[float, float]:
+    """
+    Ensure per-gram price and total cost are never inverted when a user enters a per-gram price
+    (e.g. Rp 2.700.000/g or Rp 2.790.000/g) while weight > 1g.
+    """
+    w = max(0.01, float(weight_grams or 1.0))
+    raw_per_gram = float(buy_price_per_gram_idr or 0.0)
+    raw_total = float(total_cost_idr or 0.0)
+
+    # Minimum plausible per-gram price in modern IDR (around 45% of current spot, e.g. ~Rp 1.000.000/g)
+    min_plausible_per_gram = max(900_000.0, spot_idr_per_gram * 0.42)
+    max_plausible_per_gram = max(4_500_000.0, spot_idr_per_gram * 2.2)
+
+    if raw_per_gram > 0 and raw_total > 0:
+        # Check if raw_total was actually entered as a per-gram price and divided by w
+        if (
+            w > 1.0
+            and raw_per_gram < min_plausible_per_gram
+            and min_plausible_per_gram <= raw_total <= max_plausible_per_gram
+        ):
+            price_per_gram = raw_total
+            cost = w * price_per_gram
+        else:
+            # Check if raw_per_gram is plausible
+            if raw_per_gram >= min_plausible_per_gram and abs(raw_total - w * raw_per_gram) > 1000:
+                price_per_gram = raw_per_gram
+                cost = w * price_per_gram
+            else:
+                cost = raw_total
+                price_per_gram = cost / w
+    elif raw_per_gram > 0:
+        price_per_gram = raw_per_gram
+        cost = w * price_per_gram
+    elif raw_total > 0:
+        # If user sent only total_cost_idr (e.g. 2.700.000 for 10g), detect if it's actually a per-gram price!
+        implied_per_gram = raw_total / w
+        if (
+            w > 1.0
+            and implied_per_gram < min_plausible_per_gram
+            and min_plausible_per_gram <= raw_total <= max_plausible_per_gram
+        ):
+            price_per_gram = raw_total
+            cost = w * price_per_gram
+        else:
+            cost = raw_total
+            price_per_gram = cost / w
+    else:
+        price_per_gram = spot_idr_per_gram
+        cost = w * price_per_gram
+
+    return round(price_per_gram), round(cost)
 
 
 def simulate_sell_now(
@@ -317,6 +405,7 @@ def simulate_sell_now(
 def get_gold_dashboard(db: Session, force_refresh: bool = False) -> Dict[str, Any]:
     """Return live gold market prices, user's manual gold portfolio, P/L status, and default simulation."""
     market_data = fetch_live_gold_market(force_refresh=force_refresh)
+    spot_idr_per_gram = float(market_data.get("spot_idr_per_gram") or 2400000.0)
     rows = db.execute(select(GoldHolding).order_by(GoldHolding.id.desc())).scalars().all()
 
     holdings_list: List[Dict[str, Any]] = []
@@ -324,11 +413,21 @@ def get_gold_dashboard(db: Session, force_refresh: bool = False) -> Dict[str, An
     total_cost_idr = 0.0
     total_retail_value_idr = 0.0
     total_gross_buyback_idr = 0.0
+    dirty = False
 
     for h in rows:
         w = float(h.weight_grams or 0.0)
-        cost = float(h.total_cost_idr or (w * float(h.buy_price_per_gram_idr or 0.0)))
-        buy_per_gram = float(h.buy_price_per_gram_idr or (cost / w if w > 0 else 0.0))
+        buy_per_gram, cost = _normalize_cost_and_price_per_gram(
+            weight_grams=w,
+            buy_price_per_gram_idr=h.buy_price_per_gram_idr,
+            total_cost_idr=h.total_cost_idr,
+            spot_idr_per_gram=spot_idr_per_gram,
+        )
+        # Auto-heal DB record if it had inverted per-gram vs total cost
+        if round(float(h.buy_price_per_gram_idr or 0)) != buy_per_gram or round(float(h.total_cost_idr or 0)) != cost:
+            h.buy_price_per_gram_idr = buy_per_gram
+            h.total_cost_idr = cost
+            dirty = True
 
         ref = _brand_reference_prices(h.brand, market_data)
         current_retail_per_gram = ref["buy_price_idr"]
@@ -385,18 +484,26 @@ def get_gold_dashboard(db: Session, force_refresh: bool = False) -> Dict[str, An
             }
         )
 
+    if dirty:
+        db.commit()
+
     avg_buy_per_gram_idr = round(total_cost_idr / total_weight_grams) if total_weight_grams > 0 else 0
     avg_retail_per_gram_idr = (
         round(total_retail_value_idr / total_weight_grams)
         if total_weight_grams > 0
         else market_data["antam"]["buy_price_idr"]
     )
+    avg_spread_pct = (
+        round((1.0 - (total_gross_buyback_idr / total_retail_value_idr)) * 100.0, 2)
+        if total_retail_value_idr > 0
+        else ANTAM_BUYBACK_SPREAD_PCT
+    )
 
     portfolio_simulation = simulate_sell_now(
         weight_grams=total_weight_grams,
         total_cost_idr=total_cost_idr,
         retail_buy_price_per_gram_idr=avg_retail_per_gram_idr,
-        spread_pct=ANTAM_BUYBACK_SPREAD_PCT,
+        spread_pct=avg_spread_pct,
         has_npwp=True,
         include_stamp_duty=True,
     )
@@ -444,17 +551,22 @@ def add_gold_holding(
     notes: str = "",
 ) -> GoldHolding:
     w = max(0.01, float(weight_grams or 0.0))
-    if total_cost_idr and float(total_cost_idr) > 0:
-        cost = float(total_cost_idr)
-        price_per_gram = cost / w
-    elif buy_price_per_gram_idr and float(buy_price_per_gram_idr) > 0:
-        price_per_gram = float(buy_price_per_gram_idr)
-        cost = w * price_per_gram
-    else:
-        market_data = fetch_live_gold_market(force_refresh=False)
+    market_data = fetch_live_gold_market(force_refresh=False)
+    spot_idr_per_gram = float(market_data.get("spot_idr_per_gram") or 2400000.0)
+
+    if (not buy_price_per_gram_idr or float(buy_price_per_gram_idr) <= 0) and (
+        not total_cost_idr or float(total_cost_idr) <= 0
+    ):
         ref = _brand_reference_prices(brand, market_data)
-        price_per_gram = ref["buy_price_idr"]
-        cost = w * price_per_gram
+        price_per_gram = round(ref["buy_price_idr"])
+        cost = round(w * price_per_gram)
+    else:
+        price_per_gram, cost = _normalize_cost_and_price_per_gram(
+            weight_grams=w,
+            buy_price_per_gram_idr=buy_price_per_gram_idr,
+            total_cost_idr=total_cost_idr,
+            spot_idr_per_gram=spot_idr_per_gram,
+        )
 
     clean_brand = (brand or "Antam").strip()
     clean_label = (label or f"Emas {clean_brand} {w:g}g").strip()
@@ -470,6 +582,53 @@ def add_gold_holding(
         notes=(notes or "").strip(),
     )
     db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def update_gold_holding(
+    db: Session,
+    holding_id: int,
+    weight_grams: Optional[float] = None,
+    buy_price_per_gram_idr: Optional[float] = None,
+    total_cost_idr: Optional[float] = None,
+    brand: Optional[str] = None,
+    label: Optional[str] = None,
+    purchased_at: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> Optional[GoldHolding]:
+    item = db.execute(select(GoldHolding).where(GoldHolding.id == holding_id)).scalar_one_or_none()
+    if not item:
+        return None
+
+    market_data = fetch_live_gold_market(force_refresh=False)
+    spot_idr_per_gram = float(market_data.get("spot_idr_per_gram") or 2400000.0)
+
+    w = max(0.01, float(weight_grams if weight_grams is not None else item.weight_grams))
+    if buy_price_per_gram_idr is not None or total_cost_idr is not None:
+        price_per_gram, cost = _normalize_cost_and_price_per_gram(
+            weight_grams=w,
+            buy_price_per_gram_idr=buy_price_per_gram_idr,
+            total_cost_idr=total_cost_idr,
+            spot_idr_per_gram=spot_idr_per_gram,
+        )
+    else:
+        price_per_gram = float(item.buy_price_per_gram_idr or 0.0)
+        cost = round(w * price_per_gram)
+
+    item.weight_grams = round(w, 4)
+    item.buy_price_per_gram_idr = round(price_per_gram)
+    item.total_cost_idr = round(cost)
+    if brand is not None:
+        item.brand = brand.strip() or item.brand
+    if label is not None:
+        item.label = label.strip() or f"Emas {item.brand} {w:g}g"
+    if purchased_at is not None:
+        item.purchased_at = purchased_at.strip()
+    if notes is not None:
+        item.notes = notes.strip()
+
     db.commit()
     db.refresh(item)
     return item

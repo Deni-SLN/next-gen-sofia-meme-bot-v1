@@ -150,19 +150,27 @@ def analyze_rug_check(query: str) -> dict:
 def execute_snipe(db: Session, data: dict) -> dict:
     from app.services import treasury, live_engine
 
-    symbol = data["symbol"].strip()
+    symbol = str(data.get("symbol") or "").strip()
+    contract_hint = str(data.get("contract") or "").strip()
+    lookup_query = contract_hint if len(contract_hint) >= 28 else symbol
+
     snipe_mode = str(data.get("mode") or "PAPER").upper()
     if snipe_mode not in ("PAPER", "LIVE"):
         snipe_mode = "PAPER"
 
-    check = analyze_rug_check(symbol)
+    if data.get("block_legacy_tokens") and market.is_legacy_token(symbol):
+        raise ValueError(
+            f"LEGACY_TOKEN_BLOCKED: Mode AGRESIF hanya membeli koin meme BARU (New Creations dari DexScreener/GMGN.ai). Koin lama '{symbol}' diblokir."
+        )
+
+    check = analyze_rug_check(lookup_query or symbol)
     if check["safety_score"] < 50 and not data.get("force_unsafe", False):
         raise ValueError("RUG_SHIELD_BLOCKED: Safety score di bawah 50. Token terdeteksi berisiko rug/bundle.")
 
     paper_wallet, usd_idr = portfolio.get_or_create_paper_wallet(db)
 
-    # Fetch 100% real live market price from DexScreener
-    live_tok = market.get_live_token_info(symbol)
+    # Fetch 100% real live market price from DexScreener + GMGN Trench registry
+    live_tok = market.get_live_token_info(lookup_query or symbol)
     live_price = (
         float(live_tok["price"])
         if (live_tok and live_tok.get("price", 0) > 0)
@@ -174,6 +182,15 @@ def execute_snipe(db: Session, data: dict) -> dict:
         else float(check.get("liquidity_usd") or 25000.0)
     )
     resolved_symbol = live_tok["symbol"] if live_tok else symbol
+    if data.get("block_legacy_tokens") and market.is_legacy_token(resolved_symbol):
+        raise ValueError(
+            f"LEGACY_TOKEN_BLOCKED: Mode AGRESIF hanya membeli koin meme BARU. Koin lama '{resolved_symbol}' diblokir."
+        )
+    resolved_contract = (live_tok.get("contract") if live_tok else None) or contract_hint or check.get("contract") or ""
+    token_age = (live_tok.get("age") if live_tok else None) or check.get("age") or "baru"
+    token_launchpad = (live_tok.get("launchpad") if live_tok else None) or check.get("launchpad") or "Pump.fun"
+    gmgn_url = (live_tok.get("gmgn_url") if live_tok else None) or f"https://gmgn.ai/sol/token/{resolved_contract}"
+    dex_url = (live_tok.get("dex_url") if live_tok else None) or check.get("dex_url") or ""
     target_chain = "Base" if "USDC" in resolved_symbol.upper() or check.get("chain") == "Base" else "Solana"
 
     # Determine buy amount in USD (supports amount_idr or amount_usd)
@@ -292,11 +309,12 @@ def execute_snipe(db: Session, data: dict) -> dict:
 
     from app.services import bot
     mode_tag = "[LIVE ON-CHAIN]" if snipe_mode == "LIVE" else "[PAPER]"
+    ca_short = f" • CA: {resolved_contract[:6]}...{resolved_contract[-4:]}" if len(resolved_contract) >= 12 else ""
     bot._append_log(
         "SNIPE",
         target_chain[:4].upper(),
         resolved_symbol,
-        f"{mode_tag} Swapped Rp {amount_idr:,.0f} -> {qty:,.2f} {resolved_symbol} @ ${live_price:.6f} (Slip {eff_slippage_pct:.2f}% • DEX Fee Rp {dex_fee_usd * usd_idr:,.0f} • Gas Rp {gas_fee_usd * usd_idr:,.0f})",
+        f"{mode_tag} Swapped Rp {amount_idr:,.0f} -> {qty:,.2f} {resolved_symbol} ({token_launchpad} • Umur {token_age}{ca_short}) @ ${live_price:.6f} (Slip {eff_slippage_pct:.2f}% • DEX Fee Rp {dex_fee_usd * usd_idr:,.0f} • Gas Rp {gas_fee_usd * usd_idr:,.0f})",
         f"Sisa Kas ({snipe_mode}): Rp {remaining_cash_usd * usd_idr:,.0f}",
         "success",
     )
@@ -305,6 +323,11 @@ def execute_snipe(db: Session, data: dict) -> dict:
         "status": "filled",
         "mode": snipe_mode,
         "symbol": resolved_symbol,
+        "contract": resolved_contract,
+        "age": token_age,
+        "launchpad": token_launchpad,
+        "dex_url": dex_url,
+        "gmgn_url": gmgn_url,
         "chain": target_chain,
         "tx_hash": tx_hash,
         "wallet_name": wallet_used_name,
@@ -330,7 +353,7 @@ def execute_snipe(db: Session, data: dict) -> dict:
         "fill_latency_ms": 138,
         "safety_score": check["safety_score"],
         "holding_total_qty": holding.quantity,
-        "market_source": "DexScreener Live Market Price",
+        "market_source": "DexScreener + GMGN.ai Live Market Price",
     }
 
 

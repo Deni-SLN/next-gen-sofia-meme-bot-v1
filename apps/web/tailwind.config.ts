@@ -6,37 +6,37 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', "Inter", "system-ui", "-apple-system", "sans-serif"],
+        sans: ["Inter", '"Plus Jakarta Sans"', "system-ui", "-apple-system", "sans-serif"],
         mono: ['"JetBrains Mono"', "monospace"],
       },
       colors: {
         obsidian: {
-          950: "#06080d",
-          900: "#0a0d14",
-          850: "#0d121c",
-          800: "#111726",
-          700: "#182033",
-          600: "#222d47",
+          950: "#090b0f",
+          900: "#111418",
+          850: "#161a20",
+          800: "#1d222a",
+          700: "#262c36",
+          600: "#323a46",
         },
         emerald: {
-          400: "#34d399",
+          400: "#40c977",
           500: "#10b981",
           DEFAULT: "#10b981",
         },
         cyan: {
-          400: "#22d3ee",
-          500: "#06b6d4",
+          400: "#38bdf8",
+          500: "#0ea5e9",
         },
         neon: {
-          green: "#00ff88",
-          cyan: "#00e5ff",
+          green: "#40c977",
+          cyan: "#38bdf8",
         },
       },
       boxShadow: {
-        "glow-emerald": "0 0 20px -3px rgba(16, 185, 129, 0.35)",
-        "glow-emerald-lg": "0 0 30px -4px rgba(0, 255, 136, 0.45)",
-        "glow-cyan": "0 0 20px -3px rgba(6, 182, 212, 0.35)",
-        "glow-rose": "0 0 20px -3px rgba(244, 63, 94, 0.35)",
+        "glow-emerald": "0 2px 10px -2px rgba(16, 185, 129, 0.18)",
+        "glow-emerald-lg": "0 4px 16px -3px rgba(16, 185, 129, 0.22)",
+        "glow-cyan": "0 2px 10px -2px rgba(14, 165, 233, 0.18)",
+        "glow-rose": "0 2px 10px -2px rgba(244, 63, 94, 0.18)",
       },
     },
   },

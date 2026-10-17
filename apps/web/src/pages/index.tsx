@@ -14,28 +14,28 @@ import { LucideIcon } from '@/components/LucideIcon';
 
 const AVATAR_THEMES = [
   {
-    circle: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300',
+    circle: 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400',
     hoverText: 'group-hover:text-emerald-400',
   },
   {
-    circle: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300',
+    circle: 'bg-cyan-500/10 border-cyan-500/25 text-cyan-400',
     hoverText: 'group-hover:text-cyan-400',
   },
   {
-    circle: 'bg-pink-500/20 border-pink-500/40 text-pink-300',
-    hoverText: 'group-hover:text-pink-400',
+    circle: 'bg-amber-500/10 border-amber-500/25 text-amber-400',
+    hoverText: 'group-hover:text-amber-400',
   },
   {
-    circle: 'bg-purple-500/20 border-purple-500/40 text-purple-300',
+    circle: 'bg-purple-500/10 border-purple-500/25 text-purple-400',
     hoverText: 'group-hover:text-purple-400',
   },
 ];
 
 const SNIPE_PCT_PRESETS = [
-  { label: '10% (Rp 15k)', value: 15000 },
-  { label: '25% (Rp 37.5k)', value: 37500 },
-  { label: '50% (Rp 75k)', value: 75000 },
-  { label: '100% (Rp 150k)', value: 150000 },
+  { label: '10% (15rb)', value: 15000 },
+  { label: '25% (37.5rb)', value: 37500 },
+  { label: '50% (75rb)', value: 75000 },
+  { label: '100% (150rb)', value: 150000 },
 ];
 
 export default function DashboardPage() {
@@ -50,7 +50,7 @@ export default function DashboardPage() {
   const [snipeMode, setSnipeMode] = useState<'PAPER' | 'LIVE'>('PAPER');
   const [snipeMsg, setSnipeMsg] = useState<string>('');
   const [snipeErr, setSnipeErr] = useState<string>('');
-  const [activeTarget, setActiveTarget] = useState<string>('WIF/METH');
+  const [activeTarget, setActiveTarget] = useState<string>('SOL/USDC');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -74,7 +74,7 @@ export default function DashboardPage() {
         perfQuery.refetch();
         walletsQuery.refetch();
         setSnipeMsg(
-          '🔄 Semua portofolio & posisi meme coin pada mode Paper telah dihapus! Saldo kembali utuh ke Rp 150.000.'
+          'Portofolio Paper telah direset kembali ke saldo awal Rp 150.000.'
         );
       };
       const botHandler = () => {
@@ -89,11 +89,11 @@ export default function DashboardPage() {
         if (act && act.symbol) {
           if (act.status === 'sold') {
             setSnipeMsg(
-              `🤖 [AUTO-BOT SELL] Menjual ${act.symbol} @ ${formatUsd(act.sell_price_usd)} • Realized PnL: ${formatIdr(act.realized_pnl_idr)}`
+              `[Auto-Bot Sell] Menjual ${act.symbol} @ ${formatUsd(act.sell_price_usd)} • Realized PnL: ${formatIdr(act.realized_pnl_idr)}`
             );
           } else {
             setSnipeMsg(
-              `🤖 [AUTO-BOT SNIPE] Membeli ${Number(act.quantity || 0).toLocaleString()} ${act.symbol} senilai ${formatIdr(act.amount_idr)} @ harga live ${formatUsd(act.entry_price)}!`
+              `[Auto-Bot Buy] Membeli ${Number(act.quantity || 0).toLocaleString()} ${act.symbol} senilai ${formatIdr(act.amount_idr)} @ ${formatUsd(act.entry_price)}`
             );
           }
         }
@@ -132,13 +132,13 @@ export default function DashboardPage() {
     try {
       if (botQuery.data?.status === 'running') {
         await api.stopBot();
-        setSnipeMsg('⏹ Mesin Sniper Bot dihentikan.');
+        setSnipeMsg('Auto-Sniper Bot dihentikan.');
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: false } }));
         }
       } else {
         await api.startBot(snipeMode);
-        setSnipeMsg(`🟢 Mesin Sniper Bot diaktifkan dalam mode ${snipeMode}!`);
+        setSnipeMsg(`Auto-Sniper Bot diaktifkan (${snipeMode} Mode).`);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: true } }));
         }
@@ -163,11 +163,9 @@ export default function DashboardPage() {
         mode: snipeMode,
       });
       setSnipeMsg(
-        `⚡ [${res.mode}] Berhasil snipe ${res.quantity.toLocaleString()} ${res.symbol} pada harga market asli ${formatUsd(
+        `[${res.mode}] Berhasil membeli ${res.quantity.toLocaleString()} ${res.symbol} @ ${formatUsd(
           res.entry_price
-        )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)} (${formatUsd(res.amount_usd)})${
-          res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 14)}...` : ''
-        }`
+        )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)}`
       );
       portfolioQuery.refetch();
       perfQuery.refetch();
@@ -208,7 +206,6 @@ export default function DashboardPage() {
 
   const isLive = snipeMode === 'LIVE';
 
-  // Live multi-gate on-chain wallets calculations
   const allWallets: any[] = walletsQuery.data?.wallets || [];
   const liveWallets = allWallets.filter((w) => !w.name?.includes('Modal Paper'));
   const liveTradingWallets = liveWallets.filter((w) => w.gate === 'trading');
@@ -219,7 +216,6 @@ export default function DashboardPage() {
   const liveCashUsd = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_usd) || 0), 0);
   const liveCashIdr = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
 
-  // Dynamic values based on selected mode (PAPER vs LIVE)
   const activeEquityUsd = isLive ? liveTotalEquityUsd : totalEquityUsd;
   const activeEquityIdr = isLive ? liveTotalEquityIdr : totalEquityIdr;
   const activeCashUsd = isLive ? liveCashUsd : paperCashUsd;
@@ -237,166 +233,147 @@ export default function DashboardPage() {
   ].slice(0, 6);
 
   return (
-    <div className="space-y-3">
-      {/* Sub-Header Alert Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25">
-        <div className="flex items-center gap-2 text-xs text-slate-200">
-          <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="font-bold text-emerald-400 font-mono">⚡ Meme Sniper Command Center:</span>
-          <span className="text-slate-300 text-[11px]">
-            100% Real-Time Market Data (DexScreener Live) • {isLive ? (
-              <>Saldo On-Chain Live: <strong className="text-cyan-300 font-mono">{formatUsd(liveTotalEquityUsd)} ({formatIdr(liveTotalEquityIdr)})</strong></>
-            ) : (
-              <>Modal Paper: <strong className="text-emerald-300 font-mono">Rp 150.000</strong></>
-            )} • Kurs Hari Ini: <strong className="text-cyan-300 font-mono">$1 = {formatIdr(usdIdr)}</strong>
-          </span>
+    <div className="space-y-4">
+      {/* Clean AnalisMarket-Style Page Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+        <div>
+          <h1 className="text-lg font-semibold text-white tracking-tight">
+            Command Center
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Ringkasan ekuitas portofolio, kurva performa, dan terminal eksekusi real-time DexScreener.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-600/50 px-2 py-0.5 rounded font-mono">
-            TARGET: {activeTarget}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="px-2.5 py-1 rounded-lg bg-obsidian-900 border border-obsidian-700/80 text-slate-300 font-mono text-[11px]">
+            Target: <strong className="text-white">{activeTarget}</strong>
           </span>
           <button
             type="button"
             onClick={handleBotPower}
-            className="text-[10px] bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border border-cyan-500/40 px-2 py-0.5 rounded font-mono flex items-center gap-1 transition"
+            className="px-3 py-1 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 text-slate-200 border border-obsidian-700/80 font-medium text-[11px] flex items-center gap-1.5 transition"
           >
-            <LucideIcon name="radio" className="w-3 h-3" />{' '}
-            {isBotRunning ? 'Stop Scan' : 'Start Scan'}
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                isBotRunning ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+              }`}
+            />
+            <span>{isBotRunning ? 'Hentikan Scan' : 'Mulai Scan'}</span>
           </button>
         </div>
       </div>
 
       {snipeMsg && (
-        <div className="px-3 py-2 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-xs font-mono text-emerald-200">
+        <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-300">
           {snipeMsg}
         </div>
       )}
       {snipeErr && (
-        <div className="px-3 py-2 rounded-lg bg-rose-950/70 border border-rose-500/40 text-xs font-mono text-rose-200">
-          ⚠️ {snipeErr}
+        <div className="px-3.5 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-300">
+          {snipeErr}
         </div>
       )}
 
       <QueryState isLoading={botQuery.isLoading} isError={botQuery.isError} error={botQuery.error}>
-        {/* BEGIN: StatCardsSection */}
+        {/* BEGIN: Clean 4-Metric KPI Cards */}
         <section
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
           data-purpose="stat-counter-grid"
         >
           {/* Card 1: Total Ekuitas */}
-          <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 relative overflow-hidden group hover:border-emerald-500/40 transition">
-            <div className="flex items-center justify-between text-xs mb-1">
+          <div className="bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 transition hover:border-obsidian-600">
+            <div className="flex items-center justify-between text-xs mb-2">
               <span className="text-slate-400 font-medium">
-                {isLive ? 'TOTAL EKUITAS (LIVE)' : 'TOTAL EKUITAS (PAPER)'}
+                {isLive ? 'Total Ekuitas (Live)' : 'Total Ekuitas (Paper)'}
               </span>
-              <span
-                className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
-                  isLive
-                    ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
-                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                }`}
-              >
-                {isLive ? 'LIVE ON-CHAIN' : 'MODAL AWAL'}
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-obsidian-850 text-slate-300 border border-obsidian-700">
+                {isLive ? 'On-Chain' : 'Simulasi'}
               </span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold font-mono tracking-tight text-white">
+              <span className="text-2xl font-semibold font-mono tracking-tight text-white">
                 {formatUsd(activeEquityUsd)}
               </span>
               <span className="text-xs text-slate-400 font-mono">≈ {formatIdr(activeEquityIdr)}</span>
             </div>
-            <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5 font-mono">
+            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-2">
               <span>
                 {isLive
-                  ? `${liveWallets.length} Dompet Multi-Chain On-Chain`
-                  : `${formatIdr(totalEquityIdr)} (kurs hari ini)`}
+                  ? `${liveWallets.length} dompet terhubung`
+                  : 'Modal awal Rp 150.000'}
               </span>
               <span
-                className={`flex items-center gap-0.5 ${
+                className={`font-mono font-medium ${
                   activePnlPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
                 }`}
               >
-                <LucideIcon name={isLive ? 'shield-check' : 'trending-up'} className="w-3 h-3" />{' '}
-                {isLive ? 'Verified On-Chain' : `${activePnlPct >= 0 ? '+' : ''}${activePnlPct.toFixed(2)}%`}
+                {activePnlPct >= 0 ? '+' : ''}
+                {activePnlPct.toFixed(2)}%
               </span>
             </div>
           </div>
 
-          {/* Card 2: Sisa Saldo Kas */}
-          <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 relative overflow-hidden group hover:border-cyan-500/40 transition">
-            <div className="flex items-center justify-between text-xs mb-1">
+          {/* Card 2: Saldo Kas Tersedia */}
+          <div className="bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 transition hover:border-obsidian-600">
+            <div className="flex items-center justify-between text-xs mb-2">
               <span className="text-slate-400 font-medium">
-                {isLive ? 'SISA SALDO KAS LIVE' : 'SISA SALDO KAS PAPER'}
+                Saldo Kas Tersedia
               </span>
-              <LucideIcon name="banknote" className="w-3.5 h-3.5 text-cyan-400" />
+              <LucideIcon name="wallet" className="w-3.5 h-3.5 text-slate-400" />
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold font-mono tracking-tight text-white">
+              <span className="text-2xl font-semibold font-mono tracking-tight text-white">
                 {formatUsd(activeCashUsd)}
               </span>
-              <span className="text-xs text-cyan-400 font-mono">
-                {isLive ? 'Hot Wallets' : 'Siap Beli'}
+              <span className="text-xs text-emerald-400 font-medium">
+                Siap Beli
               </span>
             </div>
-            <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5 font-mono">
-              <span>= {formatIdr(activeCashIdr)}</span>
-              <span className="text-slate-300">
-                {isLive ? 'Solana & Base DEX' : 'dari Rp 150.000'}
+            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-2 font-mono">
+              <span>{formatIdr(activeCashIdr)}</span>
+              <span className="text-slate-500 font-sans">
+                {isLive ? 'Multi-Chain DEX' : 'Likuiditas Paper'}
               </span>
             </div>
           </div>
 
-          {/* Card 3: Nilai Posisi Meme Cuan */}
-          <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 relative overflow-hidden group hover:border-slate-500 transition">
-            <div className="flex items-center justify-between text-xs mb-1">
+          {/* Card 3: Nilai Posisi Aktif */}
+          <div className="bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 transition hover:border-obsidian-600">
+            <div className="flex items-center justify-between text-xs mb-2">
               <span className="text-slate-400 font-medium">
-                {isLive ? 'NILAI POSISI MEME (LIVE)' : 'NILAI POSISI MEME CUAN'}
+                Nilai Posisi Aktif
               </span>
-              <span
-                className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
-                  isLive
-                    ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
-                    : 'bg-obsidian-800 text-slate-400 border border-obsidian-700'
-                }`}
-              >
-                {isLive ? 'LIVE DEX' : `${holdingsCount} POSISI`}
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-obsidian-850 text-slate-400 border border-obsidian-700">
+                {holdingsCount} Posisi
               </span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold font-mono tracking-tight text-slate-300">
+              <span className="text-2xl font-semibold font-mono tracking-tight text-white">
                 {formatUsd(holdingsValUsd)}
               </span>
-              <span className="text-xs text-slate-400 font-mono">{formatIdr(holdingsValIdr)}</span>
+              <span className="text-xs text-slate-400 font-mono">≈ {formatIdr(holdingsValIdr)}</span>
             </div>
-            <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5 font-mono">
-              <span>
-                ≈ {formatIdr(holdingsValIdr)} ({holdingsCount} posisi)
-              </span>
+            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-2">
+              <span>Portofolio Terbuka</span>
               <span className="text-slate-400">
-                {holdingsCount > 0 ? (isLive ? 'Aktif di Raydium / Base' : 'Aktif di DEX') : (isLive ? 'Standby Sniper' : 'Menunggu Trigger')}
+                {holdingsCount > 0 ? 'Dipantau TP/SL' : 'Menunggu Sinyal'}
               </span>
             </div>
           </div>
 
           {/* Card 4: Total Profit / Loss */}
-          <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 relative overflow-hidden group hover:border-emerald-500/40 transition">
-            <div className="flex items-center justify-between text-xs mb-1">
+          <div className="bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 transition hover:border-obsidian-600">
+            <div className="flex items-center justify-between text-xs mb-2">
               <span className="text-slate-400 font-medium">
-                {isLive ? 'TOTAL PROFIT / LOSS (LIVE)' : 'TOTAL PROFIT / LOSS (PnL)'}
+                Total Profit / Loss (PnL)
               </span>
-              <span
-                className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
-                  isLive
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                }`}
-              >
-                {isLive ? 'SETTLEMENT 05:00 WIB' : 'HARI INI'}
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-obsidian-850 text-slate-400 border border-obsidian-700">
+                Kumulatif
               </span>
             </div>
             <div className="flex items-baseline gap-2">
               <span
-                className={`text-2xl font-bold font-mono tracking-tight ${
+                className={`text-2xl font-semibold font-mono tracking-tight ${
                   netPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'
                 }`}
               >
@@ -405,26 +382,23 @@ export default function DashboardPage() {
               </span>
               <span
                 className={`text-xs font-mono ${
-                  activePnlPct >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'
+                  activePnlPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
                 }`}
               >
                 {activePnlPct >= 0 ? '+' : ''}
                 {activePnlPct.toFixed(2)}%
               </span>
             </div>
-            <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5 font-mono">
-              <span
-                className={`font-medium ${
-                  netPnlIdr >= 0 ? 'text-emerald-400/90' : 'text-rose-400/90'
-                }`}
-              >
-                {netPnlIdr >= 0 ? '+' : ''} {formatIdr(netPnlIdr)} ({isLive ? 'Net Settlement PnL' : 'Realized + Floating'})
+            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-2 font-mono">
+              <span className={netPnlIdr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                {netPnlIdr >= 0 ? '+' : ''}
+                {formatIdr(netPnlIdr)}
               </span>
-              <LucideIcon name="badge-percent" className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-slate-500 font-sans">Realized + Floating</span>
             </div>
           </div>
         </section>
-        {/* END: StatCardsSection */}
+        {/* END: Clean 4-Metric KPI Cards */}
 
         {/* BEGIN: LiveBotActivityAndTerminal */}
         <BotActivityCard
@@ -447,21 +421,20 @@ export default function DashboardPage() {
 
         {/* BEGIN: BottomDualPanelsSection */}
         <section
-          className="grid grid-cols-1 lg:grid-cols-12 gap-3"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-4"
           data-purpose="sniper-and-market-dual-panel"
         >
           {/* ================= LEFT PANEL: Instant Token Sniper ================= */}
           <form
             onSubmit={handleInstantSnipe}
-            className="lg:col-span-5 bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 flex flex-col justify-between space-y-3.5"
+            className="lg:col-span-5 bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 flex flex-col justify-between space-y-4"
           >
-            <div className="space-y-3">
-              {/* Header with Title and Mode Indicator */}
-              <div className="flex items-center justify-between pb-2 border-b border-obsidian-800">
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between pb-2.5 border-b border-obsidian-800">
                 <div className="flex items-center gap-2">
                   <LucideIcon name="zap" className="w-4 h-4 text-emerald-400" />
-                  <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wide">
-                    Instant Token Sniper
+                  <h3 className="text-sm font-semibold text-white">
+                    Eksekusi Cepat (Instant Snipe)
                   </h3>
                 </div>
                 <button
@@ -469,30 +442,29 @@ export default function DashboardPage() {
                   onClick={handleToggleModeSwitch}
                   className={
                     snipeMode === 'PAPER'
-                      ? 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                      : 'text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      ? 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                      : 'text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30'
                   }
                 >
-                  {snipeMode} ACTIVE
+                  Mode {snipeMode}
                 </button>
               </div>
 
-              {/* Description / Help */}
-              <p className="text-[11px] text-slate-400 leading-snug">
-                Salin &amp; Tempel Contract Address (CA) token dari DexScreener atau PumpFun untuk
-                langsung mengeksekusi order {snipeMode === 'PAPER' ? 'simulasi paper' : 'live on-chain'}.
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Masukkan ticker atau Contract Address (CA) token dari DexScreener / GMGN untuk
+                mengeksekusi pembelian instan.
               </p>
 
               {/* Input: Contract Address / Ticker */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-mono text-slate-400 uppercase font-semibold flex items-center justify-between">
-                  <span>TOKEN TICKER / CONTRACT ADDRESS (DEXSCREENER LINK)</span>
-                  <span className="text-cyan-400">Auto-Detect CA</span>
+              <div className="space-y-1.5">
+                <label className="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+                  <span>Ticker / Contract Address</span>
+                  <span className="text-slate-500 font-mono text-[10px]">Auto-Detect CA</span>
                 </label>
                 <div className="relative">
                   <input
-                    className="w-full bg-obsidian-950 border border-obsidian-700 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                    placeholder="Paste Mint CA or DexScreener URL..."
+                    className="w-full bg-obsidian-950 border border-obsidian-700 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/60"
+                    placeholder="Contoh: BONK atau Mint CA..."
                     type="text"
                     value={quickTicker}
                     onChange={(e) => setQuickTicker(e.target.value)}
@@ -501,29 +473,27 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={handlePasteClipboard}
-                    className="absolute right-2 top-1.5 px-1.5 py-0.5 rounded bg-obsidian-800 text-[10px] font-mono text-slate-400 hover:text-white transition"
+                    className="absolute right-2 top-1.5 px-2 py-0.5 rounded bg-obsidian-850 text-[10px] font-mono text-slate-400 hover:text-white border border-obsidian-700 transition"
                   >
-                    PASTE
+                    Paste
                   </button>
                 </div>
               </div>
 
               {/* Input: Nominal Snipe (Rupiah) */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center text-[10px] font-mono">
-                  <span className="text-slate-400 uppercase font-semibold">
-                    NOMINAL SNIPE (RUPIAH)
-                  </span>
-                  <span className="text-emerald-400 font-medium">
-                    Maks: {formatIdr(activeCashIdr)} ({formatUsd(activeCashUsd)})
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-400 font-medium">Nominal Pembelian (IDR)</span>
+                  <span className="text-slate-400 font-mono text-[10px]">
+                    Maks: {formatIdr(activeCashIdr)}
                   </span>
                 </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs font-mono text-slate-400 font-bold">
+                  <span className="absolute left-3 top-2 text-xs font-mono text-slate-400">
                     Rp
                   </span>
                   <input
-                    className="w-full bg-obsidian-950 border border-obsidian-700 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full bg-obsidian-950 border border-obsidian-700 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-white font-semibold focus:outline-none focus:border-emerald-500/60"
                     type="number"
                     step="1000"
                     value={quickAmountIdr}
@@ -534,7 +504,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Preset Amount Percent Buttons */}
-              <div className="grid grid-cols-4 gap-1.5 font-mono text-xs">
+              <div className="grid grid-cols-4 gap-1.5 text-xs">
                 {SNIPE_PCT_PRESETS.map((p) => {
                   const active = quickAmountIdr === p.value;
                   return (
@@ -544,8 +514,8 @@ export default function DashboardPage() {
                       onClick={() => setQuickAmountIdr(p.value)}
                       className={
                         active
-                          ? 'py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-semibold text-center text-[11px] transition'
-                          : 'py-1.5 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700/80 text-slate-300 hover:text-white transition text-center text-[11px]'
+                          ? 'py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-medium text-center text-[11px] transition'
+                          : 'py-1.5 rounded-lg bg-obsidian-950 hover:bg-obsidian-850 border border-obsidian-800 text-slate-400 hover:text-slate-200 transition text-center text-[11px]'
                       }
                     >
                       {p.label}
@@ -554,73 +524,57 @@ export default function DashboardPage() {
                 })}
               </div>
 
-              {/* Snipe Configurations (Slippage & MEV) */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-obsidian-950/70 border border-obsidian-800 text-[10px] font-mono">
-                <div className="flex items-center gap-1.5 text-slate-400">
-                  <LucideIcon name="shield" className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>
-                    Anti-MEV Turbo: <strong className="text-emerald-400">AKTIF</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-slate-400">Slippage:</span>
-                  <span className="px-1.5 py-0.5 rounded bg-obsidian-800 text-slate-200">1.0%</span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                    Auto
-                  </span>
-                </div>
+              {/* Snipe Configurations */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-obsidian-950 border border-obsidian-800 text-[11px]">
+                <span className="text-slate-400">
+                  Proteksi MEV: <strong className="text-emerald-400 font-medium">Aktif</strong>
+                </span>
+                <span className="text-slate-400 font-mono">
+                  Slippage: <strong className="text-slate-200">1.0% Auto</strong>
+                </span>
               </div>
             </div>
 
-            {/* Primary Call to Action Button: SNIPE PAPER */}
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-obsidian-950 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-glow-emerald-lg transition transform active:scale-[0.99]"
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-xs flex items-center justify-center gap-2 transition"
               >
-                <LucideIcon name="zap" className="w-4 h-4 fill-obsidian-950" />
+                <LucideIcon name="zap" className="w-4 h-4" />
                 <span>
-                  ⚡ SNIPE [{snipeMode}] - {formatIdr(quickAmountIdr)}
+                  Beli Sekarang ({snipeMode}) • {formatIdr(quickAmountIdr)}
                 </span>
               </button>
-              <p className="text-center text-[10px] text-slate-400 font-mono mt-1.5">
-                {isLive
-                  ? '⚡ Eksekusi On-Chain Asli • Gas Fee & Slippage Terproteksi'
-                  : 'Simulasi Eksekusi Cepat • Biaya Gas $0.00 (Solana Dev Simulated)'}
-              </p>
             </div>
           </form>
 
           {/* ================= RIGHT PANEL: Live DexScreener Meme Feed ================= */}
-          <div className="lg:col-span-7 bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 space-y-3 flex flex-col justify-between">
-            <div className="space-y-2.5">
-              {/* Feed Title & Live Ping */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-obsidian-800">
+          <div className="lg:col-span-7 bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-obsidian-800">
                 <div className="flex items-center gap-2">
-                  <LucideIcon name="flame" className="w-4 h-4 text-orange-400" />
-                  <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wide">
-                    Live DexScreener Meme Feed (100% Data Market Asli)
+                  <h3 className="text-sm font-semibold text-white">
+                    Live DexScreener Feed
                   </h3>
-                  <span className="flex h-2 w-2 rounded-full bg-emerald-400"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                 </div>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  Klik salah satu token untuk langsung mengisi formulir Snipe
+                <span className="text-[11px] text-slate-400">
+                  Klik token untuk mengisi ke panel eksekusi
                 </span>
               </div>
 
-              {/* Table Container */}
               <div className="overflow-x-auto" data-purpose="dex-screener-table">
-                <table className="w-full text-left border-collapse text-xs font-mono">
+                <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-obsidian-800 text-[10px] text-slate-400 uppercase tracking-wider">
-                      <th className="py-1.5 px-2 font-semibold">Token</th>
-                      <th className="py-1.5 px-2 font-semibold">Harga Live (USD / Rp)</th>
-                      <th className="py-1.5 px-2 font-semibold">5m Change</th>
-                      <th className="py-1.5 px-2 font-semibold">Liquidity / Vol</th>
-                      <th className="py-1.5 px-2 font-semibold text-right">Aksi Cepat</th>
+                    <tr className="border-b border-obsidian-800 text-[11px] text-slate-400">
+                      <th className="py-2 px-2 font-medium">Token</th>
+                      <th className="py-2 px-2 font-medium">Harga</th>
+                      <th className="py-2 px-2 font-medium">5m %</th>
+                      <th className="py-2 px-2 font-medium">Likuiditas / MCap</th>
+                      <th className="py-2 px-2 font-medium text-right">Aksi</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-obsidian-800/60 text-[11px]">
+                  <tbody className="divide-y divide-obsidian-800/60 text-xs font-mono">
                     {liveTokens.map((t: any, idx: number) => {
                       const theme = AVATAR_THEMES[idx % AVATAR_THEMES.length];
                       const cleanSym = (t.base_symbol || t.symbol || 'TK').replace(/[^A-Za-z0-9]/g, '');
@@ -632,20 +586,20 @@ export default function DashboardPage() {
                       return (
                         <tr
                           key={t.contract || t.symbol || idx}
-                          className="hover:bg-obsidian-850/80 transition group"
+                          className="hover:bg-obsidian-850/70 transition group"
                         >
-                          <td className="py-2.5 px-2">
-                            <div className="flex items-center gap-2">
+                          <td className="py-2.5 px-2 font-sans">
+                            <div className="flex items-center gap-2.5">
                               <div
-                                className={`w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold ${theme.circle}`}
+                                className={`w-7 h-7 rounded-lg border flex items-center justify-center text-[10px] font-semibold font-mono ${theme.circle}`}
                               >
                                 {initials}
                               </div>
                               <div>
-                                <div className={`font-bold text-white transition ${theme.hoverText}`}>
+                                <div className={`font-semibold text-white transition ${theme.hoverText}`}>
                                   {dispSymbol}
                                 </div>
-                                <div className="text-[9px] text-slate-400">
+                                <div className="text-[10px] text-slate-500">
                                   {t.chain} • {t.launchpad}
                                 </div>
                               </div>
@@ -653,16 +607,16 @@ export default function DashboardPage() {
                           </td>
                           <td className="py-2.5 px-2">
                             <div className="text-white font-medium">{formatUsd(t.price)}</div>
-                            <div className="text-[9px] text-slate-400">
-                              ≈ {formatIdr(t.price * usdIdr)}
+                            <div className="text-[10px] text-slate-500">
+                              {formatIdr(t.price * usdIdr)}
                             </div>
                           </td>
                           <td className="py-2.5 px-2">
                             <span
                               className={
                                 isUp
-                                  ? 'text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 text-[10px]'
-                                  : 'text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 text-[10px]'
+                                  ? 'text-emerald-400 font-medium bg-emerald-500/10 px-1.5 py-0.5 rounded text-[11px]'
+                                  : 'text-rose-400 font-medium bg-rose-500/10 px-1.5 py-0.5 rounded text-[11px]'
                               }
                             >
                               {isUp ? '+' : ''}
@@ -671,17 +625,17 @@ export default function DashboardPage() {
                           </td>
                           <td className="py-2.5 px-2 text-slate-300">
                             <div>${((t.liquidity || 0) / 1000).toFixed(1)}K</div>
-                            <div className="text-[9px] text-slate-400">
+                            <div className="text-[10px] text-slate-500">
                               MCap ${((t.market_cap || 0) / 1000).toFixed(1)}K
                             </div>
                           </td>
-                          <td className="py-2.5 px-2 text-right">
+                          <td className="py-2.5 px-2 text-right font-sans">
                             <button
                               type="button"
                               onClick={() => setQuickTicker(t.base_symbol || t.symbol)}
-                              className="px-2.5 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-obsidian-950 font-bold text-[10px] border border-emerald-500/30 transition"
+                              className="px-2.5 py-1 rounded-lg bg-obsidian-850 hover:bg-emerald-500/15 text-slate-300 hover:text-emerald-300 font-medium text-[11px] border border-obsidian-700 hover:border-emerald-500/30 transition"
                             >
-                              PILIH TOKEN
+                              Pilih
                             </button>
                           </td>
                         </tr>
@@ -692,20 +646,9 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Feed Pagination / Filter Bar */}
-            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-2 border-t border-obsidian-800">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span>Memindai 12 pool baru per detik</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="px-2 py-0.5 rounded bg-obsidian-950 text-slate-300 border border-obsidian-800">
-                  Filter: Liq &gt; $5K
-                </span>
-                <span className="px-2 py-0.5 rounded bg-obsidian-950 text-emerald-400 border border-obsidian-800">
-                  No Mint Revoke
-                </span>
-              </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2.5 border-t border-obsidian-800">
+              <span>Sumber: DexScreener &amp; GMGN.ai</span>
+              <span>Filter: Anti-Rug Verified</span>
             </div>
           </div>
         </section>

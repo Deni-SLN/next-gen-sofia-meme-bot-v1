@@ -11,6 +11,7 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 class SnipeRequest(BaseModel):
     symbol: str
+    contract: str | None = None
     amount_usd: float = 1.5
     amount_idr: float | None = None
     price: float = 0.0001
@@ -18,6 +19,7 @@ class SnipeRequest(BaseModel):
     priority_fee_sol: float = 0.005
     anti_mev: bool = True
     force_unsafe: bool = False
+    block_legacy_tokens: bool = False
     mode: str = "PAPER"
 
 
@@ -48,7 +50,9 @@ def snipe_token(body: SnipeRequest, db: Session = Depends(get_db)):
     except ValueError as e:
         msg = str(e)
         code = "RUG_SHIELD_BLOCKED"
-        if "LIVE_NOT_CONFIGURED" in msg:
+        if "LEGACY_TOKEN_BLOCKED" in msg:
+            code = "LEGACY_TOKEN_BLOCKED"
+        elif "LIVE_NOT_CONFIGURED" in msg:
             code = "LIVE_NOT_CONFIGURED"
         elif "SALDO_PAPER_TIDAK_CUKUP" in msg:
             code = "INSUFFICIENT_PAPER_BALANCE"

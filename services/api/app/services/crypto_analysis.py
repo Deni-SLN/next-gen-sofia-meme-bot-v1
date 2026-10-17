@@ -450,6 +450,28 @@ def _format_crypto_price_usd(price: float) -> float:
     return round(float(price), 8)
 
 
+def _format_crypto_price_str(price: float) -> str:
+    if not _is_valid_num(price) or price <= 0:
+        return "$0.00"
+    if price >= 100:
+        return f"${price:,.2f}"
+    if price >= 1:
+        return f"${price:,.4f}"
+    if price >= 0.01:
+        return f"${price:,.6f}"
+    return f"${price:,.8f}"
+
+
+def _format_crypto_price_idr_str(idr: float) -> str:
+    if not _is_valid_num(idr) or idr <= 0:
+        return "Rp 0"
+    if idr >= 1:
+        return f"Rp {round(idr):,}"
+    if idr >= 0.01:
+        return f"Rp {idr:,.2f}"
+    return f"Rp {idr:,.4f}"
+
+
 def _normalize_crypto_symbol(raw_query: str) -> tuple[str, str]:
     """Return (yahoo_symbol, clean_code)."""
     q = (raw_query or "BTC").strip().upper()
@@ -537,6 +559,91 @@ def get_crypto_market_pulse(usd_idr: float, force_refresh: bool = False) -> dict
     }
     _CRYPTO_CACHE[cache_key] = {"ts": now_ts, "data": pulse}
     return pulse
+
+
+def fetch_crypto_futures_contract(symbol: str, force_refresh: bool = False) -> dict[str, Any]:
+    """Fetch live USDT Perpetual Futures contract metadata from Gate.io REST API."""
+    now_ts = time.time()
+    clean_sym = symbol.strip().upper()
+    cache_key = f"__CRYPTO_FUTURES__{clean_sym}"
+    if not force_refresh and cache_key in _CRYPTO_CACHE:
+        cached = _CRYPTO_CACHE[cache_key]
+        if now_ts - cached["ts"] < _CRYPTO_TTL_SEC:
+            return cached["data"]
+
+    contract_name = f"{clean_sym}_USDT"
+    url = f"https://api.gateio.ws/api/v4/futures/usdt/contracts/{contract_name}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SofiaTrading/3.8",
+        "Accept": "application/json",
+    }
+
+    try:
+        with httpx.Client(timeout=5.0, follow_redirects=True, headers=headers) as client:
+            resp = client.get(url)
+            if resp.status_code == 200:
+                raw = resp.json()
+                mark_px = float(raw.get("mark_price") or 0.0)
+                index_px = float(raw.get("index_price") or mark_px)
+                funding_rate = float(raw.get("funding_rate") or 0.0)
+                funding_pct = round(funding_rate * 100.0, 4)
+                funding_annual_pct = round(funding_pct * 3.0 * 365.0, 2)
+                leverage_max = int(float(raw.get("leverage_max") or 50))
+                m_rate = float(raw.get("maintenance_rate") or 0.005)
+                long_users = int(raw.get("long_users") or 0)
+                short_users = int(raw.get("short_users") or 0)
+                tot_users = long_users + short_users
+                long_pct = round((long_users / tot_users) * 100.0, 1) if tot_users > 0 else 50.0
+                short_pct = round(100.0 - long_pct, 1)
+
+                next_funding_ts = raw.get("funding_next_apply")
+                next_funding_wib = (
+                    datetime.fromtimestamp(next_funding_ts, WIB_TZ).strftime("%H:%M WIB")
+                    if next_funding_ts
+                    else "Tiap 8 Jam"
+                )
+
+                if funding_pct > 0.01:
+                    sentiment = "BULLISH BIAS (Long bayar Short)"
+                    bias_color = "emerald"
+                elif funding_pct < -0.01:
+                    sentiment = "BEARISH BIAS (Short bayar Long)"
+                    bias_color = "rose"
+                else:
+                    sentiment = "NETRAL / SEIMBANG"
+                    bias_color = "slate"
+
+                contract_info = {
+                    "has_futures": True,
+                    "contract_name": raw.get("name") or contract_name,
+                    "exchange": "Gate.io USDT Perpetual",
+                    "mark_price": mark_px,
+                    "index_price": index_px,
+                    "funding_rate_pct": funding_pct,
+                    "funding_rate_annual_pct": funding_annual_pct,
+                    "funding_sentiment": sentiment,
+                    "funding_bias_color": bias_color,
+                    "next_funding_time": next_funding_wib,
+                    "leverage_max": leverage_max,
+                    "maintenance_rate": m_rate,
+                    "maintenance_rate_pct": round(m_rate * 100.0, 2),
+                    "long_ratio_pct": long_pct,
+                    "short_ratio_pct": short_pct,
+                    "status": raw.get("status", "trading"),
+                }
+                _CRYPTO_CACHE[cache_key] = {"ts": now_ts, "data": contract_info}
+                return contract_info
+    except Exception:
+        pass
+
+    fallback_info = {
+        "has_futures": False,
+        "contract_name": contract_name,
+        "exchange": "USDT Perpetual",
+        "message": f"Kontrak Futures Perpetual USDT untuk {clean_sym} tidak tersedia di bursa utama (hanya Spot/DEX).",
+    }
+    _CRYPTO_CACHE[cache_key] = {"ts": now_ts, "data": fallback_info}
+    return fallback_info
 
 
 def _build_crypto_timeframe_plan(
@@ -701,6 +808,396 @@ def _build_crypto_timeframe_plan(
             else "✅ Searah dengan struktur tren utama."
         ),
         "valid_until": valid_until_wib,
+    }
+
+
+def _build_crypto_futures_plan(
+    tf_key: str,
+    current_price_usd: float,
+    usd_idr: float,
+    closes: list[float],
+    highs: list[float],
+    lows: list[float],
+    atr_pct: float,
+    w52_low: float,
+    w52_high: float,
+    futures_contract: dict[str, Any],
+    daily_major_bullish: bool = True,
+    clean_code: str = "BTC",
+) -> dict[str, Any]:
+    """Build actionable Crypto Futures Trading Plan (LONG & SHORT setups, Entry Zone, TP1, TP2, Stop Loss, Leverage & Est Liq Price)."""
+    tf_cfg = CRYPTO_TIMEFRAMES.get(tf_key, CRYPTO_TIMEFRAMES["1d"])
+    lb = min(len(closes), tf_cfg["lookback_bars"])
+    closed_series = closes[:-1] if len(closes) > 15 else closes
+    sub_closes = closed_series[-max(15, lb):]
+    sub_lows = lows[-max(5, lb):]
+    sub_highs = highs[-max(5, lb):]
+
+    fast_len = min(10 if tf_key in ("15m", "1h", "4h") else 20, len(sub_closes))
+    mid_len = min(25 if tf_key in ("15m", "1h", "4h") else 50, len(sub_closes))
+    ma_fast = sum(sub_closes[-fast_len:]) / max(1, fast_len)
+    ma_mid = sum(sub_closes[-mid_len:]) / max(1, mid_len)
+    rsi_tf = _compute_rsi(sub_closes, min(14, max(5, len(sub_closes) - 2)))
+    _, _, macd_h = _compute_macd(closed_series[-90:])
+
+    bull_pts = 0
+    bear_pts = 0
+    if current_price_usd >= ma_fast:
+        bull_pts += 2
+    else:
+        bear_pts += 2
+    if current_price_usd >= ma_mid:
+        bull_pts += 2
+    else:
+        bear_pts += 2
+    if macd_h >= 0:
+        bull_pts += 1
+    else:
+        bear_pts += 1
+
+    if 48 <= rsi_tf <= 70:
+        bull_pts += 1
+    elif rsi_tf > 76:
+        bear_pts += 2
+    elif rsi_tf < 33:
+        if current_price_usd < ma_mid:
+            bear_pts += 1
+        else:
+            bull_pts += 1
+
+    primary_bias = "LONG" if bull_pts >= bear_pts else "SHORT"
+    bias_badge = "BULLISH" if bull_pts >= bear_pts else "BEARISH"
+    is_counter_trend = (primary_bias == "LONG" and not daily_major_bullish) or (primary_bias == "SHORT" and daily_major_bullish)
+    bias_desc = (
+        f"Bias Futures: Momentum {primary_bias} pada timeframe {tf_cfg['label']}."
+        + (" ⚠️ Counter-Trend harian (Gunakan leverage konservatif & disiplin SL)." if is_counter_trend else " ✅ Searah tren makro harian.")
+    )
+
+    # Leverage Recommendations (Dynamic based on ATR Volatility)
+    max_exchange_lev = int(futures_contract.get("leverage_max") or 50)
+    if clean_code in ("BTC", "ETH"):
+        rec_leverage = 5
+        max_safe_leverage = min(10, max_exchange_lev)
+    elif atr_pct < 0.05:
+        rec_leverage = 4
+        max_safe_leverage = min(7, max_exchange_lev)
+    elif atr_pct < 0.08:
+        rec_leverage = 3
+        max_safe_leverage = min(5, max_exchange_lev)
+    else:
+        rec_leverage = 2
+        max_safe_leverage = min(3, max_exchange_lev)
+
+    mmr = float(futures_contract.get("maintenance_rate") or 0.005)
+
+    tp1_target_pct = max(tf_cfg["min_tp1_pct"] / 100.0, atr_pct * tf_cfg["tp1_mult"])
+    tp2_target_pct = max(tf_cfg["min_tp2_pct"] / 100.0, atr_pct * tf_cfg["tp2_mult"])
+    sl_target_pct = max(tf_cfg["min_sl_pct"] / 100.0, atr_pct * tf_cfg["sl_mult"])
+
+    # --- LONG PLAN ---
+    low_window = min(sub_lows) if sub_lows else current_price_usd * (1.0 - sl_target_pct)
+    long_support_1 = _format_crypto_price_usd(max(w52_low * 0.90, min(low_window, current_price_usd * (1.0 - sl_target_pct * 0.85))))
+    long_entry_low = _format_crypto_price_usd(max(long_support_1, current_price_usd * (1.0 - sl_target_pct * 0.45)))
+    long_entry_high = _format_crypto_price_usd(current_price_usd)
+    if long_entry_low >= long_entry_high:
+        long_entry_low = _format_crypto_price_usd(current_price_usd * 0.99)
+
+    long_tp1 = _format_crypto_price_usd(current_price_usd * (1.0 + tp1_target_pct))
+    long_tp2 = _format_crypto_price_usd(max(long_tp1 * 1.02, current_price_usd * (1.0 + tp2_target_pct)))
+    long_sl = _format_crypto_price_usd(min(long_entry_low * 0.988, current_price_usd * (1.0 - sl_target_pct)))
+
+    long_tp1_pct = round(((long_tp1 - current_price_usd) / current_price_usd) * 100.0, 2)
+    long_tp2_pct = round(((long_tp2 - current_price_usd) / current_price_usd) * 100.0, 2)
+    long_sl_pct = round(((long_sl - current_price_usd) / current_price_usd) * 100.0, 2)
+
+    # Liquidation calculation for isolated LONG: P_liq = Entry * (1 - 1/L + MMR)
+    long_liq_px = _format_crypto_price_usd(current_price_usd * (1.0 - (1.0 / rec_leverage) + mmr))
+    long_liq_buffer_pct = round(((long_sl - long_liq_px) / current_price_usd) * 100.0, 2)
+
+    long_setup = {
+        "position_side": "LONG",
+        "action_title": "OPEN LONG (Beli Kontrak)",
+        "action_desc": f"Buka posisi LONG saat harga retest area support ${long_entry_low:,.4f} – ${long_entry_high:,.4f}.",
+        "entry_zone_low_usd": long_entry_low,
+        "entry_zone_high_usd": long_entry_high,
+        "entry_zone_low_idr": round(long_entry_low * usd_idr),
+        "entry_zone_high_idr": round(long_entry_high * usd_idr),
+        "tp_1_usd": long_tp1,
+        "tp_1_idr": round(long_tp1 * usd_idr),
+        "tp_1_pct": long_tp1_pct,
+        "tp_1_leveraged_roi_pct": round(long_tp1_pct * rec_leverage, 2),
+        "tp_2_usd": long_tp2,
+        "tp_2_idr": round(long_tp2 * usd_idr),
+        "tp_2_pct": long_tp2_pct,
+        "tp_2_leveraged_roi_pct": round(long_tp2_pct * rec_leverage, 2),
+        "stop_loss_usd": long_sl,
+        "stop_loss_idr": round(long_sl * usd_idr),
+        "stop_loss_pct": long_sl_pct,
+        "stop_loss_leveraged_risk_pct": round(long_sl_pct * rec_leverage, 2),
+        "est_liquidation_price_usd": long_liq_px,
+        "est_liquidation_price_idr": round(long_liq_px * usd_idr),
+        "liquidation_buffer_pct": long_liq_buffer_pct,
+        "risk_reward_ratio": f"1 : {round(long_tp2_pct / max(0.01, abs(long_sl_pct)), 2)}",
+        "sl_safety_note": f"Stop Loss terpasang {abs(long_liq_buffer_pct)}% di atas estimasi harga likuidasi ({rec_leverage}x), melindungi akun dari likuidasi paksa.",
+    }
+
+    # --- SHORT PLAN ---
+    high_window = max(sub_highs) if sub_highs else current_price_usd * (1.0 + sl_target_pct)
+    short_res_1 = _format_crypto_price_usd(min(w52_high * 1.10, max(high_window, current_price_usd * (1.0 + sl_target_pct * 0.85))))
+    short_entry_low = _format_crypto_price_usd(current_price_usd)
+    short_entry_high = _format_crypto_price_usd(min(short_res_1, current_price_usd * (1.0 + sl_target_pct * 0.45)))
+    if short_entry_high <= short_entry_low:
+        short_entry_high = _format_crypto_price_usd(current_price_usd * 1.01)
+
+    short_tp1 = _format_crypto_price_usd(current_price_usd * (1.0 - tp1_target_pct))
+    short_tp2 = _format_crypto_price_usd(min(short_tp1 * 0.98, current_price_usd * (1.0 - tp2_target_pct)))
+    short_sl = _format_crypto_price_usd(max(short_entry_high * 1.012, current_price_usd * (1.0 + sl_target_pct)))
+
+    short_tp1_pct = round(((current_price_usd - short_tp1) / current_price_usd) * 100.0, 2)
+    short_tp2_pct = round(((current_price_usd - short_tp2) / current_price_usd) * 100.0, 2)
+    short_sl_pct = round(((current_price_usd - short_sl) / current_price_usd) * 100.0, 2)  # negative
+
+    # Liquidation calculation for isolated SHORT: P_liq = Entry * (1 + 1/L - MMR)
+    short_liq_px = _format_crypto_price_usd(current_price_usd * (1.0 + (1.0 / rec_leverage) - mmr))
+    short_liq_buffer_pct = round(((short_liq_px - short_sl) / current_price_usd) * 100.0, 2)
+
+    short_setup = {
+        "position_side": "SHORT",
+        "action_title": "OPEN SHORT (Jual Kontrak)",
+        "action_desc": f"Buka posisi SHORT saat harga tertahan di area resistensi ${short_entry_low:,.4f} – ${short_entry_high:,.4f}.",
+        "entry_zone_low_usd": short_entry_low,
+        "entry_zone_high_usd": short_entry_high,
+        "entry_zone_low_idr": round(short_entry_low * usd_idr),
+        "entry_zone_high_idr": round(short_entry_high * usd_idr),
+        "tp_1_usd": short_tp1,
+        "tp_1_idr": round(short_tp1 * usd_idr),
+        "tp_1_pct": short_tp1_pct,
+        "tp_1_leveraged_roi_pct": round(short_tp1_pct * rec_leverage, 2),
+        "tp_2_usd": short_tp2,
+        "tp_2_idr": round(short_tp2 * usd_idr),
+        "tp_2_pct": short_tp2_pct,
+        "tp_2_leveraged_roi_pct": round(short_tp2_pct * rec_leverage, 2),
+        "stop_loss_usd": short_sl,
+        "stop_loss_idr": round(short_sl * usd_idr),
+        "stop_loss_pct": short_sl_pct,
+        "stop_loss_leveraged_risk_pct": round(short_sl_pct * rec_leverage, 2),
+        "est_liquidation_price_usd": short_liq_px,
+        "est_liquidation_price_idr": round(short_liq_px * usd_idr),
+        "liquidation_buffer_pct": short_liq_buffer_pct,
+        "risk_reward_ratio": f"1 : {round(short_tp2_pct / max(0.01, abs(short_sl_pct)), 2)}",
+        "sl_safety_note": f"Stop Loss terpasang {abs(short_liq_buffer_pct)}% di bawah estimasi harga likuidasi ({rec_leverage}x), melindungi akun dari likuidasi paksa.",
+    }
+
+    active_setup = long_setup if primary_bias == "LONG" else short_setup
+
+    now_wib = datetime.now(WIB_TZ)
+    valid_until_wib = (now_wib + timedelta(hours=int(tf_cfg.get("validity_hours", 24)))).strftime("%d %b %Y, %H:%M WIB")
+
+    return {
+        "timeframe": tf_key,
+        "timeframe_label": tf_cfg["label"],
+        "primary_bias": primary_bias,
+        "bias_badge": bias_badge,
+        "bias_description": bias_desc,
+        "recommended_leverage": rec_leverage,
+        "max_safe_leverage": max_safe_leverage,
+        "margin_mode": "ISOLATED",
+        "active_setup": active_setup,
+        "long_setup": long_setup,
+        "short_setup": short_setup,
+        "atr_volatility_pct": round(atr_pct * 100.0, 2),
+        "valid_until": valid_until_wib,
+    }
+
+
+def _build_crypto_trading_decision(
+    current_price_usd: float,
+    usd_idr: float,
+    active_plan: dict[str, Any],
+    technicals: dict[str, Any],
+    clean_code: str = "BTC",
+    timeframe_label: str = "1 Hari",
+) -> dict[str, Any]:
+    """
+    Build decisive, actionable Crypto Trading Decision card data:
+    - Verdict: BUY | SELL | HOLD | TUNGGU DULU
+    - If TUNGGU DULU: Exact price level to wait for (USD & IDR), % distance from current price, and trigger condition
+    - Clear distinction for Prospective Buyers (Belum punya koin) vs Current Holders (Sudah punya koin)
+    - Confidence Score (0-100%) and Action Steps
+    """
+    rsi = float(technicals.get("rsi_14") or 50.0)
+    sma20 = float(technicals.get("sma_20") or current_price_usd)
+    sma50 = float(technicals.get("sma_50") or current_price_usd)
+    sma200 = float(technicals.get("sma_200") or current_price_usd)
+    macd_hist = float(technicals.get("macd_histogram") or 0.0)
+    vol_ratio = float(technicals.get("volume_ratio") or 1.0)
+
+    entry_low = float(active_plan.get("entry_zone_low_usd") or current_price_usd * 0.98)
+    entry_high = float(active_plan.get("entry_zone_high_usd") or current_price_usd)
+    tp1 = float(active_plan.get("tp_1_usd") or current_price_usd * 1.05)
+    tp2 = float(active_plan.get("tp_2_usd") or current_price_usd * 1.10)
+    stop_loss = float(active_plan.get("stop_loss_usd") or current_price_usd * 0.95)
+    support_1 = float(active_plan.get("support_1_usd") or entry_low)
+    support_2 = float(active_plan.get("support_2_usd") or support_1 * 0.95)
+    sig_dir = str(active_plan.get("signal_direction") or "HOLD")
+
+    # Dynamic Confidence Score (35% to 95%)
+    conf_score = 50
+    if current_price_usd >= sma20:
+        conf_score += 10
+    else:
+        conf_score -= 10
+    if current_price_usd >= sma50:
+        conf_score += 12
+    else:
+        conf_score -= 12
+    if current_price_usd >= sma200:
+        conf_score += 8
+    else:
+        conf_score -= 8
+    if macd_hist > 0:
+        conf_score += 8
+    else:
+        conf_score -= 8
+    if 45 <= rsi <= 68:
+        conf_score += 7
+    elif rsi > 75 or rsi < 30:
+        conf_score -= 8
+    if vol_ratio >= 1.2:
+        conf_score += 5
+    conf_score = max(35, min(95, conf_score))
+
+    px_s = _format_crypto_price_str
+    idr_s = _format_crypto_price_idr_str
+
+    def _calc_idr(usd_val: float) -> float:
+        amt = usd_val * usd_idr
+        return round(amt) if amt >= 10 else round(amt, 4)
+
+    # Evaluate Verdict
+    if rsi >= 76 or current_price_usd >= tp2:
+        primary_decision = "SELL"
+        decision_badge = "SELL / TAKE PROFIT"
+        badge_color = "rose"
+        verdict_headline = "KUNCI PROFIT / JUAL SEBAGIAN (Jenuh Beli)"
+        wait_price_usd = tp1
+        wait_price_idr = _calc_idr(tp1)
+        dist_pct = 0.0
+        wait_instruction = f"Amankan profit sekarang di area resistensi {px_s(current_price_usd)}. Jika ingin masuk kembali, tunggu koreksi ke {px_s(entry_low)}."
+        trigger_condition = f"RSI-14 ({rsi}) telah memasuki area jenuh beli ekstrem (Overbought). Waspadai koreksi / long squeeze."
+        prospective_advice = f"TUNGGU DULU — Jangan beli di pucuk. Tunggu harga terkoreksi kembali ke area {px_s(entry_low)} – {px_s(entry_high)} ({idr_s(_calc_idr(entry_low))} – {idr_s(_calc_idr(entry_high))})."
+        holders_advice = f"SELL SEBAGIAN — Amankan 50%–70% modal/profit Anda di harga sekarang dan pasang Trailing Stop di {px_s(tp1)} ({idr_s(_calc_idr(tp1))}) untuk melindungi sisa posisi."
+        target_display = f"Target Jual: {px_s(current_price_usd)} – {px_s(tp2)}"
+        action_steps = [
+            f"1. Amankan 50%–70% keuntungan posisi pada harga saat ini ({px_s(current_price_usd)}).",
+            f"2. Naikkan Stop Loss ke level proteksi Trailing Stop di {px_s(tp1)} ({idr_s(_calc_idr(tp1))}).",
+            f"3. Calon pembeli baru: Jangan FOMO, pasang limit order tunggu di {px_s(entry_low)}.",
+        ]
+
+    elif current_price_usd < stop_loss or (sig_dir == "SHORT / REDUCE" and current_price_usd < sma50):
+        primary_decision = "TUNGGU DULU"
+        decision_badge = "TUNGGU DULU"
+        badge_color = "amber"
+        verdict_headline = f"TUNGGU DULU — PANTAU LEVEL SUPPORT {px_s(support_1)}"
+        wait_price_usd = support_1
+        wait_price_idr = _calc_idr(support_1)
+        dist_pct = round(((support_1 - current_price_usd) / current_price_usd) * 100.0, 2)
+        wait_instruction = f"Tunggu dulu harga menguji Support 1 di {px_s(support_1)} ({idr_s(wait_price_idr)}) atau membentuk konfirmasi pantulan reversal."
+        trigger_condition = f"Harga bergerak di bawah SMA-20 ({px_s(sma20)}) dan SMA-50 ({px_s(sma50)}). Hindari menangkap pisau jatuh sebelum ada rejection candle."
+        prospective_advice = f"TUNGGU DULU — Jangan beli sekarang (butuh koreksi {dist_pct}% ke support). Tunggu harga menyentuh {px_s(support_1)} ({idr_s(wait_price_idr)}) dan muncul candle hijau konfirmasi."
+        holders_advice = f"REDUCE SPOT / CUT LOSS — Batasi risiko Anda jika harga tembus di bawah {px_s(stop_loss)} ({idr_s(_calc_idr(stop_loss))}) untuk mencegah penurunan lebih dalam."
+        target_display = f"Tunggu ke: {px_s(support_1)} ({idr_s(wait_price_idr)})"
+        action_steps = [
+            f"1. Calon pembeli: Tahan modal tunai (Cash is King) dan pasang price alert di {px_s(support_1)}.",
+            f"2. Tunggu konfirmasi candle memantul (Bullish Pin Bar / Engulfing) di area Support 1.",
+            f"3. Pemilik koin: Disiplin cut loss jika breakdown di bawah {px_s(stop_loss)} ({idr_s(_calc_idr(stop_loss))}).",
+        ]
+
+    elif sig_dir == "LONG / BUY" and (entry_low * 0.985 <= current_price_usd <= entry_high * 1.02):
+        primary_decision = "BUY"
+        decision_badge = "BUY / AKUMULASI"
+        badge_color = "emerald"
+        verdict_headline = "BUY SEKARANG — AREA ZONA ENTRY IDEAL"
+        wait_price_usd = current_price_usd
+        wait_price_idr = _calc_idr(current_price_usd)
+        dist_pct = 0.0
+        wait_instruction = f"Harga saat ini {px_s(current_price_usd)} ({idr_s(wait_price_idr)}) berada di dalam zona beli optimal ({px_s(entry_low)} – {px_s(entry_high)})."
+        trigger_condition = f"Candle bertahan kokoh di atas Support {px_s(support_1)} dengan momentum MACD positif dan R/R {active_plan.get('net_risk_reward_ratio')}."
+        prospective_advice = f"BUY / AKUMULASI — Beli bertahap di harga saat ini ({px_s(current_price_usd)}) s/d {px_s(entry_low)}. Pasang Stop Loss ketat di {px_s(stop_loss)} ({idr_s(_calc_idr(stop_loss))})."
+        holders_advice = f"HOLD & ADD — Pertahankan posisi atau tambah muatan secara bertahap dengan target TP1 di {px_s(tp1)} ({idr_s(_calc_idr(tp1))}) dan TP2 di {px_s(tp2)}."
+        target_display = f"Zona Beli: {px_s(entry_low)} – {px_s(entry_high)}"
+        action_steps = [
+            f"1. Eksekusi beli bertahap (Dollar-Cost Averaging) di area {px_s(entry_low)} – {px_s(entry_high)}.",
+            f"2. Pasang Target Profit 1 di {px_s(tp1)} (+{active_plan.get('tp_1_pct')}%) untuk amankan 50% modal.",
+            f"3. Pasang Stop Loss otomatis di {px_s(stop_loss)} (maksimal risiko {active_plan.get('stop_loss_pct')}%).",
+        ]
+
+    elif sig_dir == "LONG / BUY" and current_price_usd > entry_high * 1.02:
+        primary_decision = "TUNGGU DULU"
+        decision_badge = "TUNGGU DULU"
+        badge_color = "amber"
+        wait_price_usd = entry_high
+        wait_price_idr = _calc_idr(entry_high)
+        dist_pct = round(((entry_high - current_price_usd) / current_price_usd) * 100.0, 2)
+        verdict_headline = f"TUNGGU DULU — PULLBACK KE {px_s(entry_high)}"
+        wait_instruction = f"Tunggu dulu harga terkoreksi sehat ({abs(dist_pct)}%) ke area {px_s(entry_low)} – {px_s(entry_high)} ({idr_s(_calc_idr(entry_low))} – {idr_s(wait_price_idr)})."
+        trigger_condition = f"Tren positif terkonfirmasi, namun harga telah bergerak di atas batas zona beli awal. Menunggu pullback memberikan Risk/Reward yang jauh lebih aman."
+        prospective_advice = f"TUNGGU DULU — Jangan kejar harga (FOMO). Pasang limit order beli di {px_s(entry_high)} ({idr_s(wait_price_idr)})."
+        holders_advice = f"HOLD — Biarkan profit bertumbuh. Pasang trailing stop di {px_s(entry_low)} untuk mengunci modal Anda."
+        target_display = f"Tunggu Koreksi ke: {px_s(entry_high)} ({dist_pct}%)"
+        action_steps = [
+            f"1. Hindari mengejar harga saat ini ({px_s(current_price_usd)}).",
+            f"2. Pasang antrean beli (Limit Order) di level {px_s(entry_high)} ({idr_s(wait_price_idr)}).",
+            f"3. Jika harga pullback dan mantul di {px_s(entry_low)}, konfirmasi beli dengan target TP1 {px_s(tp1)}.",
+        ]
+
+    else:
+        primary_decision = "HOLD"
+        decision_badge = "HOLD / PANTAU"
+        badge_color = "cyan"
+        verdict_headline = "HOLD / PANTAU RANGE KONSOLIDASI"
+        wait_price_usd = entry_low
+        wait_price_idr = _calc_idr(entry_low)
+        dist_pct = round(((entry_low - current_price_usd) / current_price_usd) * 100.0, 2)
+        wait_instruction = f"Harga sedang bergerak sideways. Bagi pembeli baru: tunggu koreksi ke {px_s(entry_low)} ({idr_s(wait_price_idr)}) atau breakout di atas {px_s(entry_high)}."
+        trigger_condition = f"RSI netral ({rsi}) dan rentang harga bergerak di antara Support {px_s(support_1)} dan Resistensi {px_s(tp1)}."
+        prospective_advice = f"TUNGGU DULU — Tunggu harga menguji batas bawah konsolidasi di {px_s(entry_low)} ({idr_s(wait_price_idr)}) sebelum membuka posisi baru."
+        holders_advice = f"HOLD POSISI — Tahan posisi selama harga bertahan di atas Stop Loss {px_s(stop_loss)} ({idr_s(_calc_idr(stop_loss))})."
+        target_display = f"Batas Pantau: {px_s(entry_low)} – {px_s(entry_high)}"
+        action_steps = [
+            f"1. Pemilik koin: Tahan posisi (HOLD) dengan pengaman Stop Loss di {px_s(stop_loss)}.",
+            f"2. Calon pembeli: TUNGGU DULU hingga harga menyentuh {px_s(entry_low)} atau breakout di atas {px_s(entry_high)}.",
+            f"3. Pantau lonjakan volume transaksi sebagai pemicu arah pergerakan selanjutnya.",
+        ]
+
+    return {
+        "decision": primary_decision,
+        "decision_badge": decision_badge,
+        "badge_color": badge_color,
+        "verdict_headline": verdict_headline,
+        "wait_price_usd": wait_price_usd,
+        "wait_price_idr": wait_price_idr,
+        "wait_price_display": wait_instruction,
+        "wait_distance_pct": dist_pct,
+        "target_display": target_display,
+        "confidence_score": conf_score,
+        "trigger_condition": trigger_condition,
+        "prospective_buyers": {
+            "action": "BUY SEKARANG" if primary_decision == "BUY" else "TUNGGU DULU",
+            "badge": "CALON PEMBELI (BELUM PUNYA KOIN)",
+            "guidance": prospective_advice,
+            "entry_ref_usd": wait_price_usd,
+            "entry_ref_idr": wait_price_idr,
+        },
+        "current_holders": {
+            "action": "SELL / REDUCE" if primary_decision in ("SELL", "TUNGGU DULU") else "HOLD & ADD" if primary_decision == "BUY" else "HOLD POSISI",
+            "badge": "PEMILIK KOIN (SUDAH PUNYA POSISI)",
+            "guidance": holders_advice,
+            "exit_ref_usd": stop_loss,
+            "exit_ref_idr": _calc_idr(stop_loss),
+        },
+        "action_steps": action_steps,
+        "timeframe_label": timeframe_label,
     }
 
 
@@ -948,6 +1445,46 @@ def analyze_crypto(
 
     active_plan = timeframes_plan.get(tf_norm, timeframes_plan["1d"])
 
+    # Fetch Futures Perpetual Contract & Multi-Timeframe Futures Plan (LONG / SHORT)
+    futures_contract = fetch_crypto_futures_contract(clean_code, force_refresh=force_refresh)
+    futures_timeframes_plan: dict[str, dict[str, Any]] = {}
+    for tf_k in CRYPTO_TIMEFRAMES:
+        futures_timeframes_plan[tf_k] = _build_crypto_futures_plan(
+            tf_key=tf_k,
+            current_price_usd=current_price_usd,
+            usd_idr=usd_idr,
+            closes=closes,
+            highs=highs,
+            lows=lows,
+            atr_pct=atr_pct,
+            w52_low=w52_low_usd,
+            w52_high=w52_high_usd,
+            futures_contract=futures_contract,
+            daily_major_bullish=daily_major_bullish,
+            clean_code=clean_code,
+        )
+    active_futures_plan = futures_timeframes_plan.get(tf_norm, futures_timeframes_plan["1d"])
+
+    # Build Multi-Timeframe Trading Decisions (BUY / SELL / HOLD / TUNGGU DULU)
+    timeframes_decision: dict[str, dict[str, Any]] = {}
+    for tf_k in CRYPTO_TIMEFRAMES:
+        timeframes_decision[tf_k] = _build_crypto_trading_decision(
+            current_price_usd=current_price_usd,
+            usd_idr=usd_idr,
+            active_plan=timeframes_plan[tf_k],
+            technicals={
+                "rsi_14": rsi14,
+                "sma_20": sma20,
+                "sma_50": sma50,
+                "sma_200": sma200,
+                "macd_histogram": macd_hist,
+                "volume_ratio": vol_ratio,
+            },
+            clean_code=clean_code,
+            timeframe_label=CRYPTO_TIMEFRAMES[tf_k]["label"],
+        )
+    active_decision = timeframes_decision.get(tf_norm, timeframes_decision["1d"])
+
     # Tokenomics & Staking Intelligence
     tok_base = CRYPTO_TOKENOMICS_REGISTRY.get(clean_code)
     pop_match = next((p for p in POPULAR_CRYPTOS if p["code"] == clean_code), None)
@@ -1043,6 +1580,16 @@ def analyze_crypto(
         summary_notes.append(
             f"Aset ini menghasilkan imbal hasil Staking / Native Yield sekitar ~{tokenomics['staking_apr_pct']}% APR ({tokenomics['staking_mechanism']})."
         )
+    if futures_contract.get("has_futures"):
+        f_side = active_futures_plan.get("primary_bias", "LONG")
+        f_lev = active_futures_plan.get("recommended_leverage", 5)
+        f_fund = futures_contract.get("funding_rate_pct", 0.0)
+        summary_notes.append(
+            f"Kontrak Futures Perpetual ({futures_contract['contract_name']}): Sinyal {f_side} (Lev {f_lev}x Isolated) • Funding Rate {f_fund}% / 8 Jam."
+        )
+    summary_notes.append(
+        f"Keputusan Trading ({active_decision['timeframe_label']}): {active_decision['decision_badge']} • {active_decision['target_display']}."
+    )
 
     return {
         "code": clean_code,
@@ -1081,8 +1628,13 @@ def analyze_crypto(
             }
             for k, v in CRYPTO_TIMEFRAMES.items()
         ],
+        "trading_decision": active_decision,
+        "timeframes_decision": timeframes_decision,
         "trading_plan": active_plan,
         "timeframes_plan": timeframes_plan,
+        "futures_contract": futures_contract,
+        "futures_plan": active_futures_plan,
+        "futures_timeframes_plan": futures_timeframes_plan,
         "technicals": {
             "rsi_14": rsi14,
             "rsi_status": rsi_status,

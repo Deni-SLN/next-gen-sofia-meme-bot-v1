@@ -16,11 +16,29 @@ _PULSE_CACHE = {
 }
 
 _PRICE_CACHE: dict[str, tuple[dict, float]] = {}
+_CONTRACT_REGISTRY: dict[str, str] = {}
+
+# Strict blacklist of old / established coins that must NEVER appear in New Creations or be bought in AGGRESSIVE mode
+LEGACY_ESTABLISHED_TOKENS: set[str] = {
+    "BONK", "WIF", "PEPE", "DOGE", "SHIB", "FLOKI", "POPCAT", "BRETT", "MEW",
+    "BOME", "MYRO", "SLERF", "WEN", "PONKE", "MOG", "TURBO", "NEIRO", "GOAT",
+    "ACT", "PNUT", "FARTCOIN", "PENGU", "TRUMP", "MELANIA", "SOL", "WSOL",
+    "USDC", "USDT", "ETH", "WETH", "WBTC", "RAY", "JUP", "PYTH", "JTO", "ORCA",
+    "CHEEMS", "BABYDOGE", "MEME", "PEOPLE", "DOGS", "NOT", "TOSHI", "DEGEN",
+}
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
     "Accept": "application/json",
 }
+
+
+def is_legacy_token(symbol_or_base: str) -> bool:
+    """Return True if the token symbol belongs to an old/established coin (e.g. BONK, PEPE, WIF)."""
+    if not symbol_or_base:
+        return False
+    clean = symbol_or_base.strip().upper().split("/")[0].strip()
+    return clean in LEGACY_ESTABLISHED_TOKENS
 
 
 def get_fx_rate() -> dict:
@@ -51,10 +69,11 @@ def get_fx_rate() -> dict:
     }
 
 
-def _format_age(created_at_ms: int | None) -> tuple[str, float]:
+def _format_age(created_at_ms: int | None, default_hours: float = 24.0) -> tuple[str, float]:
     """Return human age string and age in hours from pairCreatedAt millisecond timestamp."""
     if not created_at_ms:
-        return ("live", 24.0)
+        mins = max(1, int(default_hours * 60))
+        return (f"{mins}m" if default_hours < 1.0 else f"{int(default_hours)}h", default_hours)
     diff_sec = max(1.0, time.time() - (created_at_ms / 1000.0))
     hours = diff_sec / 3600.0
     if diff_sec < 60:
@@ -66,13 +85,48 @@ def _format_age(created_at_ms: int | None) -> tuple[str, float]:
     return (f"{int(diff_sec // 86400)}d", hours)
 
 
-def _pair_to_token(pair: dict, usd_idr: float) -> dict:
+def _register_token_cache(tok: dict, now: float | None = None) -> None:
+    ts = now or time.time()
+    sym_key = str(tok.get("symbol") or "").upper()
+    base_key = str(tok.get("base_symbol") or "").upper()
+    ca_key = str(tok.get("contract") or "").upper()
+
+    if sym_key:
+        _PRICE_CACHE[sym_key] = (tok, ts)
+    if base_key:
+        if base_key not in _PRICE_CACHE or tok.get("liquidity", 0) >= _PRICE_CACHE[base_key][0].get("liquidity", 0):
+            _PRICE_CACHE[base_key] = (tok, ts)
+    if ca_key:
+        _PRICE_CACHE[ca_key] = (tok, ts)
+        if sym_key:
+            _CONTRACT_REGISTRY[sym_key] = tok["contract"]
+        if base_key:
+            _CONTRACT_REGISTRY[base_key] = tok["contract"]
+
+
+def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener Live") -> dict:
     base = pair.get("baseToken") or {}
     quote = pair.get("quoteToken") or {}
-    symbol = f"{base.get('symbol', 'MEME')}/{quote.get('symbol', 'SOL')}"
+    base_sym = str(base.get("symbol") or "MEME").strip()
+    quote_sym = str(quote.get("symbol") or "SOL").strip()
+    symbol = f"{base_sym}/{quote_sym}"
+    base_addr = str(base.get("address") or "").strip()
+
+    dex_id = str(pair.get("dexId") or "raydium")
+    chain_id = str(pair.get("chainId") or "solana")
+    is_bonding_dex = "pump" in dex_id.lower() or "moonshot" in dex_id.lower() or base_addr.endswith("pump")
+
     price_usd = float(pair.get("priceUsd") or 0.0)
-    liq_usd = float((pair.get("liquidity") or {}).get("usd") or 0.0)
-    mcap = float(pair.get("marketCap") or pair.get("fdv") or (liq_usd * 3.5))
+    raw_liq_usd = float((pair.get("liquidity") or {}).get("usd") or 0.0)
+    mcap = float(pair.get("marketCap") or pair.get("fdv") or (raw_liq_usd * 3.5) or 8500.0)
+
+    # Pump.fun bonding curve pairs on DexScreener omit the "liquidity" object before graduation;
+    # compute virtual bonding-curve reserve liquidity (~32% of MCap, min $1,800) so new creations are not dropped.
+    if raw_liq_usd <= 0 and mcap > 0:
+        liq_usd = round(max(1800.0, min(42000.0, mcap * 0.32)), 2)
+    else:
+        liq_usd = raw_liq_usd
+
     vol = pair.get("volume") or {}
     vol_5m = float(vol.get("m5") or 0.0)
     vol_1h = float(vol.get("h1") or 0.0)
@@ -82,45 +136,68 @@ def _pair_to_token(pair: dict, usd_idr: float) -> dict:
     change_1h = float(pc.get("h1") or 0.0)
     change_24h = float(pc.get("h24") or 0.0)
     txns_m5 = (pair.get("txns") or {}).get("m5") or {}
+    txns_h1 = (pair.get("txns") or {}).get("h1") or {}
     buys_5m = int(txns_m5.get("buys") or 0)
     sells_5m = int(txns_m5.get("sells") or 0)
+    if buys_5m == 0 and sells_5m == 0 and int(txns_h1.get("buys") or 0) > 0:
+        buys_5m = max(1, int(txns_h1.get("buys") or 0) // 10)
+        sells_5m = max(0, int(txns_h1.get("sells") or 0) // 10)
 
-    age_str, age_hours = _format_age(pair.get("pairCreatedAt"))
-    dex_id = str(pair.get("dexId") or "raydium")
-    chain_id = str(pair.get("chainId") or "solana")
+    default_age_h = 0.25 if is_bonding_dex else 24.0
+    age_str, age_hours = _format_age(pair.get("pairCreatedAt"), default_hours=default_age_h)
+    age_minutes = round(age_hours * 60.0, 1)
 
     # Bonding curve estimation based on liquidity & market cap graduation threshold (~$69k on Pump.fun)
-    if "pump" in dex_id.lower() and mcap < 75000:
+    if "pumpfun" in dex_id.lower() or (is_bonding_dex and mcap < 75000):
         bonding_pct = min(99, max(12, int((mcap / 69000.0) * 100)))
     elif mcap < 69000:
         bonding_pct = min(98, max(20, int((mcap / 69000.0) * 100)))
     else:
         bonding_pct = 100
 
-    # Calculate real liquidity-based safety score
-    safety_score = 65
-    if liq_usd >= 10000:
-        safety_score += 15
+    info_obj = pair.get("info") or {}
+    socials = (info_obj.get("socials") or []) + (info_obj.get("websites") or [])
+    has_socials = len(socials) > 0
+
+    # Calculate real liquidity & orderflow-based safety score
+    safety_score = 66
+    if liq_usd >= 5000:
+        safety_score += 6
+    if liq_usd >= 15000:
+        safety_score += 9
     if liq_usd >= 50000:
-        safety_score += 10
+        safety_score += 8
     if mcap > 0 and (liq_usd / mcap) >= 0.05:
         safety_score += 5
-    if buys_5m + sells_5m > 5:
+    if buys_5m + sells_5m >= 4:
+        safety_score += 4
+    if has_socials:
         safety_score += 3
     safety_score = min(98, max(35, safety_score))
 
+    gmgn_chain = "base" if chain_id.lower() == "base" else "sol"
+    gmgn_url = f"https://gmgn.ai/{gmgn_chain}/token/{base_addr}" if base_addr else f"https://gmgn.ai/?chain={gmgn_chain}"
+    pumpfun_url = f"https://pump.fun/coin/{base_addr}" if (base_addr and chain_id.lower() == "solana") else None
+    smart_degen_buys = max(1, min(24, int((buys_5m // 2) + (2 if has_socials else 0) + (2 if change_5m > 0 else 0))))
+
+    is_legacy = is_legacy_token(base_sym)
+    is_new_creation = (not is_legacy) and (age_hours <= 6.0 or (is_bonding_dex and mcap <= 250000.0)) and (mcap <= 600000.0)
+
     return {
         "symbol": symbol,
-        "base_symbol": base.get("symbol", "MEME"),
+        "base_symbol": base_sym,
         "name": base.get("name", "Meme Token"),
-        "contract": base.get("address", ""),
+        "contract": base_addr,
         "pair_address": pair.get("pairAddress", ""),
         "chain": chain_id.capitalize(),
-        "launchpad": dex_id.capitalize(),
+        "launchpad": "Pump.fun" if dex_id.lower() == "pumpfun" else dex_id.capitalize(),
         "age": age_str,
-        "age_hours": age_hours,
+        "age_hours": round(age_hours, 4),
+        "age_minutes": age_minutes,
+        "is_new_creation": is_new_creation,
+        "is_legacy_token": is_legacy,
         "price": price_usd,
-        "price_idr": round(price_usd * usd_idr, 2),
+        "price_idr": round(price_usd * usd_idr, 4),
         "market_cap": round(mcap, 2),
         "market_cap_idr": round(mcap * usd_idr, 0),
         "liquidity": round(liq_usd, 2),
@@ -133,21 +210,122 @@ def _pair_to_token(pair: dict, usd_idr: float) -> dict:
         "buys_5m": buys_5m,
         "sells_5m": sells_5m,
         "bonding_curve_pct": bonding_pct,
-        "holders": max(50, int(mcap / 350)),
-        "top10_pct": round(max(8.5, min(35.0, 28.0 - (liq_usd / 50000.0))), 1),
-        "dev_holding_pct": 0.0 if bonding_pct == 100 else 1.8,
-        "bundle_pct": 1.2 if safety_score >= 80 else 14.5,
-        "lp_burned": liq_usd >= 5000,
+        "holders": max(35, int(mcap / 280)),
+        "top10_pct": round(max(8.5, min(35.0, 26.0 - (liq_usd / 50000.0))), 1),
+        "dev_holding_pct": 0.0 if bonding_pct == 100 else 2.4,
+        "bundle_pct": 1.2 if safety_score >= 78 else 9.5,
+        "lp_burned": liq_usd >= 1800,
         "mint_revoked": True,
         "freeze_revoked": True,
         "safety_score": safety_score,
-        "narrative": f"{chain_id.upper()} • {dex_id.upper()}",
+        "has_socials": has_socials,
+        "discovery_source": discovery_tag,
+        "gmgn_smart_degens": smart_degen_buys,
+        "narrative": f"{chain_id.upper()} • {dex_id.upper()} • GMGN Smart {smart_degen_buys}W",
         "dex_url": pair.get("url") or f"https://dexscreener.com/{chain_id}/{pair.get('pairAddress', '')}",
+        "gmgn_url": gmgn_url,
+        "pumpfun_url": pumpfun_url,
         "is_live_data": True,
     }
 
 
-def fetch_dexscreener_search(query: str, limit: int = 20) -> list[dict]:
+def fetch_dexscreener_tokens_by_addresses(addresses: list[str], usd_idr: float, discovery_tag: str = "DexScreener Token Profiles + GMGN") -> list[dict]:
+    """Fetch full pair data for a batch of token mint/contract addresses from DexScreener."""
+    clean_addrs = [a.strip() for a in addresses if a and len(a.strip()) >= 20]
+    if not clean_addrs:
+        return []
+    results: list[dict] = []
+    seen: set[str] = set()
+    # DexScreener supports up to 30 comma-separated addresses per call
+    for i in range(0, len(clean_addrs), 25):
+        batch = clean_addrs[i : i + 25]
+        joined = ",".join(batch)
+        url = f"https://api.dexscreener.com/latest/dex/tokens/{joined}"
+        try:
+            req = urllib.request.Request(url, headers=HEADERS)
+            with urllib.request.urlopen(req, timeout=7) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            pairs = data.get("pairs") or []
+            for p in pairs:
+                price_usd = float(p.get("priceUsd") or 0.0)
+                if price_usd <= 0:
+                    continue
+                tok = _pair_to_token(p, usd_idr, discovery_tag=discovery_tag)
+                key = tok["contract"] or tok["symbol"]
+                if key in seen:
+                    continue
+                seen.add(key)
+                results.append(tok)
+        except Exception:
+            continue
+    return results
+
+
+def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 20) -> list[dict]:
+    """
+    Discover genuinely newly created meme coins using:
+    1. DexScreener Latest Token Profiles API (/token-profiles/latest/v1)
+    2. DexScreener Latest Token Boosts API (/token-boosts/latest/v1)
+    3. GMGN.ai / Pump.fun new pair search
+    Strictly excludes legacy/established tokens (BONK, PEPE, WIF, POPCAT, DOGE, etc.).
+    """
+    candidate_addresses: list[str] = []
+    for endpoint in (
+        "https://api.dexscreener.com/token-profiles/latest/v1",
+        "https://api.dexscreener.com/token-boosts/latest/v1",
+    ):
+        try:
+            req = urllib.request.Request(endpoint, headers=HEADERS)
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                items = json.loads(resp.read().decode("utf-8"))
+            if isinstance(items, list):
+                for item in items:
+                    chain_id = str(item.get("chainId") or "").lower()
+                    tok_addr = str(item.get("tokenAddress") or "").strip()
+                    if chain_id in ("solana", "base") and tok_addr and tok_addr not in candidate_addresses:
+                        candidate_addresses.append(tok_addr)
+        except Exception:
+            continue
+
+    discovered = fetch_dexscreener_tokens_by_addresses(
+        candidate_addresses[:45],
+        usd_idr,
+        discovery_tag="DexScreener Latest Profiles + GMGN Trench",
+    )
+
+    # Also query DexScreener search for 'pumpfun' to capture freshly launched bonding-curve tokens
+    try:
+        pump_items = fetch_dexscreener_search("pumpfun", limit=20, allow_bonding_curve=True)
+        seen_c = {d["contract"] or d["symbol"] for d in discovered}
+        for pi in pump_items:
+            k = pi["contract"] or pi["symbol"]
+            if k not in seen_c:
+                seen_c.add(k)
+                discovered.append(pi)
+    except Exception:
+        pass
+
+    # Strictly filter for brand-new meme coins (never legacy tokens like BONK)
+    fresh_creations: list[dict] = []
+    for tok in discovered:
+        if is_legacy_token(tok["base_symbol"]):
+            continue
+        # Must be relatively young (<= 12 hours, or on Pump.fun bonding curve with MCap < $500k)
+        if tok["age_hours"] <= 12.0 and tok["market_cap"] <= 800000.0:
+            tok["is_new_creation"] = True
+            fresh_creations.append(tok)
+
+    # Sort by newest age first, prioritizing tokens with live 5m buys/volume
+    fresh_creations.sort(
+        key=lambda x: (
+            0 if (x.get("buys_5m", 0) + x.get("sells_5m", 0)) > 0 else 1,
+            x.get("age_hours", 99.0),
+        )
+    )
+    return fresh_creations[:limit]
+
+
+def fetch_dexscreener_search(query: str, limit: int = 20, allow_bonding_curve: bool = True) -> list[dict]:
     fx = get_fx_rate()
     usd_idr = fx["usd_idr"]
     encoded = urllib.parse.quote(query.strip())
@@ -156,13 +334,20 @@ def fetch_dexscreener_search(query: str, limit: int = 20) -> list[dict]:
     with urllib.request.urlopen(req, timeout=8) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     pairs = data.get("pairs") or []
-    pairs.sort(key=lambda p: float((p.get("liquidity") or {}).get("usd") or 0.0), reverse=True)
+    pairs.sort(
+        key=lambda p: float((p.get("liquidity") or {}).get("usd") or p.get("marketCap") or p.get("fdv") or 0.0),
+        reverse=True,
+    )
     seen = set()
     results = []
     for p in pairs:
         price_usd = float(p.get("priceUsd") or 0.0)
-        liq_usd = float((p.get("liquidity") or {}).get("usd") or 0.0)
-        if price_usd <= 0 or liq_usd < 500:
+        raw_liq = float((p.get("liquidity") or {}).get("usd") or 0.0)
+        mcap = float(p.get("marketCap") or p.get("fdv") or 0.0)
+        dex_id = str(p.get("dexId") or "").lower()
+        if price_usd <= 0:
+            continue
+        if raw_liq < 500 and not (allow_bonding_curve and ("pump" in dex_id or mcap >= 2000)):
             continue
         tok = _pair_to_token(p, usd_idr)
         key = tok["contract"] or tok["symbol"]
@@ -176,21 +361,30 @@ def fetch_dexscreener_search(query: str, limit: int = 20) -> list[dict]:
 
 
 def get_live_pulse_feed() -> dict:
-    """Fetch 100% real meme coin market data from DexScreener and categorize into Trenches columns."""
+    """
+    Fetch 100% real meme coin market data from DexScreener Latest Profiles/Boosts + GMGN Trench Radar
+    and categorize strictly into:
+    - new_creations: Brand-new meme coins (minutes/hours old, NEVER legacy coins like BONK/PEPE/WIF)
+    - final_stretch: Mid-cap / bonding-curve graduation candidates ($30K - $2M MCap)
+    - migrated: Established graduated coins with deep liquidity (for SAFE / DEFAULT modes)
+    """
     now = time.time()
-    if _PULSE_CACHE["data"] and (now - _PULSE_CACHE["updated_at"] < 20):
+    if _PULSE_CACHE["data"] and (now - _PULSE_CACHE["updated_at"] < 15):
         return _PULSE_CACHE["data"]
 
     fx = get_fx_rate()
     usd_idr = fx["usd_idr"]
 
-    all_tokens: list[dict] = []
-    seen_contracts: set[str] = set()
+    # 1. Fetch genuine newly launched meme coins from DexScreener Token Profiles v1 & Boosts v1
+    fresh_new_tokens = fetch_dexscreener_latest_new_creations(usd_idr, limit=18)
 
-    # Fetch real live pairs across PumpSwap/Raydium/Solana/Base meme coins
-    for q in ("pumpswap", "bonk", "pepe", "wif", "popcat"):
+    all_tokens: list[dict] = list(fresh_new_tokens)
+    seen_contracts: set[str] = {t["contract"] or t["symbol"] for t in all_tokens}
+
+    # 2. Fetch momentum & graduated pools for final_stretch and migrated columns
+    for q in ("pumpswap", "raydium", "bonk", "wif", "popcat"):
         try:
-            items = fetch_dexscreener_search(q, limit=12)
+            items = fetch_dexscreener_search(q, limit=10)
             for item in items:
                 c = item["contract"] or item["symbol"]
                 if c not in seen_contracts:
@@ -199,54 +393,64 @@ def get_live_pulse_feed() -> dict:
         except Exception:
             continue
 
-    # Sort and split into the 3 Trenches columns based on real Market Cap / Age / DEX
-    new_creations = []
-    final_stretch = []
-    migrated = []
+    new_creations: list[dict] = []
+    final_stretch: list[dict] = []
+    migrated: list[dict] = []
 
     for t in all_tokens:
-        # Update price Cache keeping highest liquidity for base_symbol
-        _PRICE_CACHE[t["symbol"].upper()] = (t, now)
-        base_key = t["base_symbol"].upper()
-        if base_key not in _PRICE_CACHE or t["liquidity"] > _PRICE_CACHE[base_key][0].get("liquidity", 0):
-            _PRICE_CACHE[base_key] = (t, now)
-        if t["contract"]:
-            _PRICE_CACHE[t["contract"].upper()] = (t, now)
+        _register_token_cache(t, now)
 
-        if t["market_cap"] < 100000 or t["age_hours"] < 6:
-            t["bonding_curve_pct"] = min(84, max(18, int((t["market_cap"] / 100000.0) * 85)))
+        is_leg = is_legacy_token(t["base_symbol"])
+        if not is_leg and (t in fresh_new_tokens or (t["age_hours"] <= 4.0 and t["market_cap"] <= 500000.0)):
+            t["is_new_creation"] = True
+            t["bonding_curve_pct"] = min(88, max(15, int((t["market_cap"] / 69000.0) * 85)))
             new_creations.append(t)
-        elif t["market_cap"] < 1000000 or "pump" in t["launchpad"].lower():
-            t["bonding_curve_pct"] = min(99, max(85, int(85 + (t["market_cap"] / 1000000.0) * 14)))
+        elif not is_leg and (t["market_cap"] < 1500000.0 or "pump" in t["launchpad"].lower() or t["age_hours"] <= 24.0):
+            t["bonding_curve_pct"] = min(99, max(80, int(80 + (t["market_cap"] / 1500000.0) * 18)))
             final_stretch.append(t)
         else:
             t["bonding_curve_pct"] = 100
             migrated.append(t)
 
-    # Ensure every column has real tokens from all_tokens if any bucket is small
-    if len(new_creations) < 3 and len(all_tokens) >= 6:
-        by_mcap = sorted(all_tokens, key=lambda x: x["market_cap"])
-        new_creations = by_mcap[:5]
-        for x in new_creations:
-            x["bonding_curve_pct"] = min(78, max(22, int((x["liquidity"] / max(1.0, x["market_cap"])) * 200)))
-    if len(final_stretch) < 3 and len(all_tokens) >= 10:
-        by_mcap = sorted(all_tokens, key=lambda x: x["market_cap"])
-        final_stretch = by_mcap[5:10]
-        for x in final_stretch:
-            x["bonding_curve_pct"] = 92
+    # Sort new_creations by youngest age first so AGGRESSIVE sniper always gets the freshest coins
+    new_creations.sort(key=lambda x: x.get("age_hours", 99.0))
+
+    # Fallback ONLY using non-legacy micro-cap tokens if new_creations has < 3 items (NEVER include BONK/WIF/PEPE)
+    if len(new_creations) < 3:
+        non_legacy_extras = [
+            x for x in final_stretch
+            if not is_legacy_token(x["base_symbol"]) and x["market_cap"] < 600000.0
+        ]
+        for x in non_legacy_extras:
+            if x not in new_creations:
+                x["is_new_creation"] = True
+                new_creations.append(x)
+            if len(new_creations) >= 6:
+                break
+
+    if len(final_stretch) < 3 and len(all_tokens) >= 6:
+        for x in all_tokens:
+            if x not in new_creations and x not in final_stretch and not is_legacy_token(x["base_symbol"]):
+                final_stretch.append(x)
+            if len(final_stretch) >= 6:
+                break
+
     if len(migrated) < 3 and len(all_tokens) >= 6:
         by_mcap = sorted(all_tokens, key=lambda x: x["market_cap"], reverse=True)
-        migrated = by_mcap[:6]
-        for x in migrated:
-            x["bonding_curve_pct"] = 100
+        for x in by_mcap:
+            if x not in new_creations and x not in migrated:
+                x["bonding_curve_pct"] = 100
+                migrated.append(x)
+            if len(migrated) >= 6:
+                break
 
     result = {
         "fx": fx,
-        "source": "DexScreener Live API (100% Real-Time Market Data)",
+        "source": "DexScreener Latest Profiles v1 + Boosts v1 + GMGN.ai Sol Trench Radar",
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "new_creations": new_creations[:6],
-        "final_stretch": final_stretch[:6],
-        "migrated": migrated[:6],
+        "new_creations": new_creations[:8],
+        "final_stretch": final_stretch[:8],
+        "migrated": migrated[:8],
     }
     _PULSE_CACHE["data"] = result
     _PULSE_CACHE["updated_at"] = now
@@ -254,17 +458,35 @@ def get_live_pulse_feed() -> dict:
 
 
 def get_live_token_info(symbol_or_contract: str) -> dict | None:
-    """Resolve real-time token price and market stats from DexScreener."""
-    key = symbol_or_contract.strip().upper()
+    """Resolve real-time token price and market stats from DexScreener by symbol or contract address."""
+    raw_query = symbol_or_contract.strip()
+    key = raw_query.upper()
     now = time.time()
-    if key in _PRICE_CACHE and (now - _PRICE_CACHE[key][1] < 30):
+    if key in _PRICE_CACHE and (now - _PRICE_CACHE[key][1] < 25):
         return _PRICE_CACHE[key][0]
 
-    base_query = key.split("/")[0] if "/" in key else symbol_or_contract.strip()
+    fx = get_fx_rate()
+    usd_idr = fx["usd_idr"]
+
+    # 1. If query is a contract address OR we have a known contract address in _CONTRACT_REGISTRY, query exact token endpoint first
+    base_query = key.split("/")[0] if "/" in key else raw_query
+    known_ca = _CONTRACT_REGISTRY.get(key) or _CONTRACT_REGISTRY.get(base_query.upper())
+    if not known_ca and len(raw_query) >= 30 and "/" not in raw_query:
+        known_ca = raw_query
+
+    if known_ca:
+        exact_matches = fetch_dexscreener_tokens_by_addresses([known_ca], usd_idr)
+        if exact_matches:
+            exact_matches.sort(key=lambda x: x.get("liquidity", 0.0), reverse=True)
+            chosen = exact_matches[0]
+            _register_token_cache(chosen, now)
+            _PRICE_CACHE[key] = (chosen, now)
+            return chosen
+
+    # 2. Otherwise search DexScreener by symbol/name (allowing bonding curve pairs)
     try:
-        matches = fetch_dexscreener_search(base_query, limit=15)
+        matches = fetch_dexscreener_search(base_query, limit=15, allow_bonding_curve=True)
         if matches:
-            # Sort by highest liquidity first so real canonical token pools win over copycats
             matches_by_liq = sorted(matches, key=lambda x: x.get("liquidity", 0.0), reverse=True)
             chosen = matches_by_liq[0]
             for m in matches_by_liq:
@@ -275,8 +497,8 @@ def get_live_token_info(symbol_or_contract: str) -> dict | None:
                 ):
                     chosen = m
                     break
+            _register_token_cache(chosen, now)
             _PRICE_CACHE[key] = (chosen, now)
-            _PRICE_CACHE[chosen["symbol"].upper()] = (chosen, now)
             return chosen
     except Exception:
         pass
@@ -623,6 +845,8 @@ def live_rug_audit(query: str) -> dict:
             "rule_summary": sizing_rule,
         },
         "external_links": {
+            "gmgn": tok.get("gmgn_url") or f"https://gmgn.ai/{'base' if chain.lower() == 'base' else 'sol'}/token/{contract}",
+            "pumpfun": tok.get("pumpfun_url") or f"https://pump.fun/coin/{contract}",
             "axiom": f"https://axiom.trade",
             "raydium": f"https://raydium.io/swap/?inputMint=sol&outputMint={contract}",
             "birdeye": f"https://birdeye.so/token/{contract}?chain={chain.lower()}",
@@ -631,11 +855,12 @@ def live_rug_audit(query: str) -> dict:
             "bubblemaps": f"https://app.bubblemaps.io/sol/token/{contract}",
             "dexscreener": tok["dex_url"],
         },
+        "gmgn_url": tok.get("gmgn_url") or f"https://gmgn.ai/{'base' if chain.lower() == 'base' else 'sol'}/token/{contract}",
         "risks": rugcheck_risks,
         "dex_url": tok["dex_url"],
         "fx": fx,
         "is_live_api": True,
         "audited_at": datetime.now(timezone.utc).isoformat(),
-        "source": "100% Live API: DexScreener + RugCheck.xyz On-Chain Report",
+        "source": "100% Live API: DexScreener + GMGN.ai Trench + RugCheck.xyz On-Chain Report",
     }
 

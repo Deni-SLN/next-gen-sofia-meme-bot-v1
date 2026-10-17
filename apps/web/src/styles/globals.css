@@ -1,31 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --am-bg: #090b0f;
+  --am-panel: #111418;
+  --am-panel-2: #161a20;
+  --am-panel-3: #1d222a;
+  --am-line: #262c36;
+  --am-line-strong: #323a46;
+  --am-text: #f1f3f6;
+  --am-muted: #9ba3b0;
+  --am-dim: #6e7785;
+  --am-gold: #e5ad51;
+  --am-green: #40c977;
+  --am-red: #ff6764;
+}
+
 body {
-  @apply bg-obsidian-950 text-slate-200 font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-300 transition-colors duration-200;
+  background-color: var(--am-bg);
+  color: var(--am-text);
+  @apply font-sans antialiased selection:bg-emerald-500/20 selection:text-emerald-300 transition-colors duration-200;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.011em;
+}
+
+h1, h2, h3, h4 {
+  letter-spacing: -0.025em;
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0d14;
+  background: #090b0f;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 3px;
+  background: #232832;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #323a46;
 }
 
 @keyframes pulse-subtle {
@@ -43,25 +65,24 @@ body {
   animation: pulse-subtle 2.5s infinite ease-in-out;
 }
 
+/* Clean AnalisMarket-inspired subtle ambient lighting instead of noisy grid */
 .grid-bg-overlay {
-  background-size: 24px 24px;
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    radial-gradient(circle at 15% 0%, rgba(229, 173, 81, 0.035), transparent 36%),
+    radial-gradient(circle at 85% 0%, rgba(64, 201, 119, 0.03), transparent 36%);
 }
 
 /* =========================================================================
    LIGHT MODE THEME OVERRIDES (html.light-theme)
-   High-contrast daylight financial workspace with Plus Jakarta Sans legibility
-   and zero yellow-on-yellow or low-contrast badge combinations.
+   Clean AnalisMarket Daylight Workspace
    ========================================================================= */
 html.light-theme body {
-  background-color: #f1f5f9 !important;
+  background-color: #f8fafc !important;
   color: #0f172a !important;
 }
 
 html.light-theme ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #f8fafc;
 }
 
 html.light-theme ::-webkit-scrollbar-thumb {
@@ -74,14 +95,14 @@ html.light-theme ::-webkit-scrollbar-thumb:hover {
 
 html.light-theme .grid-bg-overlay {
   background-image:
-    linear-gradient(to right, rgba(15, 23, 42, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+    radial-gradient(circle at 15% 0%, rgba(229, 173, 81, 0.05), transparent 36%),
+    radial-gradient(circle at 85% 0%, rgba(16, 185, 129, 0.04), transparent 36%);
 }
 
 /* Main surfaces & card backgrounds */
 html.light-theme .bg-obsidian-950,
 html.light-theme main.bg-obsidian-950 {
-  background-color: #f1f5f9 !important;
+  background-color: #f8fafc !important;
 }
 
 html.light-theme .bg-obsidian-900,
@@ -112,7 +133,7 @@ html.light-theme .bg-slate-950\/40,
 html.light-theme .bg-slate-800,
 html.light-theme .bg-slate-800\/90,
 html.light-theme .bg-slate-800\/80 {
-  background-color: #f8fafc !important;
+  background-color: #f1f5f9 !important;
 }
 
 /* Gradient header cards */
@@ -133,15 +154,17 @@ html.light-theme .hover\:bg-slate-800:hover {
 /* Borders */
 html.light-theme .border-obsidian-700,
 html.light-theme .border-obsidian-700\/80,
+html.light-theme .border-obsidian-700\/60,
 html.light-theme .border-obsidian-800,
 html.light-theme .border-obsidian-800\/80,
+html.light-theme .border-obsidian-800\/60,
 html.light-theme .border-slate-800,
 html.light-theme .border-slate-800\/90,
 html.light-theme .border-slate-800\/80,
 html.light-theme .border-slate-800\/50,
 html.light-theme .border-slate-700,
 html.light-theme .border-slate-700\/80 {
-  border-color: #cbd5e1 !important;
+  border-color: #e2e8f0 !important;
 }
 
 /* Primary Typography contrast in Light Mode */
@@ -156,14 +179,14 @@ html.light-theme .text-slate-300 {
 }
 
 html.light-theme .text-slate-400 {
-  color: #334155 !important;
-}
-
-html.light-theme .text-slate-500 {
   color: #475569 !important;
 }
 
-/* Fix Yellow / Amber backgrounds & text so there is NEVER yellow text on yellow background */
+html.light-theme .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Fix Yellow / Amber backgrounds & text */
 html.light-theme .bg-amber-500\/10,
 html.light-theme .bg-amber-500\/15,
 html.light-theme .bg-amber-500\/20,
@@ -286,7 +309,7 @@ html.light-theme select,
 html.light-theme textarea {
   background-color: #ffffff !important;
   color: #0f172a !important;
-  border-color: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
 }
 
 html.light-theme input::placeholder,

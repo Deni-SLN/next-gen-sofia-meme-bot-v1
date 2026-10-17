@@ -35,12 +35,16 @@ export default function CryptoAnalysisPage() {
   const [riskResult, setRiskResult] = useState<any | null>(null);
   const [riskLoading, setRiskLoading] = useState<boolean>(false);
 
+  // Futures Tab Side Selection ('LONG' or 'SHORT' override)
+  const [futuresSideOverride, setFuturesSideOverride] = useState<'LONG' | 'SHORT' | null>(null);
+
   const loadCrypto = async (sym: string, force: boolean = false, tf: string = selectedTimeframe) => {
     const clean = (sym || 'BTC').trim().toUpperCase();
     if (!clean) return;
     if (force) setRefreshing(true);
     else setLoading(true);
     setError(null);
+    setFuturesSideOverride(null);
     try {
       const res = await api.analyzeCrypto(clean, force, tf);
       setData(res);
@@ -116,6 +120,15 @@ export default function CryptoAnalysisPage() {
   ];
 
   const activePlan = data?.timeframes_plan?.[selectedTimeframe] || data?.trading_plan;
+  const futuresContract = data?.futures_contract;
+  const activeFuturesPlan = data?.futures_timeframes_plan?.[selectedTimeframe] || data?.futures_plan;
+  const selectedFuturesSide: 'LONG' | 'SHORT' =
+    futuresSideOverride || (activeFuturesPlan?.primary_bias === 'SHORT' ? 'SHORT' : 'LONG');
+  const currentFuturesSetup =
+    selectedFuturesSide === 'SHORT' ? activeFuturesPlan?.short_setup : activeFuturesPlan?.long_setup;
+
+  const decision = data?.timeframes_decision?.[selectedTimeframe] || data?.trading_decision;
+
   const pulse = data?.market_pulse;
   const tok = data?.tokenomics;
   const tech = data?.technicals;
@@ -133,9 +146,12 @@ export default function CryptoAnalysisPage() {
   const estAnnualStakingCoins = acquiredCoins * (Number(tok?.staking_apr_pct || 0) / 100);
 
   const badgeStyle = (badge: string) => {
-    if (badge === 'BULLISH') return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-    if (badge === 'BEARISH') return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
-    if (badge === 'REBOUND WATCH' || badge === 'WAIT') return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+    if (badge === 'BULLISH' || badge === 'BUY' || badge?.includes('BUY'))
+      return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+    if (badge === 'BEARISH' || badge === 'SELL' || badge?.includes('SELL'))
+      return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+    if (badge === 'REBOUND WATCH' || badge === 'WAIT' || badge?.includes('TUNGGU'))
+      return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
     return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
   };
 
@@ -394,23 +410,28 @@ export default function CryptoAnalysisPage() {
               </div>
             </div>
 
-            {/* 3. ACTION VERDICT & SUMMARY NOTES */}
+            {/* 3. KEPUTUSAN TRADING QUICK CARD */}
             <div className="bg-[#0B0E14] border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                    Kesimpulan Analisa Cepat ({activePlan.timeframe_label})
+                    Keputusan Trading ({decision?.timeframe_label || activePlan.timeframe_label})
                   </span>
-                  <span className="text-[11px] font-extrabold text-cyan-400">
-                    Net R/R {activePlan.net_risk_reward_ratio}
+                  <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black border ${badgeStyle(decision?.decision_badge || activePlan.trend_badge)}`}>
+                    {decision?.decision || activePlan.signal_direction}
                   </span>
                 </div>
-                <div className="mt-2 p-3 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <div className="text-xs font-black text-emerald-400 uppercase">
-                    {activePlan.action_verdict}
+                <div className="mt-2.5 p-3 rounded-xl bg-slate-900/90 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-white uppercase">
+                      {decision?.verdict_headline || activePlan.action_verdict}
+                    </span>
+                    <span className="text-[10px] font-extrabold text-cyan-400">
+                      R/R {activePlan.net_risk_reward_ratio}
+                    </span>
                   </div>
-                  <p className="text-[11px] text-slate-300 mt-1">
-                    {activePlan.wait_reason || activePlan.entry_confirmation}
+                  <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                    {decision?.wait_price_display || activePlan.wait_reason || activePlan.entry_confirmation}
                   </p>
                 </div>
                 <ul className="mt-3 space-y-1.5">
@@ -424,6 +445,221 @@ export default function CryptoAnalysisPage() {
               </div>
             </div>
           </div>
+
+          {/* SECTION 1.5: CARD KEPUTUSAN TRADING UTAMA (BUY, SELL, HOLD, ATAU TUNGGU DULU KE BERAPA) */}
+          {decision && (
+            <div className="bg-gradient-to-br from-[#0B0E14] via-[#0E1726] to-[#0B0E14] border border-cyan-500/40 rounded-2xl p-5 shadow-2xl relative overflow-hidden">
+              {/* ACCENT GLOW */}
+              <div
+                className={`absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none opacity-15 ${
+                  decision.badge_color === 'emerald'
+                    ? 'bg-emerald-500'
+                    : decision.badge_color === 'rose'
+                    ? 'bg-rose-500'
+                    : decision.badge_color === 'amber'
+                    ? 'bg-amber-500'
+                    : 'bg-cyan-500'
+                }`}
+              />
+
+              {/* CARD HEADER */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-3.5 mb-4 border-b border-slate-800/80 relative z-10">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5">
+                      <LucideIcon name="crosshair" className="w-3 h-3 text-cyan-400" />
+                      KEPUTUSAN TRADING UTAMA ({decision.timeframe_label?.toUpperCase() || '1 HARI'})
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                      Skor Keyakinan Teknis: <strong className="text-white">{decision.confidence_score}%</strong>
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Horison: <strong className="text-cyan-300">{activePlan.horizon}</strong>
+                    </span>
+                  </div>
+                  <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2">
+                    <span>Keputusan Trading Kripto: Apakah Buy, Sell, Hold, atau Tunggu Dulu?</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Rekomendasi tindakan terpadu dengan panduan khusus bagi calon pembeli (cash) maupun pemilik koin (holders).
+                  </p>
+                </div>
+
+                {/* PROMINENT VERDICT PILL */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div
+                    className={`px-4 py-2 rounded-xl border flex items-center gap-2.5 shadow-lg ${
+                      decision.badge_color === 'emerald'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-emerald-500/10'
+                        : decision.badge_color === 'rose'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-rose-500/10'
+                        : decision.badge_color === 'amber'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-amber-500/10'
+                        : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-cyan-500/10'
+                    }`}
+                  >
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full animate-ping ${
+                        decision.badge_color === 'emerald'
+                          ? 'bg-emerald-400'
+                          : decision.badge_color === 'rose'
+                          ? 'bg-rose-400'
+                          : decision.badge_color === 'amber'
+                          ? 'bg-amber-400'
+                          : 'bg-cyan-400'
+                      }`}
+                    />
+                    <div className="text-left">
+                      <span className="text-[10px] block font-extrabold uppercase tracking-wider text-slate-400">
+                        KEPUTUSAN SISTEM:
+                      </span>
+                      <span className="text-sm sm:text-base font-black tracking-wide">
+                        {decision.decision_badge}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* CENTRAL HIGHLIGHT BOX: TUNGGU DULU KE BERAPA / LEVEL ACUAN TRADING */}
+              <div
+                className={`p-4 rounded-xl border mb-4 relative z-10 transition ${
+                  decision.badge_color === 'emerald'
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : decision.badge_color === 'rose'
+                    ? 'bg-rose-500/10 border-rose-500/30'
+                    : decision.badge_color === 'amber'
+                    ? 'bg-amber-500/15 border-amber-500/40 shadow-sm'
+                    : 'bg-cyan-500/10 border-cyan-500/30'
+                }`}
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                        <LucideIcon name="alert-circle" className="w-4 h-4 text-amber-400" />
+                        {decision.decision === 'TUNGGU DULU'
+                          ? 'TUNGGU DULU KE BERAPA? (TARGET LEVEL MASUK)'
+                          : decision.decision === 'BUY'
+                          ? 'LEVEL ENTRY BELI SEKARANG'
+                          : decision.decision === 'SELL'
+                          ? 'LEVEL TARGET JUAL / TAKE PROFIT'
+                          : 'RENTANG LEVEL PANTAUAN (HOLD)'}
+                      </span>
+                      {decision.wait_distance_pct !== 0 && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-slate-900/90 text-amber-300 border border-slate-700">
+                          {decision.wait_distance_pct > 0 ? '+' : ''}
+                          {decision.wait_distance_pct}% dari harga saat ini
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-white mt-1.5">
+                      {decision.target_display}
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      {decision.wait_price_display}
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shrink-0 lg:text-right">
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase">Kondisi Konfirmasi</span>
+                    <span className="text-xs font-semibold text-slate-200 mt-0.5 block max-w-sm">
+                      {decision.trigger_condition}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* DUAL PERSONA GUIDANCE: CALON PEMBELI vs PEMILIK KOIN */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mb-4 relative z-10">
+                {/* 1. BAGI CALON PEMBELI (BELUM PUNYA KOIN) */}
+                <div className="bg-slate-900/80 border border-slate-800/90 rounded-xl p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                        <LucideIcon name="wallet" className="w-3.5 h-3.5" />
+                        Bagi yang Belum Punya Koin (Calon Pembeli)
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                          decision.prospective_buyers?.action === 'BUY SEKARANG'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        }`}
+                      >
+                        {decision.prospective_buyers?.action}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed mt-1">
+                      {decision.prospective_buyers?.guidance}
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Patokan Masuk:</span>
+                    <span className="text-white font-black">
+                      {formatCryptoUsd(decision.prospective_buyers?.entry_ref_usd)}{' '}
+                      <span className="text-slate-400 font-normal">
+                        ({formatIdr(decision.prospective_buyers?.entry_ref_idr)})
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. BAGI PEMILIK KOIN (SUDAH PUNYA POSISI) */}
+                <div className="bg-slate-900/80 border border-slate-800/90 rounded-xl p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                        <LucideIcon name="coins" className="w-3.5 h-3.5" />
+                        Bagi Pemilik Koin (Sudah Punya Posisi)
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                          decision.current_holders?.action?.includes('SELL') || decision.current_holders?.action?.includes('REDUCE')
+                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                            : decision.current_holders?.action?.includes('ADD')
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                        }`}
+                      >
+                        {decision.current_holders?.action}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed mt-1">
+                      {decision.current_holders?.guidance}
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Batas Pengaman (SL/Exit):</span>
+                    <span className="text-rose-400 font-black">
+                      {formatCryptoUsd(decision.current_holders?.exit_ref_usd)}{' '}
+                      <span className="text-slate-400 font-normal">
+                        ({formatIdr(decision.current_holders?.exit_ref_idr)})
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3 LANGKAH TINDAKAN PRIORITAS */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 relative z-10">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2">
+                  Langkah Tindakan yang Disarankan Sekarang:
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {(decision.action_steps || []).map((step: string, sIdx: number) => (
+                    <div
+                      key={sIdx}
+                      className="bg-slate-900/70 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-300 flex items-start gap-2"
+                    >
+                      <span className="text-cyan-400 font-extrabold">•</span>
+                      <span>{step.replace(/^\d+\.\s*/, '')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* SECTION 2: MULTI-TIMEFRAME TRADING PLAN (ENTRY, TP1, TP2, STOP LOSS) */}
           <div className="bg-gradient-to-br from-[#0B0E14] via-[#0F1622] to-[#0B0E14] border border-cyan-500/30 rounded-2xl p-5 shadow-lg">
@@ -543,6 +779,289 @@ export default function CryptoAnalysisPage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* SECTION 2B: DEDICATED FUTURES TRADING PLAN CARD (LONG / SHORT) */}
+          <div className="bg-gradient-to-br from-[#0B0E14] via-[#0E1522] to-[#0B0E14] border border-amber-500/35 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+            {/* AMBIENT BACKGROUND GLOW */}
+            <div
+              className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-10 ${
+                selectedFuturesSide === 'LONG' ? 'bg-emerald-500' : 'bg-rose-500'
+              }`}
+            />
+
+            {/* HEADER: TITLE, BADGES, AND LONG/SHORT SWITCHER */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 pb-3.5 border-b border-slate-800/80 relative z-10">
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+                    <LucideIcon name="zap" className="w-3 h-3 text-amber-400" />
+                    KONTRAK FUTURES PERPETUAL (LEVERAGE)
+                  </span>
+                  {futuresContract?.has_futures && (
+                    <>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                        {futuresContract.exchange || 'Gate.io USDT Perpetual'}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                        {activeFuturesPlan?.margin_mode || 'ISOLATED'} MARGIN
+                      </span>
+                    </>
+                  )}
+                </div>
+                <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                  <span>Trading Plan Futures ({futuresContract?.contract_name || `${data.code}_USDT`})</span>
+                  {futuresContract?.has_futures && (
+                    <span className="text-xs font-bold text-slate-400">
+                      • Horison: <strong className="text-white">{activeFuturesPlan?.timeframe_label}</strong>
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {futuresContract?.has_futures
+                    ? activeFuturesPlan?.bias_description || 'Rekomendasi setup posisi LONG & SHORT dengan batas Stop Loss anti-likuidasi.'
+                    : 'Pemeriksaan ketersediaan instrumen derivatif perpetual bursa global.'}
+                </p>
+              </div>
+
+              {/* ACTION BUTTONS & DIRECTION TOGGLES (IF HAS FUTURES) */}
+              {futuresContract?.has_futures && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* SYSTEM BIAS NOTIFICATION */}
+                  <div className="hidden sm:flex flex-col text-right pr-2 border-r border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Sinyal Sistem</span>
+                    <span className={`text-xs font-black ${
+                      activeFuturesPlan?.primary_bias === 'LONG' ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {activeFuturesPlan?.primary_bias} ({activeFuturesPlan?.recommended_leverage}x)
+                    </span>
+                  </div>
+
+                  {/* LONG / SHORT TAB TOGGLE */}
+                  <div className="bg-slate-900/90 p-1 rounded-xl border border-slate-800 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setFuturesSideOverride('LONG')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 ${
+                        selectedFuturesSide === 'LONG'
+                          ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                          : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/80'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                      LONG SETUP {activeFuturesPlan?.primary_bias === 'LONG' && '★'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFuturesSideOverride('SHORT')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 ${
+                        selectedFuturesSide === 'SHORT'
+                          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
+                          : 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/80'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-rose-400 inline-block animate-pulse" />
+                      SHORT SETUP {activeFuturesPlan?.primary_bias === 'SHORT' && '★'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* IF NO FUTURES CONTRACT EXISTS */}
+            {!futuresContract?.has_futures ? (
+              <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 text-center my-2">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-3">
+                  <LucideIcon name="alert-circle" className="w-6 h-6 text-amber-400" />
+                </div>
+                <h3 className="text-sm font-black text-white">Kontrak Futures Perpetual Belum Tersedia</h3>
+                <p className="text-xs text-slate-400 max-w-lg mx-auto mt-1.5">
+                  {futuresContract?.message || `Aset ${data.code} saat ini belum diperdagangkan dalam instrumen kontrak derivatif USDT Perpetual di bursa utama.`}
+                </p>
+                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 text-cyan-300 text-xs font-bold border border-slate-700">
+                  <LucideIcon name="info" className="w-3.5 h-3.5" />
+                  Gunakan Trading Plan Spot di atas untuk eksekusi beli & jual aset ini.
+                </div>
+              </div>
+            ) : currentFuturesSetup ? (
+              <>
+                {/* CONTRACT REAL-TIME METRICS BAR: FUNDING RATE, MARK PRICE, SENTIMENT */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4 text-xs">
+                  <div className="bg-slate-900/80 border border-slate-800/90 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 block font-medium">Mark Price / Index Price</span>
+                    <span className="text-sm font-black text-white mt-0.5 block">
+                      {formatCryptoUsd(futuresContract.mark_price)}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      Index: {formatCryptoUsd(futuresContract.index_price)}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-slate-800/90 rounded-xl p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400 block font-medium">Funding Rate (8 Jam)</span>
+                      <span className="text-[10px] text-slate-500">{futuresContract.next_funding_time}</span>
+                    </div>
+                    <span className={`text-sm font-black mt-0.5 block ${
+                      Number(futuresContract.funding_rate_pct) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {Number(futuresContract.funding_rate_pct) >= 0 ? '+' : ''}{futuresContract.funding_rate_pct}%
+                    </span>
+                    <span className="text-[10px] text-slate-400 block truncate" title={futuresContract.funding_sentiment}>
+                      {futuresContract.funding_sentiment}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-slate-800/90 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 block font-medium">Rekomendasi Leverage</span>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-sm font-black text-cyan-400">
+                        {activeFuturesPlan.recommended_leverage}x
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        (Aman maks {activeFuturesPlan.max_safe_leverage}x)
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 block">
+                      Bursa Max: {futuresContract.leverage_max}x
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-slate-800/90 rounded-xl p-3">
+                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                      <span>Rasio Trader:</span>
+                      <span className="font-bold text-emerald-400">{futuresContract.long_ratio_pct}% L</span>
+                      <span className="font-bold text-rose-400">{futuresContract.short_ratio_pct}% S</span>
+                    </div>
+                    <div className="w-full h-2 bg-rose-500/40 rounded-full overflow-hidden flex">
+                      <div
+                        style={{ width: `${futuresContract.long_ratio_pct}%` }}
+                        className="bg-emerald-500 h-full transition-all"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Sentimen Posisi Akun Terbuka
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4 ACTIONABLE FUTURES CARDS: ENTRY, TP1, TP2, STOP LOSS + LIQ */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {/* 1. ZONA ENTRY FUTURES */}
+                  <div className={`bg-slate-900/90 border rounded-xl p-4 transition ${
+                    selectedFuturesSide === 'LONG' ? 'border-emerald-500/50 shadow-sm' : 'border-rose-500/50 shadow-sm'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] font-black uppercase ${
+                        selectedFuturesSide === 'LONG' ? 'text-emerald-400' : 'text-rose-400'
+                      }`}>
+                        1. Zona Entry ({selectedFuturesSide})
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                        selectedFuturesSide === 'LONG' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                      }`}>
+                        {selectedFuturesSide}
+                      </span>
+                    </div>
+                    <div className="text-lg font-black text-white mt-2">
+                      {formatCryptoUsd(currentFuturesSetup.entry_zone_low_usd)} – {formatCryptoUsd(currentFuturesSetup.entry_zone_high_usd)}
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-semibold mt-0.5">
+                      {formatIdr(currentFuturesSetup.entry_zone_low_idr)} – {formatIdr(currentFuturesSetup.entry_zone_high_idr)}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                      {currentFuturesSetup.action_desc}
+                    </p>
+                  </div>
+
+                  {/* 2. TARGET PROFIT 1 */}
+                  <div className="bg-slate-900/90 border border-emerald-500/40 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold uppercase text-emerald-400">2. Target Profit 1 (TP 1)</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-black">
+                        +{currentFuturesSetup.tp_1_leveraged_roi_pct}% ROE
+                      </span>
+                    </div>
+                    <div className="text-xl font-black text-emerald-400 mt-2">
+                      {formatCryptoUsd(currentFuturesSetup.tp_1_usd)}
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-semibold mt-0.5">
+                      ≈ {formatIdr(currentFuturesSetup.tp_1_idr)}{' '}
+                      <span className="text-[10px] text-slate-500 font-normal">
+                        (Spot +{currentFuturesSetup.tp_1_pct}%)
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      Amankan 50% profit & geser Stop Loss ke Break-Even (BEP).
+                    </p>
+                  </div>
+
+                  {/* 3. TARGET PROFIT 2 */}
+                  <div className="bg-slate-900/90 border border-emerald-500/40 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold uppercase text-emerald-400">3. Target Profit 2 (TP 2)</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-black">
+                        +{currentFuturesSetup.tp_2_leveraged_roi_pct}% ROE
+                      </span>
+                    </div>
+                    <div className="text-xl font-black text-emerald-400 mt-2">
+                      {formatCryptoUsd(currentFuturesSetup.tp_2_usd)}
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-semibold mt-0.5">
+                      ≈ {formatIdr(currentFuturesSetup.tp_2_idr)}{' '}
+                      <span className="text-[10px] text-slate-500 font-normal">
+                        (Spot +{currentFuturesSetup.tp_2_pct}%)
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      Target swing optimal {activeFuturesPlan.timeframe_label} untuk take profit penuh / runner.
+                    </p>
+                  </div>
+
+                  {/* 4. STOP LOSS & ESTIMASI LIKUIDASI */}
+                  <div className="bg-slate-900/90 border border-rose-500/40 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold uppercase text-rose-400">4. Stop Loss & Likuidasi</span>
+                      <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-black">
+                        {currentFuturesSetup.stop_loss_leveraged_risk_pct}% ROE
+                      </span>
+                    </div>
+                    <div className="text-xl font-black text-rose-400 mt-2">
+                      {formatCryptoUsd(currentFuturesSetup.stop_loss_usd)}
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-semibold mt-0.5">
+                      ≈ {formatIdr(currentFuturesSetup.stop_loss_idr)}{' '}
+                      <span className="text-[10px] text-slate-500 font-normal">
+                        ({currentFuturesSetup.stop_loss_pct}%)
+                      </span>
+                    </p>
+                    <div className="mt-2 pt-2 border-t border-slate-800 text-[11px]">
+                      <span className="text-amber-400 font-bold block">
+                        Est. Likuidasi ({activeFuturesPlan.recommended_leverage}x): {formatCryptoUsd(currentFuturesSetup.est_liquidation_price_usd)}
+                      </span>
+                      <span className="text-slate-400 text-[10px] block mt-0.5">
+                        Buffer aman: {currentFuturesSetup.liquidation_buffer_pct}% dari SL
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SAFETY NOTE & RISK REWARD FOOTER */}
+                <div className="mt-3.5 p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-start gap-2">
+                    <LucideIcon name="shield-alert" className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="text-slate-300 text-[11px]">
+                      <strong className="text-white">Proteksi Likuidasi:</strong> {currentFuturesSetup.sl_safety_note}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 text-[11px] font-extrabold text-cyan-300">
+                    <span>Net R/R: {currentFuturesSetup.risk_reward_ratio}</span>
+                    <span className="text-slate-600">•</span>
+                    <span>Volatilitas ATR: {activeFuturesPlan.atr_volatility_pct}%</span>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
 
           {/* SECTION 3: SIMULASI MODAL SPOT (RUPIAH) & TOKENOMICS / STAKING */}
