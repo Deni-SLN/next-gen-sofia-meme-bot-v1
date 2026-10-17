@@ -485,8 +485,86 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
                 timestamps = [int(a["published_ts"]) for a in articles]
                 self.assertEqual(timestamps, sorted(timestamps, reverse=True))
 
+    def test_idx_stock_analysis_endpoint(self):
+        r_stock = self.client.get("/api/v1/stocks/analyze?q=BBRI&timeframe=15m", headers=self.headers)
+        self.assertEqual(r_stock.status_code, 200)
+        data = r_stock.json()
+        self.assertEqual(data["code"], "BBRI")
+        self.assertGreater(data["current_price"], 0)
+        self.assertIn("ihsg", data)
+        self.assertGreater(data["ihsg"]["price"], 0)
+        self.assertIn("trading_plan", data)
+        self.assertEqual(data["trading_plan"]["timeframe"], "15m")
+        self.assertIn("entry_zone_low", data["trading_plan"])
+        self.assertIn("tp_1", data["trading_plan"])
+        self.assertIn("tp_2", data["trading_plan"])
+        self.assertIn("stop_loss", data["trading_plan"])
+        self.assertIn("trend_status", data["trading_plan"])
+        self.assertIn("dividend", data)
+        self.assertIn("annual_dividend_per_share", data["dividend"])
+
+    def test_gold_market_portfolio_and_sell_simulation(self):
+        # 1. Fetch live gold dashboard
+        r_gold = self.client.get("/api/v1/gold", headers=self.headers)
+        self.assertEqual(r_gold.status_code, 200)
+        g_data = r_gold.json()
+        self.assertIn("market", g_data)
+        self.assertIn("portfolio", g_data)
+        self.assertIn("holdings", g_data)
+        self.assertGreater(g_data["market"]["xau_usd"], 1000)
+        self.assertGreater(g_data["market"]["antam"]["buy_price_idr"], 500000)
+        self.assertGreater(g_data["market"]["antam"]["buyback_price_idr"], 400000)
+
+        # 2. Add a manual gold holding (10 grams bought at Rp 1.200.000/g -> should be UNTUNG)
+        r_add = self.client.post(
+            "/api/v1/gold/holdings",
+            json={
+                "weight_grams": 10.0,
+                "buy_price_per_gram_idr": 1200000,
+                "brand": "Antam",
+                "label": "Test Antam 10g",
+                "purchased_at": "2024-05-01",
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(r_add.status_code, 200)
+        after_add = r_add.json()
+        self.assertGreaterEqual(len(after_add["holdings"]), 1)
+        added_item = after_add["holdings"][0]
+        self.assertEqual(added_item["label"], "Test Antam 10g")
+        self.assertEqual(added_item["status"], "UNTUNG")
+        self.assertGreater(added_item["net_pnl_idr"], 0)
+
+        # 3. Test Simulate Sell Now endpoint with spread & PPh 22 tax (> Rp 10 juta triggers 1.5% NPWP tax)
+        r_sim = self.client.post(
+            "/api/v1/gold/simulate-sell",
+            json={
+                "weight_grams": 10.0,
+                "total_cost_idr": 12000000,
+                "retail_buy_price_per_gram_idr": 1700000,
+                "spread_pct": 9.0,
+                "has_npwp": True,
+                "include_stamp_duty": True,
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(r_sim.status_code, 200)
+        sim = r_sim.json()
+        self.assertEqual(sim["gross_retail_value_idr"], 17000000)
+        self.assertEqual(sim["spread_deduction_idr"], 1530000)
+        self.assertEqual(sim["gross_buyback_value_idr"], 15470000)
+        self.assertEqual(sim["tax_pct"], 1.5)
+        self.assertGreater(sim["tax_deduction_idr"], 0)
+        self.assertEqual(sim["stamp_duty_idr"], 10000)
+        self.assertEqual(sim["status"], "UNTUNG")
+
+        # 4. Delete the temporary holding so user's manual gold portfolio remains clean
+        r_del = self.client.delete(f"/api/v1/gold/holdings/{added_item['id']}", headers=self.headers)
+        self.assertEqual(r_del.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

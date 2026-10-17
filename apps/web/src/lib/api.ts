@@ -234,5 +234,35 @@ export const api = {
     const qs = params.toString();
     return request<any>(`/news${qs ? `?${qs}` : ''}`);
   },
+  // Indonesian Stock Analysis Endpoint (BEI / IDX)
+  analyzeStock: (q: string = 'BBRI', refresh: boolean = false, timeframe: string = '1d') => {
+    const params = new URLSearchParams({ q, timeframe });
+    if (refresh) params.append('refresh', 'true');
+    return request<any>(`/stocks/analyze?${params.toString()}`);
+  },
+  // Gold Price, Manual Portfolio & Buyback Simulator Endpoints
+  getGoldDashboard: (refresh: boolean = false) =>
+    request<any>(`/gold${refresh ? '?refresh=true' : ''}`),
+  addGoldHolding: (data: {
+    weight_grams: number;
+    buy_price_per_gram_idr?: number;
+    total_cost_idr?: number;
+    brand?: string;
+    label?: string;
+    purchased_at?: string;
+    notes?: string;
+  }) => request<any>('/gold/holdings', { method: 'POST', body: JSON.stringify(data) }),
+  deleteGoldHolding: (holdingId: number) =>
+    request<any>(`/gold/holdings/${holdingId}`, { method: 'DELETE' }),
+  simulateGoldSell: (data: {
+    weight_grams: number;
+    total_cost_idr?: number;
+    retail_buy_price_per_gram_idr?: number;
+    spread_pct?: number;
+    tax_pct?: number | null;
+    has_npwp?: boolean;
+    include_stamp_duty?: boolean;
+  }) => request<any>('/gold/simulate-sell', { method: 'POST', body: JSON.stringify(data) }),
 };
+
 

@@ -14,6 +14,7 @@ from app.db.models import (
     Signal,
     TreasuryState,
     Trade,
+    GoldHolding,
 )
 
 connect_args = {}

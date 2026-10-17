@@ -1,11 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  @apply bg-obsidian-950 text-slate-200 font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-300;
+  @apply bg-obsidian-950 text-slate-200 font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-300 transition-colors duration-200;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  letter-spacing: -0.01em;
 }
 
 ::-webkit-scrollbar {
@@ -46,4 +48,248 @@ body {
   background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+/* =========================================================================
+   LIGHT MODE THEME OVERRIDES (html.light-theme)
+   High-contrast daylight financial workspace with Plus Jakarta Sans legibility
+   and zero yellow-on-yellow or low-contrast badge combinations.
+   ========================================================================= */
+html.light-theme body {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+html.light-theme ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+html.light-theme ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html.light-theme ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+html.light-theme .grid-bg-overlay {
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+}
+
+/* Main surfaces & card backgrounds */
+html.light-theme .bg-obsidian-950,
+html.light-theme main.bg-obsidian-950 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light-theme .bg-obsidian-900,
+html.light-theme .bg-obsidian-900\/95,
+html.light-theme .bg-obsidian-900\/90,
+html.light-theme .bg-obsidian-900\/80,
+html.light-theme .bg-\[\#0b101d\],
+html.light-theme .bg-\[\#0b101d\]\/95,
+html.light-theme .bg-slate-900,
+html.light-theme .bg-slate-900\/90,
+html.light-theme .bg-slate-900\/80,
+html.light-theme .bg-slate-900\/70,
+html.light-theme .bg-slate-900\/60 {
+  background-color: #ffffff !important;
+}
+
+html.light-theme .bg-obsidian-850,
+html.light-theme .bg-obsidian-850\/80,
+html.light-theme .bg-obsidian-800,
+html.light-theme .bg-obsidian-800\/80,
+html.light-theme .bg-slate-950,
+html.light-theme .bg-slate-950\/90,
+html.light-theme .bg-slate-950\/85,
+html.light-theme .bg-slate-950\/80,
+html.light-theme .bg-slate-950\/70,
+html.light-theme .bg-slate-950\/60,
+html.light-theme .bg-slate-950\/40,
+html.light-theme .bg-slate-800,
+html.light-theme .bg-slate-800\/90,
+html.light-theme .bg-slate-800\/80 {
+  background-color: #f8fafc !important;
+}
+
+/* Gradient header cards */
+html.light-theme .bg-gradient-to-r.from-\[\#0b101d\] {
+  background-image: linear-gradient(to right, #ffffff, #f8fafc, #ffffff) !important;
+}
+
+/* Hover states on cards and nav items */
+html.light-theme .hover\:bg-\[\#0f172a\]:hover,
+html.light-theme .hover\:bg-obsidian-800:hover,
+html.light-theme .hover\:bg-obsidian-800\/80:hover,
+html.light-theme .hover\:bg-obsidian-850:hover,
+html.light-theme .hover\:bg-slate-800\/70:hover,
+html.light-theme .hover\:bg-slate-800:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Borders */
+html.light-theme .border-obsidian-700,
+html.light-theme .border-obsidian-700\/80,
+html.light-theme .border-obsidian-800,
+html.light-theme .border-obsidian-800\/80,
+html.light-theme .border-slate-800,
+html.light-theme .border-slate-800\/90,
+html.light-theme .border-slate-800\/80,
+html.light-theme .border-slate-800\/50,
+html.light-theme .border-slate-700,
+html.light-theme .border-slate-700\/80 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Primary Typography contrast in Light Mode */
+html.light-theme .text-white,
+html.light-theme .text-slate-100,
+html.light-theme .text-slate-200 {
+  color: #0f172a !important;
+}
+
+html.light-theme .text-slate-300 {
+  color: #1e293b !important;
+}
+
+html.light-theme .text-slate-400 {
+  color: #334155 !important;
+}
+
+html.light-theme .text-slate-500 {
+  color: #475569 !important;
+}
+
+/* Fix Yellow / Amber backgrounds & text so there is NEVER yellow text on yellow background */
+html.light-theme .bg-amber-500\/10,
+html.light-theme .bg-amber-500\/15,
+html.light-theme .bg-amber-500\/20,
+html.light-theme .bg-amber-500\/25,
+html.light-theme .bg-amber-500\/90,
+html.light-theme .bg-yellow-500\/10,
+html.light-theme .bg-yellow-500\/15,
+html.light-theme .bg-yellow-500\/20,
+html.light-theme .bg-yellow-400\/95 {
+  background-color: #fef3c7 !important;
+  color: #78350f !important;
+  border-color: #f59e0b !important;
+}
+
+html.light-theme .text-amber-400,
+html.light-theme .text-amber-300,
+html.light-theme .text-amber-200,
+html.light-theme .text-amber-200\/80,
+html.light-theme .text-yellow-400,
+html.light-theme .text-yellow-300,
+html.light-theme .text-yellow-200 {
+  color: #78350f !important;
+}
+
+/* High-contrast semantic accents for Emerald, Cyan, Rose, Purple, Teal, Blue in Light Mode */
+html.light-theme .bg-emerald-500\/10,
+html.light-theme .bg-emerald-500\/15,
+html.light-theme .bg-emerald-500\/20,
+html.light-theme .bg-emerald-500\/25,
+html.light-theme .bg-emerald-500\/30,
+html.light-theme .bg-emerald-500\/90 {
+  background-color: #d1fae5 !important;
+  color: #064e3b !important;
+  border-color: #10b981 !important;
+}
+
+html.light-theme .text-emerald-400,
+html.light-theme .text-emerald-300,
+html.light-theme .text-emerald-200,
+html.light-theme .text-emerald-200\/80 {
+  color: #065f46 !important;
+}
+
+html.light-theme .bg-cyan-500\/10,
+html.light-theme .bg-cyan-500\/15,
+html.light-theme .bg-cyan-500\/20,
+html.light-theme .bg-cyan-500\/25,
+html.light-theme .bg-cyan-500\/90 {
+  background-color: #e0f2fe !important;
+  color: #0c4a6e !important;
+  border-color: #0284c7 !important;
+}
+
+html.light-theme .text-cyan-400,
+html.light-theme .text-cyan-300,
+html.light-theme .text-cyan-200 {
+  color: #075985 !important;
+}
+
+html.light-theme .bg-rose-500\/10,
+html.light-theme .bg-rose-500\/15,
+html.light-theme .bg-rose-500\/20,
+html.light-theme .bg-rose-600\/20,
+html.light-theme .bg-rose-600\/25,
+html.light-theme .bg-rose-600\/30 {
+  background-color: #ffe4e6 !important;
+  color: #881337 !important;
+  border-color: #f43f5e !important;
+}
+
+html.light-theme .text-rose-400,
+html.light-theme .text-rose-300,
+html.light-theme .text-rose-200 {
+  color: #9f1239 !important;
+}
+
+html.light-theme .bg-purple-500\/15,
+html.light-theme .bg-purple-500\/20,
+html.light-theme .bg-purple-500\/90 {
+  background-color: #f3e8ff !important;
+  color: #4c1d95 !important;
+  border-color: #9333ea !important;
+}
+
+html.light-theme .text-purple-400,
+html.light-theme .text-purple-300,
+html.light-theme .text-purple-200 {
+  color: #5b21b6 !important;
+}
+
+html.light-theme .bg-teal-500\/10,
+html.light-theme .bg-teal-500\/20,
+html.light-theme .bg-teal-500\/25 {
+  background-color: #ccfbf1 !important;
+  color: #134e4a !important;
+  border-color: #14b8a6 !important;
+}
+
+html.light-theme .text-teal-400,
+html.light-theme .text-teal-300,
+html.light-theme .text-teal-200 {
+  color: #115e59 !important;
+}
+
+html.light-theme .bg-blue-500\/15,
+html.light-theme .bg-blue-500\/90 {
+  background-color: #dbeafe !important;
+  color: #1e3a8a !important;
+  border-color: #3b82f6 !important;
+}
+
+html.light-theme .text-blue-400,
+html.light-theme .text-blue-300 {
+  color: #1e40af !important;
+}
+
+/* Inputs & Selects in Light Mode */
+html.light-theme input,
+html.light-theme select,
+html.light-theme textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+html.light-theme input::placeholder,
+html.light-theme textarea::placeholder {
+  color: #64748b !important;
 }

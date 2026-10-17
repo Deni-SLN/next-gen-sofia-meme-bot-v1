@@ -174,3 +174,18 @@ class RiskConfig(Base):
     max_open_positions: Mapped[int] = mapped_column(Integer, default=10)
     allowed_symbols: Mapped[List[str]] = mapped_column(JSON, default=lambda: ["BTC/USDT", "ETH/USDT", "SOL/USDT"])
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class GoldHolding(Base):
+    __tablename__ = "gold_holdings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    label: Mapped[str] = mapped_column(String(80), default="Emas Antam CertiEye")
+    brand: Mapped[str] = mapped_column(String(40), default="Antam")  # Antam, UBS, Galeri24, Digital
+    weight_grams: Mapped[float] = mapped_column(Float, default=1.0)
+    buy_price_per_gram_idr: Mapped[float] = mapped_column(Float, default=0.0)
+    total_cost_idr: Mapped[float] = mapped_column(Float, default=0.0)
+    purchased_at: Mapped[str] = mapped_column(String(20), default="")  # YYYY-MM-DD
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+

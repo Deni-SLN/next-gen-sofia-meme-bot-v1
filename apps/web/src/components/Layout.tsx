@@ -67,6 +67,22 @@ const SECONDARY_NAV = [
     badge: 'ID',
     badgeClass: 'bg-cyan-500/20 text-cyan-300 px-1.5 py-0.2',
   },
+  {
+    href: '/stocks',
+    label: 'Analisa Saham BEI',
+    icon: 'trending-up',
+    iconColor: 'text-emerald-400',
+    badge: 'IDX',
+    badgeClass: 'bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2',
+  },
+  {
+    href: '/gold',
+    label: 'Gold & Portofolio Emas',
+    icon: 'coins',
+    iconColor: 'text-amber-400',
+    badge: 'XAU',
+    badgeClass: 'bg-amber-500/20 text-amber-300 px-1.5 py-0.2',
+  },
   { href: '/signals', label: 'Alpha Signals', icon: 'radio', iconColor: 'text-rose-400', badge: null, badgeClass: '' },
   { href: '/agents', label: 'AI Degen Agents', icon: 'bot', iconColor: 'text-emerald-400', badge: null, badgeClass: '' },
   { href: '/risk', label: 'Risk & Slippage', icon: 'sliders', iconColor: 'text-indigo-400', badge: null, badgeClass: '' },
@@ -108,11 +124,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [liveBalanceUsd, setLiveBalanceUsd] = useState<number>(0);
   const [liveBalanceIdr, setLiveBalanceIdr] = useState<number>(0);
 
-  // Mobile Menu & Web3 Extension Modal & PWA Install State
+  // Mobile Menu & Web3 Extension Modal & PWA Install & Theme State
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [walletModalOpen, setWalletModalOpen] = useState<boolean>(false);
   const [connectedWallet, setConnectedWallet] = useState<ConnectedExtensionWallet | null>(null);
   const [deferredPwaPrompt, setDeferredPwaPrompt] = useState<any>(null);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  const handleToggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sofia_theme', next);
+      document.documentElement.classList.toggle('light-theme', next === 'light');
+    }
+  };
 
   const fetchLiveBalances = () => {
     api
@@ -135,6 +161,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       const savedPreset = localStorage.getItem('sofia_quickbuy_idr');
       if (savedPreset) setQuickBuyIdr(Number(savedPreset));
+      const savedTheme = localStorage.getItem('sofia_theme') === 'light' ? 'light' : 'dark';
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle('light-theme', savedTheme === 'light');
       setMode(getTradingMode());
       setConnectedWallet(getSavedExtensionWallet());
 
@@ -458,6 +487,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   ? `${shortenAddress(connectedWallet.address)}`
                   : 'Connect Wallet'}
               </span>
+            </button>
+
+            {/* Light / Night Mode Theme Toggle */}
+            <button
+              type="button"
+              onClick={handleToggleTheme}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-slate-300 hover:text-white transition font-mono text-[10px] sm:text-[11px]"
+              title={theme === 'dark' ? 'Beralih ke Light Mode (Mode Terang)' : 'Beralih ke Night Mode (Mode Gelap)'}
+              data-purpose="theme-toggle"
+            >
+              <LucideIcon
+                name={theme === 'dark' ? 'sun' : 'moon'}
+                className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-amber-400' : 'text-indigo-500'}`}
+              />
+              <span className="hidden lg:inline">{theme === 'dark' ? 'Light' : 'Night'}</span>
             </button>
 
             {/* Quick Reset Paper Modal */}
