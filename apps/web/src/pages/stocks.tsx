@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { api } from '@/lib/api';
 import { LucideIcon } from '@/components/LucideIcon';
@@ -31,15 +31,53 @@ const TIMEFRAME_OPTIONS = [
   { id: '1y', label: '1 Tahun', short: '1T' },
 ];
 
+const ANALYSIS_TABS = [
+  { id: 'overview', label: '1. Overview' },
+  { id: 'technical', label: '2. Technical Analysis' },
+  { id: 'fundamental', label: '3. Fundamental' },
+  { id: 'valuation', label: '4. Valuation' },
+  { id: 'dividend', label: '5. Dividend' },
+  { id: 'trading_plan', label: '6. Trading Plan' },
+  { id: 'risk', label: '7. Risk Calculator' },
+  { id: 'news', label: '8. News & Catalysts' },
+  { id: 'ai_analyst', label: '9. AI Analysis' },
+  { id: 'backtest', label: '10. Backtest & Portfolio' },
+  { id: 'sources', label: '11. Data Sources' },
+];
+
 export default function StockAnalysisPage() {
   const [tickerInput, setTickerInput] = useState<string>('BBRI');
   const [activeTicker, setActiveTicker] = useState<string>('BBRI');
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1d');
+  const [activeTab, setActiveTab] = useState<string>('overview');
   const [stockData, setStockData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [noticeMsg, setNoticeMsg] = useState<string | null>(null);
+
+  // Quick lot simulator & Dividend tax toggle
   const [simLots, setSimLots] = useState<number>(10);
+  const [divTaxTenPct, setDivTaxTenPct] = useState<boolean>(true);
+
+  // Risk Management Calculator state (Section 4G)
+  const [riskCapital, setRiskCapital] = useState<number>(10000000);
+  const [riskEntry, setRiskEntry] = useState<number>(0);
+  const [riskSl, setRiskSl] = useState<number>(0);
+  const [riskTp, setRiskTp] = useState<number>(0);
+  const [riskMaxPct, setRiskMaxPct] = useState<number>(2.0);
+  const [riskLots, setRiskLots] = useState<number>(10);
+  const [riskBuyFeePct, setRiskBuyFeePct] = useState<number>(0.15);
+  const [riskSellFeePct, setRiskSellFeePct] = useState<number>(0.25);
+  const [riskSlippagePct, setRiskSlippagePct] = useState<number>(0.20);
+  const [riskResult, setRiskResult] = useState<any>(null);
+  const [riskError, setRiskError] = useState<string | null>(null);
+
+  // Portfolio, Watchlist & Signal Journal state (Section 4J & 4K)
+  const [portfolioData, setPortfolioData] = useState<any>(null);
+  const [portLotsInput, setPortLotsInput] = useState<string>('10');
+  const [portAvgPriceInput, setPortAvgPriceInput] = useState<string>('');
+  const [portNotesInput, setPortNotesInput] = useState<string>('');
 
   const fetchAnalysis = useCallback(
     async (code: string, force: boolean = false, tf: string = '1d') => {
@@ -54,6 +92,12 @@ export default function StockAnalysisPage() {
       try {
         const res = await api.analyzeStock(clean, force, tf);
         setStockData(res);
+        const activePlan = res?.timeframes_plan?.[tf] || res?.trading_plan || {};
+        setRiskEntry(Number(res?.current_price || 0));
+        setRiskSl(Number(activePlan?.stop_loss || 0));
+        setRiskTp(Number(activePlan?.tp_2 || 0));
+        setRiskResult(res?.risk_calculator_default || null);
+        setPortAvgPriceInput(String(res?.current_price || ''));
       } catch (err: any) {
         setErrorMsg(err?.message || `Gagal memuat analisa saham ${clean}. Pastikan kode emiten benar.`);
       } finally {
@@ -64,9 +108,30 @@ export default function StockAnalysisPage() {
     []
   );
 
+  const loadPortfolioData = useCallback(async () => {
+    try {
+      const pRes = await api.getStockPortfolio();
+      setPortfolioData(pRes);
+    } catch {
+      // ignore if uninitialized
+    }
+  }, []);
+
   useEffect(() => {
     fetchAnalysis(activeTicker, false, selectedTimeframe);
-  }, [activeTicker, fetchAnalysis]);
+    loadPortfolioData();
+  }, [activeTicker, fetchAnalysis, loadPortfolioData]);
+
+  const handleTimeframeSelect = (tfId: string) => {
+    setSelectedTimeframe(tfId);
+    const tfPlan = stockData?.timeframes_plan?.[tfId];
+    if (tfPlan && stockData?.current_price) {
+      setRiskEntry(Number(stockData.current_price));
+      setRiskSl(Number(tfPlan.stop_loss));
+      setRiskTp(Number(tfPlan.tp_2));
+    }
+    fetchAnalysis(activeTicker, false, tfId);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,11 +141,86 @@ export default function StockAnalysisPage() {
     setActiveTicker(upper);
   };
 
+  const handleRunRiskCalculator = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setRiskError(null);
+    try {
+      const res = await api.calculateStockRisk({
+        capital_idr: Number(riskCapital),
+        entry_price: Number(riskEntry),
+        stop_loss: Number(riskSl),
+        target_price: Number(riskTp),
+        max_risk_pct: Number(riskMaxPct),
+        lots: Number(riskLots),
+        buy_fee_pct: Number(riskBuyFeePct),
+        sell_fee_pct: Number(riskSellFeePct),
+        slippage_pct: Number(riskSlippagePct),
+        existing_portfolio_value_idr: Number(portfolioData?.summary?.total_market_value_idr || 0),
+        is_idx: stockData?.is_idx !== false && !stockData?.is_index,
+      });
+      setRiskResult(res);
+    } catch (err: any) {
+      setRiskError(err?.message || 'Parameter kalkulator risiko tidak valid.');
+    }
+  };
+
+  const handleSavePosition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await api.saveStockPosition({
+        code: activeTicker,
+        lots: Math.max(1, parseInt(portLotsInput, 10) || 1),
+        avg_buy_price: Math.max(1, parseFloat(portAvgPriceInput) || Number(stockData?.current_price || 1000)),
+        notes: portNotesInput,
+      });
+      setPortfolioData(res);
+      setNoticeMsg(`✅ Posisi saham ${activeTicker} (${portLotsInput} Lot) berhasil disimpan ke Portofolio BEI.`);
+      setTimeout(() => setNoticeMsg(null), 4000);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Gagal menyimpan posisi portofolio saham.');
+    }
+  };
+
+  const handleAddWatchlist = async () => {
+    if (!stockData) return;
+    const plan = stockData?.timeframes_plan?.[selectedTimeframe] || stockData?.trading_plan || {};
+    try {
+      const res = await api.saveStockWatchlist({
+        code: stockData.code,
+        target_entry_price: Number(plan.entry_zone_high || stockData.current_price),
+        target_tp_price: Number(plan.tp_1 || 0),
+        stop_loss_price: Number(plan.stop_loss || 0),
+        notes: `Watchlist ${plan.timeframe_label || '1D'} (${plan.signal_direction || 'WAIT'})`,
+      });
+      setPortfolioData(res);
+      setNoticeMsg(`🔔 ${stockData.code} berhasil ditambahkan ke Watchlist & Alert Harga!`);
+      setTimeout(() => setNoticeMsg(null), 4000);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Gagal menambahkan ke Watchlist.');
+    }
+  };
+
+  const handleRecordSignalJournal = async () => {
+    if (!stockData) return;
+    try {
+      const res = await api.recordStockSignal({
+        code: stockData.code,
+        timeframe: selectedTimeframe,
+      });
+      setPortfolioData(res);
+      setNoticeMsg(`📒 Sinyal ${stockData.code} (${selectedTimeframe.toUpperCase()}) berhasil dicatat ke Signal Journal!`);
+      setTimeout(() => setNoticeMsg(null), 4000);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Gagal mencatat sinyal ke jurnal.');
+    }
+  };
+
   const isIdx = stockData?.is_idx !== false;
   const isIndex = Boolean(stockData?.is_index);
 
   const fmtPrice = (val: number | undefined | null, idxFlag: boolean = isIdx, indexFlag: boolean = isIndex) => {
-    const num = Number(val || 0);
+    if (val === null || val === undefined || Number.isNaN(Number(val))) return 'UNAVAILABLE';
+    const num = Number(val);
     if (indexFlag) {
       return num.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
@@ -92,37 +232,58 @@ export default function StockAnalysisPage() {
 
   const getTrendBadgeStyle = (badge: string) => {
     const b = (badge || '').toUpperCase();
-    if (b.includes('BULLISH')) {
+    if (b.includes('BULLISH') || b === 'BUY') {
       return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
     }
-    if (b.includes('REBOUND')) {
+    if (b.includes('REBOUND') || b === 'HOLD') {
       return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
     }
-    if (b.includes('BEARISH')) {
+    if (b.includes('BEARISH') || b.includes('SELL')) {
       return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
     }
     return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
   };
 
-  // Resolve active trading plan from precomputed timeframes_plan or fallback to trading_plan
   const plan =
     stockData?.timeframes_plan?.[selectedTimeframe] ||
     stockData?.trading_plan ||
     {};
+  const overview = stockData?.overview || {};
+  const feedStatus = overview?.feed_status || {};
   const tech = stockData?.technicals || {};
+  const fund = stockData?.fundamentals || {};
+  const fundMetrics = fund?.metrics || {};
+  const bankMetrics = fund?.banking_metrics || null;
+  const valEngine = stockData?.valuation || {};
   const div = stockData?.dividend || {};
   const perf = stockData?.performance || {};
   const range52 = stockData?.range_52w || {};
   const ihsg = stockData?.ihsg || null;
+  const marketIntel = stockData?.market_intelligence || {};
+  const aiAnalyst = stockData?.ai_analyst || {};
+  const backtest = stockData?.backtest || {};
+  const dataQuality = stockData?.data_quality || {};
   const candles: any[] = stockData?.recent_candles || [];
 
-  // Simulator calculations (updates dynamically with selectedTimeframe)
+  // Simulator calculations (net of 0.40% IDX round-trip fee & dividend tax option)
   const lotsCount = Math.max(1, Number(simLots) || 1);
   const sharesCount = isIdx && !isIndex ? lotsCount * 100 : lotsCount;
   const totalCapital = sharesCount * Number(stockData?.current_price || 0);
-  const estAnnualDivTotal = sharesCount * Number(div.annual_dividend_per_share || 0);
-  const estProfitTp1 = sharesCount * Math.max(0, Number(plan.tp_1 || 0) - Number(stockData?.current_price || 0));
-  const estProfitTp2 = sharesCount * Math.max(0, Number(plan.tp_2 || 0) - Number(stockData?.current_price || 0));
+  const feeRoundtripIdr = Math.round(totalCapital * 0.004);
+  const grossAnnualDivTotal = sharesCount * Number(div.annual_dividend_per_share || 0);
+  const netAnnualDivTotal = divTaxTenPct ? Math.round(grossAnnualDivTotal * 0.9) : Math.round(grossAnnualDivTotal);
+  const estProfitTp1Net = Math.round(
+    sharesCount * Math.max(0, Number(plan.tp_1 || 0) - Number(stockData?.current_price || 0)) - feeRoundtripIdr
+  );
+  const estProfitTp2Net = Math.round(
+    sharesCount * Math.max(0, Number(plan.tp_2 || 0) - Number(stockData?.current_price || 0)) - feeRoundtripIdr
+  );
+
+  // Check if user already holds this stock in their portfolio
+  const existingHolding = useMemo(() => {
+    const list: any[] = portfolioData?.positions || [];
+    return list.find((p) => p.code === activeTicker) || null;
+  }, [portfolioData, activeTicker]);
 
   return (
     <>
@@ -130,8 +291,8 @@ export default function StockAnalysisPage() {
         <title>Analisa Saham BEI ({activeTicker}) | SOFIA Trenches v3.8 PRO</title>
       </Head>
 
-      <div className="p-4 lg:p-6 space-y-5 max-w-[1600px] mx-auto">
-        {/* Top Search, IHSG Hari Ini Banner & Quick Ticker Bar */}
+      <div className="p-4 lg:p-6 space-y-5 max-w-[1600px] mx-auto pb-24">
+        {/* Top Search, Truthful Feed Status Badge, IHSG Hari Ini Banner & Quick Ticker Bar */}
         <div className="rounded-2xl border border-slate-800/90 bg-gradient-to-r from-[#0b101d] via-[#0f172a] to-[#0b101d] p-5 shadow-xl space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -143,12 +304,20 @@ export default function StockAnalysisPage() {
                   <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">
                     ANALISA CEPAT SAHAM INDONESIA (BEI / IDX)
                   </h1>
-                  <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    REAL-TIME BEI
+                  {/* Truthful Data Latency Badge (DELAYED vs END-OF-DAY) */}
+                  <span
+                    className={`px-2.5 py-0.5 text-[10px] font-mono font-bold rounded-full border ${
+                      feedStatus.feed_badge === 'DELAYED'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                    }`}
+                    title={feedStatus.feed_description || 'Yahoo Finance IDX Feed'}
+                  >
+                    {feedStatus.feed_badge || 'END-OF-DAY'} • {feedStatus.session_label || 'BEI / IDX'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Masukkan kode saham (misal: BBRI, BBCA, BMRI, ANTM, ADRO) untuk melihat Harga, Area Entry, Target Profit (TP), Stop Loss, Multi-Timeframe, dan Rata-rata Dividen
+                  Multi-Timeframe Technicals, Laporan Keuangan Fundamental, Valuasi Nilai Wajar, Dividen, Kalkulator Risiko ARA/ARB, AI Analyst &amp; Walk-Forward Backtest
                 </p>
               </div>
             </div>
@@ -160,7 +329,7 @@ export default function StockAnalysisPage() {
                 value={tickerInput}
                 onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
                 placeholder="Ketik kode emiten (cth: BBRI)..."
-                className="w-full sm:w-56 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-white uppercase placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                className="w-full sm:w-52 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-white uppercase placeholder-slate-500 focus:outline-none focus:border-emerald-500"
               />
               <button
                 type="submit"
@@ -168,6 +337,15 @@ export default function StockAnalysisPage() {
                 className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold transition shrink-0"
               >
                 Analisa Saham
+              </button>
+              <button
+                type="button"
+                onClick={handleAddWatchlist}
+                disabled={loading || !stockData}
+                className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold transition shrink-0"
+                title="Simpan ke Watchlist & Alert Harga"
+              >
+                + Watchlist
               </button>
               <button
                 type="button"
@@ -180,6 +358,12 @@ export default function StockAnalysisPage() {
               </button>
             </form>
           </div>
+
+          {noticeMsg && (
+            <div className="px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-mono">
+              {noticeMsg}
+            </div>
+          )}
 
           {/* IHSG HARI INI (Indeks Harga Saham Gabungan) Live Bar */}
           {ihsg && (
@@ -299,9 +483,9 @@ export default function StockAnalysisPage() {
           </div>
         ) : stockData ? (
           <>
-            {/* ROW 1: Main Stock Overview + Multi-Timeframe Trading Plan + Dividend Summary */}
+            {/* ROW 1: TOP DECISION SUMMARY (Overview + Multi-Timeframe Trading Plan + Dividend Intelligence) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-              {/* Card 1: Harga Saat Ini & Status Bullish/Bearish (4 cols) */}
+              {/* Card 1: Harga Saat Ini, Sektor & Rentang 52M (4 cols) */}
               <div className="lg:col-span-4 rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 flex flex-col justify-between space-y-4 shadow-lg">
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-2">
@@ -315,25 +499,33 @@ export default function StockAnalysisPage() {
                         </span>
                       </div>
                       <p className="text-xs font-semibold text-slate-300 mt-0.5">{stockData.name}</p>
-                      <p className="text-[11px] text-slate-400">{stockData.sector}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {stockData.sector} {stockData.sub_sector && stockData.sub_sector !== stockData.sector ? `• ${stockData.sub_sector}` : ''}
+                      </p>
                     </div>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border ${getTrendBadgeStyle(
-                        plan.trend_badge
-                      )}`}
-                    >
-                      {plan.trend_status}
-                    </span>
+                    <div className="text-right flex flex-col items-end gap-1">
+                      <span
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border ${getTrendBadgeStyle(
+                          plan.signal_direction || plan.trend_badge
+                        )}`}
+                      >
+                        SINYAL: {plan.signal_direction || 'WAIT'}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">{plan.trend_status}</span>
+                    </div>
                   </div>
 
                   {/* Current Price & Day Change */}
                   <div className="pt-2 border-t border-slate-800/80 flex items-baseline justify-between">
                     <div>
                       <div className="text-[10px] font-bold uppercase text-slate-400">
-                        {isIndex ? 'Level Indeks Saat Ini' : 'Harga Saat Ini'}
+                        {isIndex ? 'Level Indeks Saat Ini' : 'Harga Terakhir'} ({feedStatus.feed_badge || 'EOD'})
                       </div>
                       <div className="text-3xl font-black font-mono text-white mt-0.5">
                         {fmtPrice(stockData.current_price)}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                        Update: {feedStatus.last_trade_wib || stockData.updated_at}
                       </div>
                     </div>
                     <div className="text-right">
@@ -350,6 +542,11 @@ export default function StockAnalysisPage() {
                         <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                           1 Lot (100 lbr):{' '}
                           <strong className="text-slate-200">{fmtPrice(stockData.price_per_lot)}</strong>
+                        </div>
+                      )}
+                      {valEngine?.data_status === 'VALID' && (
+                        <div className="text-[10px] font-mono text-amber-300 mt-0.5">
+                          Nilai Wajar Base: {fmtPrice(valEngine?.scenarios?.base_case)} ({valEngine.potential_upside_pct >= 0 ? '+' : ''}{valEngine.potential_upside_pct}%)
                         </div>
                       )}
                     </div>
@@ -404,13 +601,15 @@ export default function StockAnalysisPage() {
                         Rekomendasi Trading Plan (Entry, TP &amp; SL)
                       </h2>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        Strategi: <strong className="text-white">{plan.action_verdict}</strong> • Estimasi Hold:{' '}
+                        Strategi: <strong className="text-white">{plan.action_verdict}</strong> • Hold:{' '}
                         <strong className="text-cyan-300">{plan.hold_duration || '3 – 10 Hari'}</strong>
                       </p>
                     </div>
-                    <span className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-bold shrink-0">
-                      R/R {plan.risk_reward_ratio}
-                    </span>
+                    <div className="text-right shrink-0">
+                      <span className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-bold block">
+                        Net R/R {plan.net_risk_reward_ratio || plan.risk_reward_ratio}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Timeframe Selector Buttons (15 Menit, 1 Jam, 1 Hari, 1 Minggu, 1 Bulan, 1 Tahun) */}
@@ -424,7 +623,7 @@ export default function StockAnalysisPage() {
                         <button
                           key={tf.id}
                           type="button"
-                          onClick={() => setSelectedTimeframe(tf.id)}
+                          onClick={() => handleTimeframeSelect(tf.id)}
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition whitespace-nowrap border ${
                             active
                               ? 'bg-cyan-500/25 text-cyan-200 border-cyan-400 shadow-sm'
@@ -438,9 +637,14 @@ export default function StockAnalysisPage() {
                   </div>
                 </div>
 
+                {plan.wait_reason && (
+                  <div className="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-[11px] text-amber-300">
+                    <strong>Alasan Sinyal {plan.signal_direction}:</strong> {plan.wait_reason}
+                  </div>
+                )}
+
                 {/* Grid of Entry, TP1, TP2, Stop Loss */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono">
-                  {/* Area Entry Ideal */}
                   <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
                     <div className="text-[10px] font-sans font-bold uppercase text-cyan-300">
                       🎯 Area Entry Ideal ({plan.timeframe_label || '1 Hari'})
@@ -449,15 +653,14 @@ export default function StockAnalysisPage() {
                       {fmtPrice(plan.entry_zone_low)} – {fmtPrice(plan.entry_zone_high)}
                     </div>
                     <div className="text-[10px] font-sans text-slate-400 mt-0.5">
-                      Rentang cicil beli sesuai volatilitas {plan.timeframe_label || 'harian'}
+                      Fee BEI: ~{plan.estimated_fee_roundtrip_pct || 0.4}% pergi-pulang
                     </div>
                   </div>
 
-                  {/* Stop Loss */}
                   <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-sans font-bold uppercase text-rose-300">
-                        🛡️ Stop Loss ({plan.timeframe_label || '1 Hari'})
+                        🛡️ Stop Loss / Invalidasi
                       </span>
                       <span className="text-xs font-bold text-rose-400">{plan.stop_loss_pct}%</span>
                     </div>
@@ -465,11 +668,10 @@ export default function StockAnalysisPage() {
                       {fmtPrice(plan.stop_loss)}
                     </div>
                     <div className="text-[10px] font-sans text-slate-400 mt-0.5">
-                      Batas pengaman risiko time frame {plan.timeframe_label || '1 Hari'}
+                      Rugi Bersih (+Fee): {plan.net_stop_loss_pct}%
                     </div>
                   </div>
 
-                  {/* Take Profit 1 */}
                   <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-sans font-bold uppercase text-emerald-300">
@@ -481,11 +683,10 @@ export default function StockAnalysisPage() {
                       {fmtPrice(plan.tp_1)}
                     </div>
                     <div className="text-[10px] font-sans text-slate-400 mt-0.5">
-                      Target resistensi terdekat (Ambil 50% posisi)
+                      Net (+Fee): +{plan.net_tp_1_pct}% • Ambil 50% posisi
                     </div>
                   </div>
 
-                  {/* Take Profit 2 */}
                   <div className="p-3.5 rounded-xl bg-teal-500/10 border border-teal-500/30">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-sans font-bold uppercase text-teal-300">
@@ -497,7 +698,7 @@ export default function StockAnalysisPage() {
                       {fmtPrice(plan.tp_2)}
                     </div>
                     <div className="text-[10px] font-sans text-slate-400 mt-0.5">
-                      Target penuh untuk horizon {plan.timeframe_label || '1 Hari'}
+                      Net (+Fee): +{plan.net_tp_2_pct}% • Target penuh
                     </div>
                   </div>
                 </div>
@@ -523,16 +724,16 @@ export default function StockAnalysisPage() {
                 </div>
               </div>
 
-              {/* Card 3: Rata-rata Dividen Tahunan & Yield (3 cols) */}
+              {/* Card 3: Dividend Intelligence Summary (3 cols) */}
               <div className="lg:col-span-3 rounded-2xl border border-amber-500/30 bg-[#0b101d] p-5 flex flex-col justify-between space-y-4 shadow-lg">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <div>
                       <h2 className="text-sm font-extrabold uppercase tracking-wide text-amber-300 flex items-center gap-1.5">
                         <LucideIcon name="banknote" className="w-4 h-4 text-amber-400" />
-                        Analisa Dividen Tahunan
+                        Dividend Intelligence
                       </h2>
-                      <p className="text-[11px] text-slate-400">Berdasarkan histori pembagian 3 tahun</p>
+                      <p className="text-[11px] text-slate-400">TTM vs Historis 3Th vs Estimasi</p>
                     </div>
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
@@ -545,16 +746,17 @@ export default function StockAnalysisPage() {
                     </span>
                   </div>
 
+                  {/* Strictly separated TTM, 3Y Avg, and Forward Estimate */}
                   <div className="grid grid-cols-2 gap-2.5 font-mono">
                     <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
                       <div className="text-[10px] font-sans text-amber-300 font-bold">
-                        Dividen / Tahun
+                        Dividen TTM (12Bln)
                       </div>
                       <div className="text-base font-black text-white mt-0.5">
-                        {div.pays_dividend ? `${fmtPrice(div.annual_dividend_per_share)}/lbr` : 'Rp 0'}
+                        {div.pays_dividend ? `${fmtPrice(div.ttm_dividend_per_share || div.annual_dividend_per_share)}/lbr` : 'Rp 0'}
                       </div>
                       <div className="text-[10px] font-sans text-slate-400 mt-0.5">
-                        Rata-rata 3Th: {fmtPrice(div.avg_3y_dividend_per_share)}
+                        Hist 3Th: {fmtPrice(div.avg_3y_dividend_per_share)}
                       </div>
                     </div>
 
@@ -566,7 +768,7 @@ export default function StockAnalysisPage() {
                         {div.dividend_yield_pct}%
                       </div>
                       <div className="text-[10px] font-sans text-slate-400 mt-0.5">
-                        {`${div.frequency_per_year}x bagi / tahun`}
+                        Est. Depan: {fmtPrice(div.forward_estimated_dividend_per_share)}
                       </div>
                     </div>
                   </div>
@@ -574,18 +776,18 @@ export default function StockAnalysisPage() {
                   {/* Dividend History List */}
                   <div className="space-y-1.5">
                     <div className="text-[10px] font-bold uppercase text-slate-400">
-                      Riwayat Dividen Terakhir:
+                      Riwayat Dividen Terkonfirmasi:
                     </div>
                     {div.history && div.history.length > 0 ? (
-                      <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                        {div.history.slice(0, 5).map((item: any, idx: number) => (
+                      <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                        {div.history.slice(0, 4).map((item: any, idx: number) => (
                           <div
                             key={idx}
                             className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-xs font-mono"
                           >
-                            <span className="text-slate-300">{item.date}</span>
+                            <span className="text-slate-300">Ex: {item.ex_date || item.date}</span>
                             <span className="text-amber-300 font-bold">
-                              {fmtPrice(item.amount)}/lbr ({item.yield_at_current_pct}%)
+                              {fmtPrice(item.amount)} ({item.yield_at_current_pct}%)
                             </span>
                           </div>
                         ))}
@@ -601,184 +803,1211 @@ export default function StockAnalysisPage() {
                 </div>
 
                 <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-400 font-sans">Estimasi Dividen / 1 Lot:</span>
+                  <span className="text-slate-400 font-sans">Dividen Kotor / 1 Lot:</span>
                   <strong className="text-amber-300">{fmtPrice(div.annual_dividend_per_lot)} / thn</strong>
                 </div>
               </div>
             </div>
 
-            {/* ROW 2: Ringkasan Analisa Singkat + Indikator Teknikal + Simulasi Modal & Lot */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-              {/* Kesimpulan Analisa Singkat & Grafik 30 Hari (7 cols) */}
-              <div className="lg:col-span-7 rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4 shadow-lg">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-sm font-extrabold uppercase tracking-wide text-white flex items-center gap-2">
-                    <LucideIcon name="area-chart" className="w-4 h-4 text-emerald-400" />
-                    Kesimpulan Analisa Singkat &amp; Pergerakan 30 Hari ({stockData.code})
-                  </h3>
-                  <span className="text-[11px] font-mono text-slate-400">{stockData.updated_at}</span>
-                </div>
+            {/* NAVIGATION TABS FOR ALL 11 MODULES (Section 5 UI Requirement) */}
+            <div className="rounded-2xl border border-slate-800 bg-[#0b101d] p-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              {ANALYSIS_TABS.map((t) => {
+                const active = activeTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveTab(t.id)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition border ${
+                      active
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                        : 'bg-slate-950/60 text-slate-400 border-transparent hover:text-white hover:bg-slate-900'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
 
-                {/* Bullet Summary Notes */}
-                <div className="space-y-2">
-                  {(stockData.summary_notes || []).map((note: string, i: number) => (
-                    <div
-                      key={i}
-                      className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs text-slate-200 leading-relaxed"
-                    >
-                      <span className="text-emerald-400 font-bold mt-0.5">✔</span>
-                      <span>{note}</span>
+            {/* =====================================================================
+                TAB 1: OVERVIEW (Stock Overview + 30D Chart + Quick Lot Simulator)
+               ===================================================================== */}
+            {activeTab === 'overview' && (
+              <div className="space-y-5">
+                {/* Complete Stock Overview Microstructure Grid (Section 4A) */}
+                <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-extrabold uppercase text-white">
+                        A. Detail Ringkasan Perdagangan Saham ({stockData.code})
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Sumber: {feedStatus.source_provider} • Status: {feedStatus.feed_description}
+                      </p>
                     </div>
-                  ))}
+                    {existingHolding && (
+                      <span className="px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-bold">
+                        📦 Dimiliki di Portofolio: {existingHolding.lots} Lot @ {fmtPrice(existingHolding.avg_buy_price)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs">
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400 font-sans">Open / Prev Close</div>
+                      <div className="font-bold text-white mt-0.5">
+                        {fmtPrice(overview.open)} / {fmtPrice(overview.prev_close)}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400 font-sans">Day Low – Day High</div>
+                      <div className="font-bold text-cyan-300 mt-0.5">
+                        {fmtPrice(overview.low)} – {fmtPrice(overview.high)}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400 font-sans">Volume &amp; Nilai Transaksi</div>
+                      <div className="font-bold text-white mt-0.5">
+                        {Number(overview.volume_lots || 0).toLocaleString('id-ID')} Lot
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        ≈ Rp {Math.round(Number(overview.transaction_value_idr || 0) / 1e9).toLocaleString('id-ID')} Miliar
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400 font-sans">Kapitalisasi Pasar</div>
+                      <div className="font-bold text-emerald-400 mt-0.5">
+                        {overview.market_cap_idr_t ? `Rp ${overview.market_cap_idr_t} Triliun` : 'UNAVAILABLE'}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        Saham: {overview.shares_outstanding_b ? `${overview.shares_outstanding_b} Miliar lbr` : 'N/A'}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400 font-sans">Fraksi Harga &amp; ARA / ARB</div>
+                      <div className="font-bold text-amber-300 mt-0.5">
+                        Tick Rp {overview.tick_size_rp || 1} (±{overview.ara_arb_limit_pct || 25}%)
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        ARB {fmtPrice(overview.arb_price)} • ARA {fmtPrice(overview.ara_price)}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400 font-sans">Order Book &amp; Frekuensi</div>
+                      <div className="font-bold text-slate-400 mt-0.5 text-[11px]">UNAVAILABLE</div>
+                      <div className="text-[9px] text-slate-500 font-sans">
+                        Butuh lisensi IDX ITCH L2
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Mini 30-Day Price Bar/Spark Chart */}
-                {candles.length > 2 && (
-                  <div className="pt-2 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Grafik Penutupan 30 Hari Bursa Terakhir</span>
-                      <span className="font-mono text-slate-300">
-                        Rentang: {fmtPrice(Math.min(...candles.map((c) => c.low)))} –{' '}
-                        {fmtPrice(Math.max(...candles.map((c) => c.high)))}
+                {/* ROW 2: Kesimpulan Analisa Singkat + Grafik 30 Hari + Simulasi Lot */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  <div className="lg:col-span-7 rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4 shadow-lg">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <h3 className="text-sm font-extrabold uppercase tracking-wide text-white flex items-center gap-2">
+                        <LucideIcon name="area-chart" className="w-4 h-4 text-emerald-400" />
+                        Kesimpulan Analisa &amp; Grafik Penutupan 30 Hari ({stockData.code})
+                      </h3>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        Satuan: {stockData.currency} • Timeframe: 1D
                       </span>
                     </div>
-                    <div className="h-28 w-full bg-slate-950/90 rounded-xl border border-slate-800/80 p-3 flex items-end gap-1">
-                      {(() => {
-                        const minC = Math.min(...candles.map((c) => c.close));
-                        const maxC = Math.max(...candles.map((c) => c.close));
-                        const span = Math.max(1, maxC - minC);
-                        return candles.map((c, idx) => {
-                          const hPct = Math.max(12, Math.round(((c.close - minC) / span) * 100));
-                          const isUp = c.close >= c.open;
-                          return (
-                            <div
-                              key={idx}
-                              title={`${c.date}: ${fmtPrice(c.close)}`}
-                              className={`flex-1 rounded-t transition-all ${
-                                isUp ? 'bg-emerald-500/70 hover:bg-emerald-400' : 'bg-rose-500/70 hover:bg-rose-400'
-                              }`}
-                              style={{ height: `${hPct}%` }}
-                            />
-                          );
-                        });
-                      })()}
+
+                    <div className="space-y-2">
+                      {(stockData.summary_notes || []).map((note: string, i: number) => (
+                        <div
+                          key={i}
+                          className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs text-slate-200 leading-relaxed"
+                        >
+                          <span className="text-emerald-400 font-bold mt-0.5">✔</span>
+                          <span>{note}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {candles.length > 2 && (
+                      <div className="pt-2 space-y-2">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>Grafik Penutupan 30 Hari Bursa Terakhir (Hijau = Naik, Merah = Turun)</span>
+                          <span className="font-mono text-slate-300">
+                            Rentang 30H: {fmtPrice(Math.min(...candles.map((c) => c.low)))} –{' '}
+                            {fmtPrice(Math.max(...candles.map((c) => c.high)))}
+                          </span>
+                        </div>
+                        <div className="h-32 w-full bg-slate-950/90 rounded-xl border border-slate-800/80 p-3 flex items-end gap-1">
+                          {(() => {
+                            const minC = Math.min(...candles.map((c) => c.close));
+                            const maxC = Math.max(...candles.map((c) => c.close));
+                            const span = Math.max(1, maxC - minC);
+                            return candles.map((c, idx) => {
+                              const hPct = Math.max(12, Math.round(((c.close - minC) / span) * 100));
+                              const isUp = c.close >= c.open;
+                              return (
+                                <div
+                                  key={idx}
+                                  title={`${c.date}: Open ${fmtPrice(c.open)} | High ${fmtPrice(c.high)} | Low ${fmtPrice(c.low)} | Close ${fmtPrice(c.close)} | Vol ${Number(c.volume || 0).toLocaleString('id-ID')}`}
+                                  className={`flex-1 rounded-t transition-all ${
+                                    isUp ? 'bg-emerald-500/70 hover:bg-emerald-400' : 'bg-rose-500/70 hover:bg-rose-400'
+                                  }`}
+                                  style={{ height: `${hPct}%` }}
+                                />
+                              );
+                            });
+                          })()}
+                        </div>
+                        <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                          <span>{candles[0]?.date}</span>
+                          <span>Legenda: OHLC Daily Split-Adjusted ({stockData.currency})</span>
+                          <span>{candles[candles.length - 1]?.date}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Technicals + Lot Simulator */}
+                  <div className="lg:col-span-5 rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4 shadow-lg flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-extrabold uppercase tracking-wide text-white border-b border-slate-800 pb-3">
+                        📊 Indikator Inti &amp; Simulasi Lot Bersih
+                      </h3>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 font-mono text-xs">
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">RSI (14)</div>
+                          <div className="text-sm font-bold text-cyan-300 mt-0.5">{tech.rsi_14}</div>
+                          <div className="text-[9px] text-slate-400 font-sans truncate">{tech.rsi_status}</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">SMA-20 / EMA-20</div>
+                          <div className="text-sm font-bold text-white mt-0.5">{fmtPrice(tech.sma_20)}</div>
+                          <div className="text-[9px] text-slate-400 font-sans">EMA20: {fmtPrice(tech.ema_20)}</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">SMA-50 / EMA-50</div>
+                          <div className="text-sm font-bold text-white mt-0.5">{fmtPrice(tech.sma_50)}</div>
+                          <div className="text-[9px] text-slate-400 font-sans">EMA50: {fmtPrice(tech.ema_50)}</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">SMA-200 (Major)</div>
+                          <div className="text-sm font-bold text-white mt-0.5">{fmtPrice(tech.sma_200)}</div>
+                          <div className="text-[9px] text-emerald-400 font-sans">
+                            {stockData.current_price >= tech.sma_200 ? 'Major Uptrend' : 'Di bawah SMA200'}
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">MACD (12,26,9)</div>
+                          <div
+                            className={`text-sm font-bold mt-0.5 ${
+                              tech.macd_histogram >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {tech.macd_histogram >= 0 ? '+' : ''}
+                            {tech.macd_histogram}
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-sans">Sig: {tech.macd_signal}</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">ATR-14 &amp; Vol Ratio</div>
+                          <div className="text-sm font-bold text-amber-300 mt-0.5">{fmtPrice(tech.atr_14)}</div>
+                          <div className="text-[9px] text-slate-400 font-sans">Vol {tech.volume_ratio}x MA20</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Interactive Lot Simulator with Fee & Tax */}
+                    <div className="p-4 rounded-xl bg-slate-950/90 border border-emerald-500/30 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-emerald-300">
+                          🧮 Simulasi Beli Lot ({stockData.code} • 1 Lot = 100 Lembar)
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-slate-400">Jumlah Lot:</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100000}
+                            value={simLots}
+                            onChange={(e) => setSimLots(Math.max(1, Number(e.target.value) || 1))}
+                            className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white text-right"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                        <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">
+                            Modal ({lotsCount} Lot = {sharesCount.toLocaleString('id-ID')} lbr)
+                          </div>
+                          <div className="font-bold text-white mt-0.5">{fmtPrice(totalCapital)}</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">
+                            Est. Dividen Bersih ({divTaxTenPct ? 'Pajak 10%' : '0% Reinvest'})
+                          </div>
+                          <div className="font-bold text-amber-300 mt-0.5">{fmtPrice(netAnnualDivTotal)}</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">
+                            Net Profit TP 1 (+{plan.net_tp_1_pct || plan.tp_1_pct}%)
+                          </div>
+                          <div className="font-bold text-emerald-400 mt-0.5">+{fmtPrice(estProfitTp1Net)}</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 font-sans">
+                            Net Profit TP 2 (+{plan.net_tp_2_pct || plan.tp_2_pct}%)
+                          </div>
+                          <div className="font-bold text-teal-400 mt-0.5">+{fmtPrice(estProfitTp2Net)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* =====================================================================
+                TAB 2: TECHNICAL ANALYSIS ENGINE (Section 4B)
+               ===================================================================== */}
+            {activeTab === 'technical' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold uppercase text-cyan-300">
+                      B. Technical Analysis Engine — {stockData.code} (Timeframe: {plan.timeframe_label})
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Kalkulasi terverifikasi bebas look-ahead bias dari {tech.candles_count} candle historis (Split-Adjusted).
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-emerald-300">
+                    Data Status: {tech.has_sufficient_data ? 'VALID (Histori Memadai)' : 'INSUFFICIENT_DATA'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-sans">SMA-20 / SMA-50 / SMA-200</div>
+                    <div className="font-bold text-white mt-1">
+                      {fmtPrice(tech.sma_20)} / {fmtPrice(tech.sma_50)}
+                    </div>
+                    <div className="text-[10px] text-slate-400">SMA-200: {fmtPrice(tech.sma_200)}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-sans">EMA-20 &amp; EMA-50</div>
+                    <div className="font-bold text-cyan-300 mt-1">
+                      {fmtPrice(tech.ema_20)} / {fmtPrice(tech.ema_50)}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Cross: {tech.ema_20 >= tech.ema_50 ? 'Bullish EMA Alignment' : 'Bearish EMA Alignment'}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-sans">Bollinger Bands (20, 2σ)</div>
+                    <div className="font-bold text-white mt-1">
+                      {fmtPrice(tech.bollinger?.lower)} – {fmtPrice(tech.bollinger?.upper)}
+                    </div>
+                    <div className="text-[10px] text-amber-300">
+                      %B: {tech.bollinger?.percent_b}% • BW: {tech.bollinger?.bandwidth_pct}%
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-sans">VWAP &amp; Wilder&apos;s ATR-14</div>
+                    <div className="font-bold text-emerald-300 mt-1">
+                      VWAP: {tech.vwap ? fmtPrice(tech.vwap) : 'N/A (EOD)'}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      ATR-14: {fmtPrice(tech.atr_14)} ({tech.atr_pct}%)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price Structure: Breakout, Breakdown & Pullback Detection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-bold uppercase text-cyan-300">
+                      Deteksi Breakout / Breakdown (20-Bar Box)
+                    </div>
+                    <div className="font-mono font-bold text-white">
+                      {tech.structure?.breakout_status}
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono">
+                      Support Box 20H: {fmtPrice(tech.structure?.box_support_20)} • Resistance Box 20H:{' '}
+                      {fmtPrice(tech.structure?.box_resistance_20)}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-bold uppercase text-amber-300">
+                      Deteksi Pullback / Retest &amp; Volume MA-20
+                    </div>
+                    <div className="font-mono font-bold text-white">
+                      {tech.structure?.pullback_status}
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono">
+                      Volume Saat Ini: {Number(tech.latest_volume || 0).toLocaleString('id-ID')} lbr vs MA20:{' '}
+                      {Number(tech.avg_volume_20d || 0).toLocaleString('id-ID')} lbr ({tech.volume_ratio}x)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* =====================================================================
+                TAB 3: FUNDAMENTAL ANALYSIS ENGINE (Section 4C)
+               ===================================================================== */}
+            {activeTab === 'fundamental' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold uppercase text-emerald-300">
+                      C. Fundamental Analysis Engine — {stockData.code} ({fund.reporting_period})
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Mata Uang: {fund.currency} • Satuan: {fund.unit} • Status Data: {fund.data_status}
+                    </p>
+                  </div>
+                </div>
+
+                {fund.data_status !== 'VALID' ? (
+                  <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
+                    <strong>Status Data: {fund.data_status}</strong> — {fund.reason}
+                  </div>
+                ) : (
+                  <>
+                    {/* Core Financial Metrics */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">Pendapatan (Revenue)</div>
+                        <div className="text-sm font-bold text-white mt-0.5">
+                          Rp {Number(fundMetrics.revenue_idr_b || 0).toLocaleString('id-ID')} Miliar
+                        </div>
+                        <div className="text-[10px] text-emerald-400">
+                          YoY: {fundMetrics.revenue_yoy_pct >= 0 ? '+' : ''}{fundMetrics.revenue_yoy_pct}% • QoQ: +{fundMetrics.revenue_qoq_pct}%
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">Laba Bersih (Net Income)</div>
+                        <div className="text-sm font-bold text-white mt-0.5">
+                          Rp {Number(fundMetrics.net_income_idr_b || 0).toLocaleString('id-ID')} Miliar
+                        </div>
+                        <div className="text-[10px] text-cyan-300">
+                          Net Margin: {fundMetrics.net_margin_pct}% • YoY: {fundMetrics.net_income_yoy_pct >= 0 ? '+' : ''}{fundMetrics.net_income_yoy_pct}%
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">EPS (TTM) &amp; BVPS</div>
+                        <div className="text-sm font-bold text-amber-300 mt-0.5">
+                          EPS: Rp {fundMetrics.eps_ttm} / lbr
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                           Nilai Buku (BVPS): Rp {Number(fundMetrics.bvps || 0).toLocaleString('id-ID')}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">Profitabilitas (ROE &amp; ROA)</div>
+                        <div className="text-sm font-bold text-emerald-400 mt-0.5">
+                          ROE: {fundMetrics.roe_pct}% • ROA: {fundMetrics.roa_pct}%
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          ROIC: {fundMetrics.roic_pct !== null ? `${fundMetrics.roic_pct}%` : 'N/A (Bank)'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Banking-Specific Metrics (BBRI, BBCA, BMRI, BBNI) */}
+                    {bankMetrics && (
+                      <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 space-y-2.5">
+                        <div className="text-xs font-extrabold uppercase text-cyan-300">
+                          🏦 Indikator Khusus Sektor Perbankan (OJK / Bank Indonesia Standard)
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 font-mono text-xs">
+                          <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                            <div className="text-[9px] text-slate-400">NIM</div>
+                            <div className="font-bold text-emerald-400">{bankMetrics.nim_pct}%</div>
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                            <div className="text-[9px] text-slate-400">CASA Ratio</div>
+                            <div className="font-bold text-cyan-300">{bankMetrics.casa_pct}%</div>
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                            <div className="text-[9px] text-slate-400">NPL Gross</div>
+                            <div className="font-bold text-amber-300">{bankMetrics.npl_gross_pct}%</div>
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                            <div className="text-[9px] text-slate-400">NPL Net</div>
+                            <div className="font-bold text-emerald-300">{bankMetrics.npl_net_pct}%</div>
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                            <div className="text-[9px] text-slate-400">CAR (Modal)</div>
+                            <div className="font-bold text-white">{bankMetrics.car_pct}%</div>
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                            <div className="text-[9px] text-slate-400">LDR</div>
+                            <div className="font-bold text-white">{bankMetrics.ldr_pct}%</div>
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                            <div className="text-[9px] text-slate-400">BOPO (CIR)</div>
+                            <div className="font-bold text-white">{bankMetrics.bopo_pct}%</div>
+                          </div>
+                          <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
+                            <div className="text-[9px] text-slate-400">Cost of Credit</div>
+                            <div className="font-bold text-amber-300">{bankMetrics.coc_pct}%</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Earnings Quality & Strengths/Weaknesses */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="font-extrabold text-emerald-400 uppercase">
+                          ✔ Kekuatan Fundamental &amp; Kualitas Laba
+                        </div>
+                        <p className="text-slate-300 font-semibold">{fund.earnings_quality?.status}</p>
+                        <p className="text-slate-400">{fund.earnings_quality?.detail}</p>
+                        <ul className="list-disc list-inside space-y-1 text-slate-200 pt-1">
+                          {(fund.strengths || []).map((s: string, i: number) => (
+                            <li key={i}>{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="font-extrabold text-amber-300 uppercase">
+                          ⚠️ Risiko Utang, Arus Kas &amp; Tantangan
+                        </div>
+                        <p className="text-slate-300 font-semibold">
+                          {fund.earnings_quality?.debt_and_cashflow_risk}
+                        </p>
+                        <ul className="list-disc list-inside space-y-1 text-slate-200 pt-1">
+                          {(fund.weaknesses || []).map((w: string, i: number) => (
+                            <li key={i}>{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Peer Comparison Table */}
+                    {fund.peers && fund.peers.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-extrabold uppercase text-slate-300">
+                          Perbandingan dengan Emiten Sejenis ({fund.sector})
+                        </h4>
+                        <div className="overflow-x-auto rounded-xl border border-slate-800">
+                          <table className="w-full text-left border-collapse text-xs font-mono">
+                            <thead>
+                              <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
+                                <th className="py-2 px-3">Emiten</th>
+                                <th className="py-2 px-3 text-right">PER (x)</th>
+                                <th className="py-2 px-3 text-right">PBV (x)</th>
+                                <th className="py-2 px-3 text-right">ROE (%)</th>
+                                <th className="py-2 px-3 text-right">Net Margin (%)</th>
+                                <th className="py-2 px-3 text-right">Payout Ratio</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800">
+                              {fund.peers.map((p: any) => (
+                                <tr
+                                  key={p.code}
+                                  className={p.is_target ? 'bg-emerald-500/10 font-bold' : 'bg-slate-900/40'}
+                                >
+                                  <td className="py-2 px-3 text-white">
+                                    {p.code} {p.is_target && <span className="text-emerald-400">(Aktif)</span>}
+                                  </td>
+                                  <td className="py-2 px-3 text-right text-slate-200">{p.pe_ratio ?? 'N/A'}x</td>
+                                  <td className="py-2 px-3 text-right text-cyan-300">{p.pbv_ratio ?? 'N/A'}x</td>
+                                  <td className="py-2 px-3 text-right text-emerald-400">{p.roe_pct}%</td>
+                                  <td className="py-2 px-3 text-right text-slate-200">{p.net_margin_pct}%</td>
+                                  <td className="py-2 px-3 text-right text-amber-300">{p.payout_ratio_pct}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* =====================================================================
+                TAB 4: VALUATION ENGINE (Section 4D)
+               ===================================================================== */}
+            {activeTab === 'valuation' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold uppercase text-amber-300">
+                      D. Valuation Engine &amp; Estimasi Nilai Wajar — {stockData.code}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Metode: {valEngine.methodology || 'N/A'} • Tanggal Valuasi: {valEngine.valuation_date}
+                    </p>
+                  </div>
+                  {valEngine.valuation_status && (
+                    <span className="px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-bold">
+                      {valEngine.valuation_status}
+                    </span>
+                  )}
+                </div>
+
+                {valEngine.data_status !== 'VALID' ? (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
+                    {valEngine.reason}
+                  </div>
+                ) : (
+                  <>
+                    {/* Bear, Base, Bull Fair Value Scenarios */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono">
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] font-sans uppercase text-slate-400">Harga Pasar Aktual</div>
+                        <div className="text-xl font-black text-white mt-1">
+                          {fmtPrice(valEngine.current_market_price)}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">Harga perdagangan saat ini</div>
+                      </div>
+                      <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                        <div className="text-[10px] font-sans uppercase text-rose-300 font-bold">Bear Case (Konservatif)</div>
+                        <div className="text-xl font-black text-white mt-1">
+                          {fmtPrice(valEngine.scenarios?.bear_case)}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">Skenario pertumbuhan melambat</div>
+                      </div>
+                      <div className="p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/40">
+                        <div className="text-[10px] font-sans uppercase text-emerald-300 font-bold">
+                          Base Case (Estimasi Wajar)
+                        </div>
+                        <div className="text-xl font-black text-emerald-400 mt-1">
+                          {fmtPrice(valEngine.scenarios?.base_case)}
+                        </div>
+                        <div className="text-[10px] text-slate-200 mt-0.5">
+                          Upside/Downside: {valEngine.potential_upside_pct >= 0 ? '+' : ''}{valEngine.potential_upside_pct}% (MoS {valEngine.margin_of_safety_pct}%)
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
+                        <div className="text-[10px] font-sans uppercase text-cyan-300 font-bold">Bull Case (Optimis)</div>
+                        <div className="text-xl font-black text-white mt-1">
+                          {fmtPrice(valEngine.scenarios?.bull_case)}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">Ekspansi margin &amp; re-rating</div>
+                      </div>
+                    </div>
+
+                    {/* Multiples Comparison */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs">
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">PER Saat Ini vs Mean 5Th</div>
+                        <div className="font-bold text-white mt-0.5">
+                          {valEngine.multiples?.pe_ttm !== null ? `${valEngine.multiples?.pe_ttm}x` : 'N/A (Rugi)'} vs{' '}
+                          {valEngine.multiples?.hist_5y_pe_avg ?? 'N/A'}x
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">PBV Saat Ini vs Mean 5Th</div>
+                        <div className="font-bold text-cyan-300 mt-0.5">
+                          {valEngine.multiples?.pbv}x vs {valEngine.multiples?.hist_5y_pbv_avg}x
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">PEG Ratio</div>
+                        <div className="font-bold text-white mt-0.5">
+                          {valEngine.multiples?.peg_ratio ?? 'N/A'}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">EV / EBITDA</div>
+                        <div className="font-bold text-white mt-0.5">
+                          {valEngine.multiples?.ev_ebitda !== null ? `${valEngine.multiples?.ev_ebitda}x` : 'N/A (Bank)'}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">Asumsi Model (Ke &amp; g)</div>
+                        <div className="font-bold text-amber-300 mt-0.5">
+                          Ke: {valEngine.assumptions?.cost_of_equity_ke_pct}% • g: {valEngine.assumptions?.terminal_growth_g_pct}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
+                      ℹ️ <strong>Catatan Penting:</strong> {valEngine.disclaimer}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* =====================================================================
+                TAB 5: DIVIDEND INTELLIGENCE (Section 4E)
+               ===================================================================== */}
+            {activeTab === 'dividend' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold uppercase text-amber-300">
+                      E. Dividend Intelligence &amp; Simulasi Pajak Dividen — {stockData.code}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Pemisahan tegas antara Dividen Historis, Trailing 12 Months (TTM), dan Estimasi Dividen ke Depan.
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-emerald-300">
+                    Keberlanjutan: {div.sustainability_status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono">
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] font-sans uppercase text-slate-400 font-bold">
+                      1. Rata-rata Dividen Historis (3 Tahun)
+                    </div>
+                    <div className="text-xl font-black text-white mt-1">
+                      {fmtPrice(div.avg_3y_dividend_per_share)} / lembar
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      CAGR Dividen: {div.dividend_cagr_3y_pct !== null ? `${div.dividend_cagr_3y_pct}%` : 'N/A'}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                    <div className="text-[10px] font-sans uppercase text-amber-300 font-bold">
+                      2. Dividen TTM (12 Bulan Terakhir Aktual)
+                    </div>
+                    <div className="text-xl font-black text-amber-300 mt-1">
+                      {fmtPrice(div.ttm_dividend_per_share)} / lembar
+                    </div>
+                    <div className="text-[11px] text-slate-300 mt-0.5">
+                      TTM Yield: {div.dividend_yield_pct}% ({div.frequency_per_year}x bayar/thn)
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                    <div className="text-[10px] font-sans uppercase text-emerald-300 font-bold">
+                      3. Estimasi Dividen ke Depan (Proyeksi)
+                    </div>
+                    <div className="text-xl font-black text-emerald-400 mt-1">
+                      {fmtPrice(div.forward_estimated_dividend_per_share)} / lembar
+                    </div>
+                    <div className="text-[11px] text-slate-300 mt-0.5">
+                      Forward Yield: {div.forward_yield_pct}% • Payout: {div.payout_ratio_pct ?? 'N/A'}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tax toggle & Lot Dividend Simulator */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
+                  <div className="space-y-1">
+                    <div className="font-bold text-white">
+                      Simulasi Pendapatan Dividen untuk {lotsCount} Lot ({sharesCount.toLocaleString('id-ID')} Lembar):
+                    </div>
+                    <div className="text-slate-400">{div.tax_rules_indonesia?.regulation_note}</div>
+                  </div>
+                  <div className="flex items-center gap-3 font-mono">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={divTaxTenPct}
+                        onChange={(e) => setDivTaxTenPct(e.target.checked)}
+                        className="rounded accent-amber-400"
+                      />
+                      <span>Potong PPh Final 10%</span>
+                    </label>
+                    <div className="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 font-bold">
+                      Net Cair: {fmtPrice(netAnnualDivTotal)} / thn
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* =====================================================================
+                TAB 6: TRADING PLAN GENERATOR (Section 4F)
+               ===================================================================== */}
+            {activeTab === 'trading_plan' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold uppercase text-cyan-300">
+                      F. Structured Trading Plan Generator — {stockData.code} ({plan.timeframe_label})
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Dibuat: {plan.generated_at} • Berlaku s/d: {plan.valid_until}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRecordSignalJournal}
+                    className="px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold"
+                  >
+                    📒 Catat Sinyal Ini ke Signal Journal
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="font-bold text-cyan-300 uppercase">Syarat Konfirmasi Entry &amp; Keselarasan Tren</div>
+                    <p className="text-slate-200">{plan.entry_confirmation}</p>
+                    <p className="text-slate-400 font-mono">{plan.higher_tf_alignment}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="font-bold text-rose-300 uppercase">
+                      Level Invalidasi ({fmtPrice(plan.invalidation_level)}) &amp; Kondisi Pembatalan
+                    </div>
+                    <ul className="list-disc list-inside space-y-1 text-slate-300">
+                      {(plan.cancellation_conditions || []).map((c: string, i: number) => (
+                        <li key={i}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* =====================================================================
+                TAB 7: RISK MANAGEMENT ENGINE & POSITION SIZING (Section 4G)
+               ===================================================================== */}
+            {activeTab === 'risk' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-5">
+                <div className="border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-extrabold uppercase text-emerald-300">
+                    G. Risk Management Engine &amp; Position Sizing Calculator ({stockData.code})
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Menghitung ukuran lot maksimum berdasarkan batas risiko modal, komisi sekuritas BEI, slippage, dan skenario Stress Test Gap-Down / ARB.
+                  </p>
+                </div>
+
+                <form onSubmit={handleRunRiskCalculator} className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Modal Tersedia (Rp)</label>
+                    <input
+                      type="number"
+                      value={riskCapital}
+                      onChange={(e) => setRiskCapital(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Harga Entry (Rp)</label>
+                    <input
+                      type="number"
+                      value={riskEntry}
+                      onChange={(e) => setRiskEntry(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-cyan-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Stop Loss (Rp)</label>
+                    <input
+                      type="number"
+                      value={riskSl}
+                      onChange={(e) => setRiskSl(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-rose-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Target Profit (Rp)</label>
+                    <input
+                      type="number"
+                      value={riskTp}
+                      onChange={(e) => setRiskTp(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-emerald-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Batas Risiko / Trade (%)</label>
+                    <input
+                      type="number"
+                      step="0.25"
+                      value={riskMaxPct}
+                      onChange={(e) => setRiskMaxPct(parseFloat(e.target.value) || 1)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-amber-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Jumlah Lot Dipilih</label>
+                    <input
+                      type="number"
+                      value={riskLots}
+                      onChange={(e) => setRiskLots(parseInt(e.target.value, 10) || 1)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Fee Beli / Jual (%)</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={riskBuyFeePct}
+                        onChange={(e) => setRiskBuyFeePct(parseFloat(e.target.value) || 0)}
+                        className="w-1/2 px-2 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                      />
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={riskSellFeePct}
+                        onChange={(e) => setRiskSellFeePct(parseFloat(e.target.value) || 0)}
+                        className="w-1/2 px-2 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      className="w-full py-2 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold"
+                    >
+                      Hitung Risiko &amp; Lot
+                    </button>
+                  </div>
+                </form>
+
+                {riskError && (
+                  <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-mono">
+                    🛑 Validasi Ditolak: {riskError}
+                  </div>
+                )}
+
+                {riskResult && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                      <div className="text-[10px] uppercase text-cyan-300 font-bold">Ukuran Posisi &amp; Biaya</div>
+                      <div>Lot Maksimum Sesuai Risiko: <strong className="text-emerald-400">{riskResult.sizing?.recommended_max_lots} Lot</strong></div>
+                      <div>Nilai Pembelian Bruto: <strong>{fmtPrice(riskResult.execution?.gross_buy_value_idr)}</strong></div>
+                      <div>Total Fee + Slippage: <strong className="text-amber-300">{fmtPrice(riskResult.execution?.total_estimated_fees_idr)}</strong></div>
+                      <div>Total Modal Dibutuhkan: <strong className="text-white">{fmtPrice(riskResult.execution?.total_capital_required_idr)}</strong></div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                      <div className="text-[10px] uppercase text-emerald-300 font-bold">Potensi Hasil Bersih</div>
+                      <div>Laba Bersih di Target: <strong className="text-emerald-400">+{fmtPrice(riskResult.execution?.net_profit_if_tp_idr)} (+{riskResult.execution?.net_profit_if_tp_pct}%)</strong></div>
+                      <div>Rugi Bersih jika Kena SL: <strong className="text-rose-400">-{fmtPrice(riskResult.execution?.net_loss_if_sl_idr)}</strong></div>
+                      <div>Persentase Risiko thd Modal: <strong className="text-amber-300">{riskResult.execution?.risk_of_total_capital_pct}%</strong></div>
+                      <div>Net Risk/Reward Ratio: <strong className="text-cyan-300">1 : {riskResult.execution?.net_risk_reward_ratio}</strong></div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
+                      <div className="text-[10px] uppercase text-rose-300 font-bold">⚠️ Skenario Gap-Down &amp; ARB BEI</div>
+                      <div>Jika Gap-Down -5% di Bawah SL ({fmtPrice(riskResult.stress_scenarios?.gap_down_5pct_below_sl_price)}): <strong className="text-rose-400">-{fmtPrice(riskResult.stress_scenarios?.gap_down_5pct_net_loss_idr)}</strong></div>
+                      <div>Jika Terkunci ARB ({fmtPrice(riskResult.stress_scenarios?.arb_lock_price)}): <strong className="text-rose-400">-{fmtPrice(riskResult.stress_scenarios?.arb_lock_net_loss_idr)}</strong></div>
+                      <p className="text-[10px] font-sans text-slate-300 pt-1">{riskResult.stress_scenarios?.warning}</p>
                     </div>
                   </div>
                 )}
               </div>
+            )}
 
-              {/* Indikator Teknikal & Kalkulator Simulasi Lot BEI (5 cols) */}
-              <div className="lg:col-span-5 rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4 shadow-lg flex flex-col justify-between">
-                <div className="space-y-3">
-                  <h3 className="text-sm font-extrabold uppercase tracking-wide text-white border-b border-slate-800 pb-3">
-                    📊 Indikator Teknikal &amp; Kalkulator Lot
+            {/* =====================================================================
+                TAB 8: NEWS, CATALYSTS & MARKET INTELLIGENCE (Section 4H)
+               ===================================================================== */}
+            {activeTab === 'news' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-5">
+                <div className="border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-extrabold uppercase text-cyan-300">
+                    H. Market Intelligence, Sensitivitas Makro &amp; Berita Terverifikasi ({stockData.code})
                   </h3>
+                  <p className="text-xs text-slate-400">
+                    Memisahkan secara tegas Fakta Data, Interpretasi Analitis, dan Hipotesis Skenario.
+                  </p>
+                </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 font-mono text-xs">
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">RSI (14 Hari)</div>
-                      <div className="text-sm font-bold text-cyan-300 mt-0.5">{tech.rsi_14}</div>
-                      <div className="text-[9px] text-slate-400 font-sans truncate">{tech.rsi_status}</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">MA-20 (Pendek)</div>
-                      <div className="text-sm font-bold text-white mt-0.5">{fmtPrice(tech.ma_20)}</div>
-                      <div
-                        className={`text-[9px] font-sans font-semibold ${
-                          stockData.current_price >= tech.ma_20 ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
-                      >
-                        {stockData.current_price >= tech.ma_20 ? 'Di atas MA-20' : 'Di bawah MA-20'}
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">MA-50 (Menengah)</div>
-                      <div className="text-sm font-bold text-white mt-0.5">{fmtPrice(tech.ma_50)}</div>
-                      <div
-                        className={`text-[9px] font-sans font-semibold ${
-                          stockData.current_price >= tech.ma_50 ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
-                      >
-                        {stockData.current_price >= tech.ma_50 ? 'Di atas MA-50' : 'Di bawah MA-50'}
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">MA-200 (Major)</div>
-                      <div className="text-sm font-bold text-white mt-0.5">{fmtPrice(tech.ma_200)}</div>
-                      <div
-                        className={`text-[9px] font-sans font-semibold ${
-                          stockData.current_price >= tech.ma_200 ? 'text-emerald-400' : 'text-amber-400'
-                        }`}
-                      >
-                        {stockData.current_price >= tech.ma_200 ? 'Major Uptrend' : 'Area Diskon'}
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">MACD Hist</div>
-                      <div
-                        className={`text-sm font-bold mt-0.5 ${
-                          tech.macd_histogram >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
-                      >
-                        {tech.macd_histogram >= 0 ? '+' : ''}
-                        {tech.macd_histogram}
-                      </div>
-                      <div className="text-[9px] text-slate-400 font-sans">Momentum</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">Rasio Volume</div>
-                      <div className="text-sm font-bold text-amber-300 mt-0.5">{tech.volume_ratio}x</div>
-                      <div className="text-[9px] text-slate-400 font-sans">vs Rata2 20H</div>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="font-bold text-emerald-400 uppercase">1. Fakta Data Terukur</div>
+                    {(marketIntel.epistemic_separation?.facts || []).map((f: string, i: number) => (
+                      <p key={i} className="text-slate-200">{f}</p>
+                    ))}
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="font-bold text-cyan-300 uppercase">2. Interpretasi Analitis</div>
+                    {(marketIntel.epistemic_separation?.interpretations || []).map((f: string, i: number) => (
+                      <p key={i} className="text-slate-200">{f}</p>
+                    ))}
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div className="font-bold text-amber-300 uppercase">3. Hipotesis &amp; Status Foreign Flow</div>
+                    <p className="text-slate-300">{marketIntel.foreign_flow_status?.note}</p>
                   </div>
                 </div>
 
-                {/* Interactive Lot Simulator */}
-                <div className="p-4 rounded-xl bg-slate-950/90 border border-emerald-500/30 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-emerald-300">
-                      🧮 Simulasi Beli Lot ({stockData.code} • TF {plan.timeframe_label || '1 Hari'})
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-slate-400">Jumlah Lot:</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={100000}
-                        value={simLots}
-                        onChange={(e) => setSimLots(Math.max(1, Number(e.target.value) || 1))}
-                        className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white text-right"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">
-                        Modal ({lotsCount} Lot = {sharesCount.toLocaleString('id-ID')} lbr)
-                      </div>
-                      <div className="font-bold text-white mt-0.5">{fmtPrice(totalCapital)}</div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">Est. Dividen / Tahun</div>
-                      <div className="font-bold text-amber-300 mt-0.5">{fmtPrice(estAnnualDivTotal)}</div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">
-                        Potensi Cuan TP 1 (+{plan.tp_1_pct}%)
-                      </div>
-                      <div className="font-bold text-emerald-400 mt-0.5">+{fmtPrice(estProfitTp1)}</div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
-                      <div className="text-[10px] text-slate-400 font-sans">
-                        Potensi Cuan TP 2 (+{plan.tp_2_pct}%)
-                      </div>
-                      <div className="font-bold text-teal-400 mt-0.5">+{fmtPrice(estProfitTp2)}</div>
-                    </div>
+                {/* News Articles List */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-extrabold uppercase text-white">
+                    Berita Pasar &amp; Emiten Terkait (Lengkap dengan Sumber &amp; Link)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(marketIntel.news_articles || []).map((art: any, idx: number) => (
+                      <a
+                        key={idx}
+                        href={art.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-3.5 rounded-xl bg-slate-950 hover:bg-slate-900 border border-slate-800 transition flex flex-col justify-between gap-2"
+                      >
+                        <div className="text-xs font-bold text-white line-clamp-2">{art.title}</div>
+                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                          <span className="text-cyan-300">{art.source}</span>
+                          <span>{art.published_at}</span>
+                        </div>
+                      </a>
+                    ))}
                   </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* =====================================================================
+                TAB 9: AI STOCK ANALYST (Section 4I - 13 Mandatory Outputs)
+               ===================================================================== */}
+            {activeTab === 'ai_analyst' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold uppercase text-emerald-300">
+                      I. AI Stock Analyst Synthesis — 13-Point Institutional Report ({stockData.code})
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Bebas Halusinasi Angka • Tingkat Keyakinan: {aiAnalyst.confidence_and_scoring_rubric?.confidence_level}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Transparent Pillar Scores */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-sans">Skor Pilar Teknikal (0–100)</div>
+                    <div className="text-lg font-black text-cyan-300">
+                      {aiAnalyst.confidence_and_scoring_rubric?.pillar_scores?.technical_score_0_100 ?? 'N/A'} / 100
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-sans">Skor Pilar Fundamental (0–100)</div>
+                    <div className="text-lg font-black text-emerald-400">
+                      {aiAnalyst.confidence_and_scoring_rubric?.pillar_scores?.fundamental_score_0_100 ?? 'UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-sans">Skor Pilar Valuasi (0–100)</div>
+                    <div className="text-lg font-black text-amber-300">
+                      {aiAnalyst.confidence_and_scoring_rubric?.pillar_scores?.valuation_score_0_100 ?? 'UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 font-sans">Win Rate Backtest Historis</div>
+                    <div className="text-lg font-black text-white">
+                      {aiAnalyst.confidence_and_scoring_rubric?.pillar_scores?.backtest_win_rate_pct ?? 0}%
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="font-bold text-white uppercase">1. Executive Summary &amp; Alasan Sinyal ({aiAnalyst.signal_rationale?.signal})</div>
+                    <p className="text-slate-300 leading-relaxed">{aiAnalyst.executive_summary}</p>
+                    <p className="text-emerald-300 font-semibold">{aiAnalyst.signal_rationale?.reason}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="font-bold text-cyan-300 uppercase">2. Skenario Bullish, Base &amp; Bearish</div>
+                    <p className="text-emerald-300"><strong>Bull:</strong> {aiAnalyst.scenarios?.bullish_case}</p>
+                    <p className="text-slate-200"><strong>Base:</strong> {aiAnalyst.scenarios?.base_case}</p>
+                    <p className="text-rose-300"><strong>Bear:</strong> {aiAnalyst.scenarios?.bearish_case}</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
+                  <strong>Dokumentasi Metodologi Skor:</strong> {aiAnalyst.confidence_and_scoring_rubric?.rubric_documentation}
+                </div>
+              </div>
+            )}
+
+            {/* =====================================================================
+                TAB 10: WALK-FORWARD BACKTEST, SIGNAL JOURNAL & PORTFOLIO (4J & 4K)
+               ===================================================================== */}
+            {activeTab === 'backtest' && (
+              <div className="space-y-5">
+                {/* Walk-Forward Backtest Card */}
+                <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
+                  <div className="border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-extrabold uppercase text-amber-300">
+                      J. Walk-Forward Backtest (70% In-Sample Training vs 30% Out-of-Sample Validation) — {stockData.code}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Strategi: {backtest.strategy_name} • Sudah dipotong biaya transaksi BEI 0.40% + slippage.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 font-mono text-xs">
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Total Trades</div>
+                      <div className="text-sm font-bold text-white">{backtest.overall?.total_trades}</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Win Rate</div>
+                      <div className="text-sm font-bold text-emerald-400">{backtest.overall?.win_rate_pct}%</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Total Net Return</div>
+                      <div className="text-sm font-bold text-cyan-300">{backtest.overall?.total_net_return_pct}%</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Profit Factor</div>
+                      <div className="text-sm font-bold text-amber-300">{backtest.overall?.profit_factor}</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Expectancy / Trade</div>
+                      <div className="text-sm font-bold text-white">{backtest.overall?.expectancy_pct}%</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Max Drawdown</div>
+                      <div className="text-sm font-bold text-rose-400">-{backtest.overall?.max_drawdown_pct}%</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">In-Sample Ret</div>
+                      <div className="text-sm font-bold text-slate-200">{backtest.in_sample_70pct?.total_net_return_pct}%</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Out-of-Sample Ret</div>
+                      <div className="text-sm font-bold text-emerald-300">{backtest.out_of_sample_30pct?.total_net_return_pct}%</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manual IDX Stock Portfolio Integration (Section 4K) */}
+                <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
+                  <div className="border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-extrabold uppercase text-emerald-300">
+                      K. Integrasi Portofolio Saham BEI Manual, Alokasi Sektor &amp; Watchlist
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Catat kepemilikan saham Anda untuk memantau Unrealized P/L (bersih fee jual), pendapatan dividen, dan risiko konsentrasi emiten.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleSavePosition} className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs font-mono">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Kode Saham</label>
+                      <input
+                        type="text"
+                        value={activeTicker}
+                        disabled
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-emerald-300 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Jumlah Lot (1 Lot = 100 lbr)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={portLotsInput}
+                        onChange={(e) => setPortLotsInput(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">Harga Rata-rata Beli (Rp)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={portAvgPriceInput}
+                        onChange={(e) => setPortAvgPriceInput(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        type="submit"
+                        className="w-full py-2 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold"
+                      >
+                        + Simpan Posisi {activeTicker}
+                      </button>
+                    </div>
+                  </form>
+
+                  {(portfolioData?.positions || []).length > 0 && (
+                    <div className="overflow-x-auto rounded-xl border border-slate-800">
+                      <table className="w-full text-left border-collapse text-xs font-mono">
+                        <thead>
+                          <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
+                            <th className="py-2 px-3">Saham &amp; Sektor</th>
+                            <th className="py-2 px-3 text-right">Lot</th>
+                            <th className="py-2 px-3 text-right">Avg Price</th>
+                            <th className="py-2 px-3 text-right">Nilai Pasar</th>
+                            <th className="py-2 px-3 text-right">Unrealized P/L</th>
+                            <th className="py-2 px-3 text-right">Bobot</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {portfolioData.positions.map((pos: any) => (
+                            <tr key={pos.id} className="hover:bg-slate-900/50">
+                              <td className="py-2 px-3 text-white font-bold">
+                                {pos.code} <span className="text-[10px] text-slate-400 font-normal">({pos.sector})</span>
+                              </td>
+                              <td className="py-2 px-3 text-right text-amber-300">{pos.lots} Lot</td>
+                              <td className="py-2 px-3 text-right text-slate-200">{fmtPrice(pos.avg_buy_price, true, false)}</td>
+                              <td className="py-2 px-3 text-right text-white">{fmtPrice(pos.market_value_idr, true, false)}</td>
+                              <td className={`py-2 px-3 text-right font-bold ${pos.unrealized_pnl_idr >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {pos.unrealized_pnl_idr >= 0 ? '+' : ''}{fmtPrice(pos.unrealized_pnl_idr, true, false)} ({pos.unrealized_pnl_pct}%)
+                              </td>
+                              <td className="py-2 px-3 text-right text-cyan-300">{pos.portfolio_weight_pct}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* =====================================================================
+                TAB 11: DATA QUALITY & SOURCE PROVENANCE (Section 4L)
+               ===================================================================== */}
+            {activeTab === 'sources' && (
+              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
+                <div className="border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-extrabold uppercase text-cyan-300">
+                    L. Data Quality, Provenance &amp; Source Validation ({stockData.code})
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {dataQuality.fail_closed_policy}
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-800">
+                  <table className="w-full text-left border-collapse text-xs font-mono">
+                    <thead>
+                      <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[10px] uppercase">
+                        <th className="py-2.5 px-3">Komponen Data</th>
+                        <th className="py-2.5 px-3">Sumber Penyedia</th>
+                        <th className="py-2.5 px-3">Periode / Timestamp</th>
+                        <th className="py-2.5 px-3">Status Kualitas</th>
+                        <th className="py-2.5 px-3">Hasil Validasi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {(dataQuality.fields || []).map((f: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-900/50">
+                          <td className="py-2.5 px-3 font-bold text-white">{f.field}</td>
+                          <td className="py-2.5 px-3 text-slate-300">{f.source}</td>
+                          <td className="py-2.5 px-3 text-slate-400">{f.reporting_period}</td>
+                          <td className="py-2.5 px-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                f.status === 'VALID'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                  : f.status === 'DELAYED'
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                              }`}
+                            >
+                              {f.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-300">{f.validation_result}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         ) : null}
       </div>

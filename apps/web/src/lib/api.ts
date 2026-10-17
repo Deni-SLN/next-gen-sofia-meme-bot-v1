@@ -240,6 +240,35 @@ export const api = {
     if (refresh) params.append('refresh', 'true');
     return request<any>(`/stocks/analyze?${params.toString()}`);
   },
+  calculateStockRisk: (data: {
+    capital_idr: number;
+    entry_price: number;
+    stop_loss: number;
+    target_price: number;
+    max_risk_pct?: number;
+    lots?: number;
+    buy_fee_pct?: number;
+    sell_fee_pct?: number;
+    slippage_pct?: number;
+    existing_portfolio_value_idr?: number;
+    is_idx?: boolean;
+  }) => request<any>('/stocks/risk-calculator', { method: 'POST', body: JSON.stringify(data) }),
+  getStockPortfolio: () => request<any>('/stocks/portfolio'),
+  saveStockPosition: (data: { code: string; lots: number; avg_buy_price: number; notes?: string }) =>
+    request<any>('/stocks/portfolio', { method: 'POST', body: JSON.stringify(data) }),
+  deleteStockPosition: (positionId: number) =>
+    request<any>(`/stocks/portfolio/${positionId}`, { method: 'DELETE' }),
+  saveStockWatchlist: (data: {
+    code: string;
+    target_entry_price?: number;
+    target_tp_price?: number;
+    stop_loss_price?: number;
+    notes?: string;
+  }) => request<any>('/stocks/watchlist', { method: 'POST', body: JSON.stringify(data) }),
+  deleteStockWatchlist: (itemId: number) =>
+    request<any>(`/stocks/watchlist/${itemId}`, { method: 'DELETE' }),
+  recordStockSignal: (data: { code: string; timeframe: string; notes?: string }) =>
+    request<any>('/stocks/signal-journal', { method: 'POST', body: JSON.stringify(data) }),
   // Gold Price, Manual Portfolio & Buyback Simulator Endpoints
   getGoldDashboard: (refresh: boolean = false) =>
     request<any>(`/gold${refresh ? '?refresh=true' : ''}`),
@@ -263,6 +292,22 @@ export const api = {
     has_npwp?: boolean;
     include_stamp_duty?: boolean;
   }) => request<any>('/gold/simulate-sell', { method: 'POST', body: JSON.stringify(data) }),
+  // Global Crypto Asset Analysis & Risk Calculator Endpoints
+  analyzeCrypto: (q: string = 'BTC', refresh: boolean = false, timeframe: string = '1d') => {
+    const params = new URLSearchParams({ q, timeframe });
+    if (refresh) params.append('refresh', 'true');
+    return request<any>(`/crypto/analyze?${params.toString()}`);
+  },
+  calculateCryptoRisk: (data: {
+    capital_idr: number;
+    entry_price_usd: number;
+    stop_loss_usd: number;
+    target_price_usd: number;
+    max_risk_pct?: number;
+    investment_idr?: number;
+    exchange_fee_pct?: number;
+    tax_pct?: number;
+  }) => request<any>('/crypto/risk-calculator', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 

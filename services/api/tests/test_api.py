@@ -486,22 +486,214 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
                 self.assertEqual(timestamps, sorted(timestamps, reverse=True))
 
     def test_idx_stock_analysis_endpoint(self):
-        r_stock = self.client.get("/api/v1/stocks/analyze?q=BBRI&timeframe=15m", headers=self.headers)
+        r_stock = self.client.get("/api/v1/stocks/analyze?q=BBRI&timeframe=1d", headers=self.headers)
         self.assertEqual(r_stock.status_code, 200)
         data = r_stock.json()
         self.assertEqual(data["code"], "BBRI")
         self.assertGreater(data["current_price"], 0)
+        # Verify Overview & Truthful Latency Status (never falsely claiming REAL-TIME on delayed feed)
+        self.assertIn("overview", data)
+        self.assertIn(data["overview"]["feed_status"]["feed_badge"], ("DELAYED", "END-OF-DAY"))
+        self.assertGreater(data["overview"]["ara_price"], data["overview"]["prev_close"])
+        self.assertLess(data["overview"]["arb_price"], data["overview"]["prev_close"])
+        # Verify IHSG
         self.assertIn("ihsg", data)
         self.assertGreater(data["ihsg"]["price"], 0)
-        self.assertIn("trading_plan", data)
-        self.assertEqual(data["trading_plan"]["timeframe"], "15m")
-        self.assertIn("entry_zone_low", data["trading_plan"])
-        self.assertIn("tp_1", data["trading_plan"])
-        self.assertIn("tp_2", data["trading_plan"])
-        self.assertIn("stop_loss", data["trading_plan"])
-        self.assertIn("trend_status", data["trading_plan"])
+        # Verify Technicals
+        self.assertIn("technicals", data)
+        self.assertIn("sma_20", data["technicals"])
+        self.assertIn("ema_20", data["technicals"])
+        self.assertIn("rsi_14", data["technicals"])
+        self.assertIn("bollinger", data["technicals"])
+        self.assertIn("atr_14", data["technicals"])
+        # Verify Fundamentals & Banking Metrics for BBRI
+        self.assertIn("fundamentals", data)
+        self.assertEqual(data["fundamentals"]["data_status"], "VALID")
+        self.assertTrue(data["fundamentals"]["is_bank"])
+        self.assertIsNotNone(data["fundamentals"]["banking_metrics"])
+        self.assertGreater(data["fundamentals"]["banking_metrics"]["nim_pct"], 0)
+        self.assertGreater(data["fundamentals"]["banking_metrics"]["car_pct"], 10)
+        # Verify Valuation (Bear / Base / Bull)
+        self.assertIn("valuation", data)
+        self.assertEqual(data["valuation"]["data_status"], "VALID")
+        self.assertLess(data["valuation"]["scenarios"]["bear_case"], data["valuation"]["scenarios"]["base_case"])
+        self.assertLess(data["valuation"]["scenarios"]["base_case"], data["valuation"]["scenarios"]["bull_case"])
+        # Verify Dividend separation (Historical vs TTM vs Forward Estimated) & 1 Lot = 100 shares
         self.assertIn("dividend", data)
-        self.assertIn("annual_dividend_per_share", data["dividend"])
+        self.assertIn("ttm_dividend_per_share", data["dividend"])
+        self.assertIn("avg_3y_dividend_per_share", data["dividend"])
+        self.assertIn("forward_estimated_dividend_per_share", data["dividend"])
+        self.assertEqual(
+            data["dividend"]["annual_dividend_per_lot"],
+            round(data["dividend"]["annual_dividend_per_share"] * 100, 0),
+        )
+        # Verify Trading Plan, Risk Calculator Default, Market Intelligence, AI Analyst, Backtest, Data Quality
+        self.assertIn("trading_plan", data)
+        self.assertIn(data["trading_plan"]["signal_direction"], ("BUY", "HOLD", "SELL / REDUCE", "WAIT"))
+        self.assertIn("risk_calculator_default", data)
+        self.assertTrue(data["risk_calculator_default"]["valid"])
+        self.assertIn("market_intelligence", data)
+        self.assertIn("ai_analyst", data)
+        self.assertIn("confidence_and_scoring_rubric", data["ai_analyst"])
+        self.assertIn("backtest", data)
+        self.assertEqual(data["backtest"]["status"], "VALID")
+        self.assertIn("data_quality", data)
+
+    def test_stock_technical_indicators_and_sanitization_unit(self):
+        from app.services.stocks import (
+            _compute_sma,
+            _compute_ema,
+            _compute_rsi,
+            _compute_macd,
+            _compute_bollinger_bands,
+            _compute_true_atr,
+            _compute_vwap,
+            _sanitize_and_adjust_candles,
+            _round_idx_tick,
+            get_idx_tick_size,
+        )
+        # 1. Tick size & rounding rules on BEI/IDX
+        self.assertEqual(get_idx_tick_size(150), 1.0)
+        self.assertEqual(get_idx_tick_size(350), 2.0)
+        self.assertEqual(get_idx_tick_size(1200), 5.0)
+        self.assertEqual(get_idx_tick_size(3500), 10.0)
+        self.assertEqual(get_idx_tick_size(8500), 25.0)
+        self.assertEqual(_round_idx_tick(4123), 4120.0)
+
+        # 2. Verifiable dataset for SMA, EMA, Wilder's RSI14, MACD, Bollinger, ATR14
+        prices = [100.0 + i * 2.0 for i in range(40)]  # Strictly rising arithmetic series: 100, 102, ..., 178
+        self.assertAlmostEqual(_compute_sma(prices, 20), sum(prices[-20:]) / 20.0, places=4)
+        self.assertIsNone(_compute_sma(prices[:5], 20))  # Insufficient history -> None (never 0)
+        self.assertGreater(_compute_ema(prices, 20), 130.0)
+        self.assertEqual(_compute_rsi(prices, 14), 100.0)  # Purely rising series -> RSI 100
+
+        macd_line, sig_line, hist_val = _compute_macd(prices)
+        self.assertGreater(macd_line, 0.0)
+        self.assertGreater(sig_line, 0.0)
+
+        bb = _compute_bollinger_bands(prices, 20, 2.0)
+        self.assertIsNotNone(bb["upper"])
+        self.assertGreater(bb["upper"], bb["middle"])
+        self.assertLess(bb["lower"], bb["middle"])
+
+        # 3. Candle sanitization (rejects NaN, Infinity, <=0, duplicate timestamps, and flags forming candle)
+        ts_list = [1700000000 + i * 86400 for i in range(20)] + [1700000000, 1705000000]
+        opens = [1000.0 + i * 10 for i in range(20)] + [1000.0, float("nan")]
+        highs = [1020.0 + i * 10 for i in range(20)] + [1010.0, 1010.0]
+        lows = [990.0 + i * 10 for i in range(20)] + [990.0, 990.0]
+        closes = [1010.0 + i * 10 for i in range(20)] + [1000.0, float("nan")]
+        vols = [50000 for _ in range(20)] + [100, 100]
+        clean, splits = _sanitize_and_adjust_candles(ts_list, opens, highs, lows, closes, vols, {}, interval="1d")
+        self.assertEqual(len(clean), 20)
+
+        # 4. Wilder's True Range & ATR14 + VWAP
+        atr = _compute_true_atr([c["high"] for c in clean], [c["low"] for c in clean], [c["close"] for c in clean], 14)
+        self.assertGreater(atr, 0)
+        vwap_intra = _compute_vwap(clean, is_intraday=True)
+        self.assertIsNotNone(vwap_intra)
+        self.assertGreater(vwap_intra, 1000)
+        self.assertIsNone(_compute_vwap(clean, is_intraday=False))
+
+    def test_stock_fundamentals_and_valuation_edge_cases(self):
+        from app.services.stock_fundamentals import build_fundamental_analysis, build_valuation_analysis
+        from app.services.stocks import _round_idx_tick
+        # 1. Loss-making issuer (GOTO) must NOT force positive PER as primary valuation metric
+        goto_fund = build_fundamental_analysis("GOTO", 65.0, True, False)
+        self.assertEqual(goto_fund["data_status"], "VALID")
+        self.assertLess(goto_fund["metrics"]["net_income_idr_b"], 0)
+        goto_val = build_valuation_analysis("GOTO", 65.0, 0.0, True, False, _round_idx_tick)
+        self.assertEqual(goto_val["data_status"], "VALID")
+        self.assertIsNone(goto_val["multiples"]["pe_ttm"])  # Negative EPS -> pe_ttm is None, not forced
+        self.assertIn("EV/S", goto_val["methodology"])
+
+        # 2. Unlinked ticker must return UNAVAILABLE and None (never fabricated 0s)
+        unk_fund = build_fundamental_analysis("ZZZZ", 1000.0, True, False)
+        self.assertEqual(unk_fund["data_status"], "UNAVAILABLE")
+        self.assertIsNone(unk_fund["metrics"])
+        unk_val = build_valuation_analysis("ZZZZ", 1000.0, 0.0, True, False, _round_idx_tick)
+        self.assertEqual(unk_val["data_status"], "UNAVAILABLE")
+
+    def test_stock_risk_calculator_and_portfolio_watchlist_crud(self):
+        # 1. Valid Risk Calculator call (1 Lot = 100 shares, buy fee 0.15%, sell fee 0.25%)
+        r_risk = self.client.post(
+            "/api/v1/stocks/risk-calculator",
+            json={
+                "capital_idr": 100000000,
+                "max_risk_pct": 1.0,
+                "entry_price": 4000,
+                "stop_loss": 3800,
+                "target_price": 4500,
+                "lots": 20,
+                "buy_fee_pct": 0.15,
+                "sell_fee_pct": 0.25,
+                "slippage_pct": 0.10,
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(r_risk.status_code, 200)
+        rk = r_risk.json()
+        self.assertTrue(rk["valid"])
+        self.assertEqual(rk["inputs"]["total_shares"], 2000)  # 20 lots * 100 shares
+        self.assertEqual(rk["execution"]["gross_buy_value_idr"], 8000000)
+        self.assertGreater(rk["execution"]["net_profit_if_tp_idr"], 0)
+        self.assertGreater(rk["execution"]["net_loss_if_sl_idr"], 400000)  # Includes fees + slippage on top of Rp 400k price risk
+        self.assertIn("stress_scenarios", rk)
+
+        # 2. Invalid Stop-Loss (>= Entry Price) must be rejected cleanly with HTTP 400
+        r_bad = self.client.post(
+            "/api/v1/stocks/risk-calculator",
+            json={
+                "capital_idr": 100000000,
+                "max_risk_pct": 1.0,
+                "entry_price": 4000,
+                "stop_loss": 4100,
+                "target_price": 4500,
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(r_bad.status_code, 400)
+
+        # 3. Stock Portfolio & Watchlist CRUD + Signal Journal
+        r_port_add = self.client.post(
+            "/api/v1/stocks/portfolio",
+            json={"code": "BBRI", "lots": 10, "avg_buy_price": 4000, "notes": "Unit test position"},
+            headers=self.headers,
+        )
+        self.assertEqual(r_port_add.status_code, 200)
+        p_data = r_port_add.json()
+        self.assertGreaterEqual(len(p_data["positions"]), 1)
+        pos_id = p_data["positions"][0]["id"]
+        self.assertEqual(p_data["positions"][0]["shares"], 1000)
+
+        r_watch_add = self.client.post(
+            "/api/v1/stocks/watchlist",
+            json={"code": "BBCA", "target_entry_price": 8800, "target_tp_price": 10200, "stop_loss_price": 8400, "notes": "Watchlist test"},
+            headers=self.headers,
+        )
+        self.assertEqual(r_watch_add.status_code, 200)
+        w_data = r_watch_add.json()
+        self.assertGreaterEqual(len(w_data["watchlist"]), 1)
+        watch_id = w_data["watchlist"][0]["id"]
+
+        r_journal = self.client.post(
+            "/api/v1/stocks/signal-journal",
+            json={"code": "BBRI", "timeframe": "1d", "notes": "Signal journal test"},
+            headers=self.headers,
+        )
+        self.assertEqual(r_journal.status_code, 200)
+        j_list = r_journal.json()["signal_journal"]
+        self.assertGreaterEqual(len(j_list), 1)
+        self.assertEqual(j_list[0]["code"], "BBRI")
+        j_id = j_list[0]["id"]
+
+        # Clean up test portfolio position, watchlist item, and signal journal entry
+        self.client.delete(f"/api/v1/stocks/portfolio/{pos_id}", headers=self.headers)
+        self.client.delete(f"/api/v1/stocks/watchlist/{watch_id}", headers=self.headers)
+        from app.db.session import SessionLocal
+        from app.db.models import StockSignalJournal
+        with SessionLocal() as db_s:
+            db_s.query(StockSignalJournal).filter(StockSignalJournal.id == j_id).delete()
+            db_s.commit()
 
     def test_gold_market_portfolio_and_sell_simulation(self):
         # 1. Fetch live gold dashboard
@@ -562,9 +754,45 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         r_del = self.client.delete(f"/api/v1/gold/holdings/{added_item['id']}", headers=self.headers)
         self.assertEqual(r_del.status_code, 200)
 
+    def test_crypto_analysis_and_risk_calculator(self):
+        r_btc = self.client.get("/api/v1/crypto/analyze?q=SOL&timeframe=4h", headers=self.headers)
+        self.assertEqual(r_btc.status_code, 200)
+        c_data = r_btc.json()
+        self.assertEqual(c_data["code"], "SOL")
+        self.assertGreater(c_data["current_price_usd"], 0)
+        self.assertGreater(c_data["current_price_idr"], 0)
+        self.assertEqual(c_data["selected_timeframe"], "4h")
+        self.assertIn("market_pulse", c_data)
+        self.assertIn("btc", c_data["market_pulse"])
+        self.assertIn("trading_plan", c_data)
+        self.assertIn("tp_1_usd", c_data["trading_plan"])
+        self.assertIn("stop_loss_usd", c_data["trading_plan"])
+        self.assertIn("tokenomics", c_data)
+        self.assertTrue(c_data["tokenomics"]["pays_staking_yield"])
+        self.assertGreater(c_data["tokenomics"]["staking_apr_pct"], 0)
+
+        r_risk = self.client.post(
+            "/api/v1/crypto/risk-calculator",
+            json={
+                "capital_idr": 20000000,
+                "entry_price_usd": 150.0,
+                "stop_loss_usd": 140.0,
+                "target_price_usd": 180.0,
+                "max_risk_pct": 2.0,
+                "investment_idr": 5000000,
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(r_risk.status_code, 200)
+        rk = r_risk.json()
+        self.assertTrue(rk["valid"])
+        self.assertGreater(rk["sizing"]["coin_quantity"], 0)
+        self.assertGreater(rk["execution"]["net_profit_tp_idr"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

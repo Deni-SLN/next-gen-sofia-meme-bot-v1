@@ -76,6 +76,14 @@ const SECONDARY_NAV = [
     badgeClass: 'bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2',
   },
   {
+    href: '/crypto',
+    label: 'Analisa Crypto',
+    icon: 'cpu',
+    iconColor: 'text-cyan-400',
+    badge: '24/7',
+    badgeClass: 'bg-cyan-500/20 text-cyan-300 px-1.5 py-0.2',
+  },
+  {
     href: '/gold',
     label: 'Gold & Portofolio Emas',
     icon: 'coins',

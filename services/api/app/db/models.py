@@ -189,3 +189,53 @@ class GoldHolding(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+
+class StockPortfolioPosition(Base):
+    """Manual IDX Stock Portfolio position for tracking lots, avg price, sector concentration & dividend income."""
+    __tablename__ = "stock_portfolio_positions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    code: Mapped[str] = mapped_column(String(20), index=True)  # e.g. BBRI, BBCA
+    name: Mapped[str] = mapped_column(String(120), default="")
+    sector: Mapped[str] = mapped_column(String(80), default="Perbankan")
+    lots: Mapped[int] = mapped_column(Integer, default=1)  # 1 lot = 100 shares
+    avg_buy_price: Mapped[float] = mapped_column(Float, default=0.0)
+    realized_pnl_idr: Mapped[float] = mapped_column(Float, default=0.0)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class StockWatchlistItem(Base):
+    """IDX Stock Watchlist & price alert levels."""
+    __tablename__ = "stock_watchlist_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    target_entry_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    target_tp_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    stop_loss_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class StockSignalJournal(Base):
+    """Audit journal of generated IDX stock trading plan signals for historical evaluation."""
+    __tablename__ = "stock_signal_journal"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    code: Mapped[str] = mapped_column(String(20), index=True)
+    timeframe: Mapped[str] = mapped_column(String(15), default="1d")
+    strategy: Mapped[str] = mapped_column(String(60), default="Swing Trading")
+    signal_direction: Mapped[str] = mapped_column(String(20), default="BUY")  # BUY, HOLD, SELL/REDUCE, WAIT
+    price_at_signal: Mapped[float] = mapped_column(Float, default=0.0)
+    entry_low: Mapped[float] = mapped_column(Float, default=0.0)
+    entry_high: Mapped[float] = mapped_column(Float, default=0.0)
+    tp_1: Mapped[float] = mapped_column(Float, default=0.0)
+    tp_2: Mapped[float] = mapped_column(Float, default=0.0)
+    stop_loss: Mapped[float] = mapped_column(Float, default=0.0)
+    rr_ratio: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[str] = mapped_column(String(20), default="ACTIVE")  # ACTIVE, HIT_TP1, HIT_TP2, HIT_SL, EXPIRED
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
