@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { api, useApiQuery, formatIdr, formatUsd } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
+import { WalletConnectModal } from '@/components/WalletConnectModal';
+import {
+  ConnectedExtensionWallet,
+  getSavedExtensionWallet,
+  shortenAddress,
+} from '@/lib/web3';
 
 const CHAINS = ['Solana', 'Base', 'Ethereum', 'BSC'];
 const GATES = ['trading', 'main', 'reserve'];
@@ -21,6 +27,8 @@ export default function WalletsPage() {
 
   // Add new wallet state
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
+  const [showConnectModal, setShowConnectModal] = useState<boolean>(false);
+  const [extWallet, setExtWallet] = useState<ConnectedExtensionWallet | null>(null);
   const [newName, setNewName] = useState<string>('');
   const [newAddress, setNewAddress] = useState<string>('');
   const [newChain, setNewChain] = useState<string>('Solana');
@@ -33,13 +41,20 @@ export default function WalletsPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      setExtWallet(getSavedExtensionWallet());
       const resetHandler = () => walletsQuery.refetch();
       const tradeHandler = () => walletsQuery.refetch();
+      const extHandler = (e: any) => {
+        setExtWallet(e.detail || null);
+        walletsQuery.refetch();
+      };
       window.addEventListener('sofia-paper-reset', resetHandler);
       window.addEventListener('sofia-bot-trade-executed', tradeHandler);
+      window.addEventListener('sofia-wallet-connected', extHandler);
       return () => {
         window.removeEventListener('sofia-paper-reset', resetHandler);
         window.removeEventListener('sofia-bot-trade-executed', tradeHandler);
+        window.removeEventListener('sofia-wallet-connected', extHandler);
       };
     }
   }, []);
@@ -151,14 +166,34 @@ export default function WalletsPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-extrabold text-xs font-mono shadow-glow-emerald transition"
-        >
-          {showAddForm ? '✕ Tutup Form' : '+ Tambah Wallet Baru'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowConnectModal(true)}
+            className="px-3.5 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-extrabold text-xs font-mono transition flex items-center gap-1.5"
+          >
+            <span>🔌 {extWallet ? `${extWallet.providerName}: ${shortenAddress(extWallet.address)}` : 'Connect Ekstensi Chrome'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-extrabold text-xs font-mono shadow-glow-emerald transition"
+          >
+            {showAddForm ? '✕ Tutup Form' : '+ Tambah Wallet Baru'}
+          </button>
+        </div>
       </div>
+
+      <WalletConnectModal
+        isOpen={showConnectModal}
+        onClose={() => setShowConnectModal(false)}
+        connectedWallet={extWallet}
+        onConnected={(w) => {
+          setExtWallet(w);
+          setMsg(`🔌 Berhasil menghubungkan ${w.providerName} (${w.address}) ke daftar Multi-Gate Wallets!`);
+          walletsQuery.refetch();
+        }}
+      />
 
       {msg && (
         <div className="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs font-mono">

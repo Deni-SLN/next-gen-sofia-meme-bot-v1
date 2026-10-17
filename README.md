@@ -1,51 +1,32 @@
-# ⚡ NextGenTSofia Trade
+# ⚡ SOFIA Trenches v3.8 PRO (NextGenTSofia Trade)
 
-AI-powered crypto trading platform with real-time portfolio management, intelligent signal generation, strict schema-validated LLM agent outputs, and multi-gate risk control.
+Platform **AI-Powered Meme Coin Sniper & On-Chain Trading Command Center** dengan dukungan penuh **Dual-Engine (Mode PAPER Rp 150.000 & Mode LIVE On-Chain)**, **PumpSniper Pro Terminal (Jito 0-Slot Anti-MEV)**, **Direct Chrome Extension Wallet Connect (Phantom / Solflare / MetaMask / Rabby)**, **Jurnal Trading Live di Neon PostgreSQL Cloud + Export Excel**, serta **Mobile-Responsive Progressive Web App (PWA)**.
 
-## ✨ Fitur Utama
+📄 **Dokumentasi Produk Lengkap**: Lihat [**PRD.md**](./PRD.md) untuk spesifikasi lengkap arsitektur dan fitur v3.8 PRO.
 
-- **🤖 Bot Management**: Kontrol mode *Paper Trading* dan *Live Trading* dengan proteksi gate keamanan otomatis.
-- **💼 Portfolio Tracking**: Pantau kepemilikan aset, harga rata-rata beli, nilai pasar saat ini, dan Unrealized PnL secara *real-time*.
-- **📡 Trading Signals**: Manajemen sinyal trading (*long* / *short*) lengkap dengan *confidence score*, *entry price*, *stop loss*, dan *take profit*.
-- **🧠 AI Agents & Schema Guard**: Registrasi agen AI (*analyst*, *risk*, *signal*) dengan validasi bentuk JSON ketat (`app/providers/llm/schemas.py`).
-- **🛡️ Risk Management**: Konfigurasi batas ukuran posisi maksimum, kerugian harian maksimum, *drawdown*, dan daftar pasangan aset yang diizinkan.
-- **📈 Performance Analytics**: Ringkasan metrik performa trading (*win rate*, *total PnL*, *best/worst trade*).
-- **🔐 Multi-Gate Wallets & JWT Auth**: Pengelolaan dompet berdasarkan *gate* (`main`, `trading`, `reserve`) dengan autentikasi Bearer JWT.
+---
 
-## 🏗️ Struktur Proyek
+## ✨ Fitur Utama v3.8 PRO
 
-```text
-nextgentsofia-trade/
-├── services/
-│   └── api/
-│       ├── app/
-│       │   ├── core/          # Konfigurasi & JWT Security
-│       │   ├── db/            # SQLAlchemy 2.0 Models & Session
-│       │   ├── providers/llm/ # JSON Schema Validator untuk output AI
-│       │   ├── routers/       # Endpoint FastAPI (/api/v1/*)
-│       │   ├── services/      # Business Logic
-│       │   └── main.py        # FastAPI Application Entrypoint
-│       ├── Dockerfile
-│       └── requirements.txt
-├── apps/
-│   └── web/                   # Frontend Next.js + Tailwind CSS + TypeScript
-│       ├── src/
-│       │   ├── components/    # Layout, QueryState, Sidebar
-│       │   ├── lib/           # API Client & Hooks
-│       │   ├── pages/         # Dashboard, Trading, Portfolio, Signals, Agents, Risk, Wallets
-│       │   └── styles/        # Global Tailwind CSS
-│       ├── Dockerfile
-│       └── package.json
-├── _smoke.py                  # Script pengujian end-to-end API
-├── _fix_indent.py             # Utilitas verifikasi konfigurasi AST
-├── _wire_error.py             # Utilitas verifikasi QueryState frontend
-├── docker-compose.yml
-└── .env.example
-```
+1. **🎯 Dual-Engine 100% Siap Pakai (Mode PAPER & Mode LIVE)**:
+   - **Mode PAPER**: Menggunakan 100% harga pasar real-time dari **DexScreener Live API** dengan modal simulasi **Rp 150.000** yang dapat di-*reset* kapan saja.
+   - **Mode LIVE**: Terhubung ke **Live Trading Hot Wallet** (`gate = trading`), menghasilkan *Transaction Hash (`tx_hash`)* berformat Solana Base58 / EVM `0x`, memperbarui saldo dompet secara otomatis, dan mencatat seluruh transaksi ke **Jurnal Trading Live** di **Neonbase Cloud**.
+2. **⚡ PumpSniper Pro Terminal (`/trading`)**:
+   - **1-Click Terminal Snipe Bar**, pilihan relay **Jito 0-Slot Bundle / Helius Staked / bloXroute**, filter **Bonding Curve % & Max Dev Holding %**, **Auto Take-Profit / Stop-Loss / Trailing Stop**, serta tabel posisi aktif dengan tombol **Jual 25% / 50% / 100%** dan **🚨 Panic Sell All**.
+3. **🔌 Connect Wallet Langsung ke Ekstensi Chrome**:
+   - Hubungkan langsung ke ekstensi **Phantom**, **Solflare**, **Backpack** (`window.solana`) maupun **MetaMask & Rabby** (`window.ethereum` untuk jaringan Base, Ethereum, BSC) dari Header maupun halaman `/wallets` & `/login`.
+4. **📒 Jurnal Trading Live & Download Excel (`/journal`)**:
+   - Menampilkan **4 Kartu Metrik Utama** (*Modal Awal*, *Keuntungan Sepanjang Masa*, *Kerugian Sepanjang Masa*, dan *Hasil Bersih*) serta **10 transaksi terakhir** yang ringkas dan ringan, dilengkapi tombol **📥 Download Excel (Semua Jurnal)** (`.csv` UTF-8 BOM).
+5. **🏦 Auto Top-Up Gas & Bagi Hasil 05:00 WIB (`/wallets`)**:
+   - Otomatis isi ulang Gas Reserve jika `< Rp 3.000` dan transfer **40% keuntungan bersih ke Main Wallet** + **60% kembali ke Modal** setiap pukul 05:00 WIB apabila profit bersih `> 40%`.
+6. **📱 Desain Mobile-Responsive & Installable PWA**:
+   - Dilengkapi `manifest.json`, Service Worker (`sw.js`), **Mobile Slide-Over Drawer**, **Fixed Bottom Navigation Bar** di layar HP, dan halaman login khusus (`/login`).
+
+---
 
 ## 🚀 Cara Menjalankan (Quick Start)
 
-### 1. Menjalankan Backend API (FastAPI)
+### 1. Menjalankan Backend API (FastAPI + Neon PostgreSQL)
 
 ```powershell
 cd services/api
@@ -53,14 +34,14 @@ pip install -r requirements.txt
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-Untuk menjalankan *smoke test* dari root proyek atau `services/api`:
+Menjalankan seluruh pengujian otomatis (`pytest`):
 
 ```powershell
-$env:PYTHONPATH="services/api"
-python _smoke.py
+cd services/api
+python -m pytest -v
 ```
 
-### 2. Menjalankan Frontend Web (Next.js)
+### 2. Menjalankan Frontend Web & PWA (Next.js)
 
 ```powershell
 cd apps/web
@@ -68,21 +49,4 @@ npm install
 npm run dev
 ```
 
-Buka `http://localhost:3000` di browser dan login menggunakan password default: `changeme` (atau sesuai `SOFIA_ADMIN_PASSWORD` di `.env`).
-
-## 🔌 Daftar Endpoint API Utama
-
-| Method | Endpoint | Deskripsi |
-|---|---|---|
-| `GET` | `/health` | Cek status kesehatan server |
-| `POST` | `/api/v1/auth/login` | Login admin & dapatkan Bearer token |
-| `GET` | `/api/v1/bot/status` | Status bot saat ini |
-| `POST` | `/api/v1/bot/start` | Mulai bot (`PAPER` atau `LIVE`) |
-| `POST` | `/api/v1/bot/stop` | Hentikan bot yang sedang berjalan |
-| `GET` | `/api/v1/portfolio/overview` | Ringkasan nilai portofolio & PnL |
-| `GET` | `/api/v1/signals` | Daftar sinyal trading |
-| `GET` | `/api/v1/ai/agents` | Daftar agen AI terdaftar |
-| `GET` | `/api/v1/risk/config` | Konfigurasi manajemen risiko |
-| `PUT` | `/api/v1/risk/config` | Perbarui parameter risiko |
-| `GET` | `/api/v1/performance/summary` | Statistik performa trading |
-| `GET` | `/api/v1/wallets` | Daftar dompet & gate alokasi |
+Buka `http://localhost:3000` (atau `http://localhost:3000/login`) di browser Chrome / Mobile. Gunakan password operator default: `changeme` atau klik **⚡ Masuk Cepat / Connect Ekstensi Chrome**.
