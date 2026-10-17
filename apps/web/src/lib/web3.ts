@@ -204,7 +204,7 @@ export async function syncExtensionWalletWithBackend(
         name: `${extWallet.providerName} (${shortenAddress(extWallet.address)})`,
         address: extWallet.address,
         chain: extWallet.chain,
-        balance: extWallet.chain === 'Solana' ? 12.5 : 1.25,
+        balance: 0.0,
         token: extWallet.token,
         gate: 'trading',
       });

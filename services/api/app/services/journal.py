@@ -38,9 +38,6 @@ def get_journal_summary(
         else:
             initial_capital_usd += float(w.balance)
 
-    if initial_capital_usd <= 0.0:
-        initial_capital_usd = 11688.27  # default Live Hot Wallets capital baseline (~Rp 209.793.855)
-
     initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
 
     # Query all LIVE trades stored in Neonbase

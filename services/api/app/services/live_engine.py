@@ -63,10 +63,14 @@ def usd_to_wallet_token(wallet: Wallet, amount_usd: float) -> float:
     return amount_usd
 
 
-def get_live_trading_wallet(db: Session, chain: str = "Solana") -> tuple[Wallet, float, float]:
+def get_live_trading_wallet(
+    db: Session,
+    chain: str = "Solana",
+    create_if_missing: bool = True,
+) -> tuple[Wallet | None, float, float]:
     """
     Retrieve the active Live Trading Hot Wallet (gate='trading', excluding Paper wallet)
-    for the requested chain, creating a default live hot wallet if none exists.
+    for the requested chain, preferring funded wallets first.
     Returns (wallet, wallet_balance_usd, usd_idr).
     """
     fx = market.get_fx_rate()
@@ -79,7 +83,7 @@ def get_live_trading_wallet(db: Session, chain: str = "Solana") -> tuple[Wallet,
                 Wallet.gate == "trading",
                 ~Wallet.name.contains("Modal Paper"),
             )
-            .order_by(Wallet.id.asc())
+            .order_by(Wallet.balance.desc(), Wallet.id.asc())
         )
         .scalars()
         .all()
@@ -95,12 +99,12 @@ def get_live_trading_wallet(db: Session, chain: str = "Solana") -> tuple[Wallet,
     if not chosen and trading_wallets:
         chosen = trading_wallets[0]
 
-    if not chosen:
+    if not chosen and create_if_missing:
         chosen = Wallet(
-            name="Solana Turbo Sniper #1",
-            address="9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+            name="Solana Live Wallet",
+            address="",
             chain="Solana",
-            balance=62.5,
+            balance=0.0,
             token="SOL",
             gate="trading",
             updated_at=datetime.now(timezone.utc),
@@ -108,6 +112,9 @@ def get_live_trading_wallet(db: Session, chain: str = "Solana") -> tuple[Wallet,
         db.add(chosen)
         db.commit()
         db.refresh(chosen)
+
+    if not chosen:
+        return None, 0.0, usd_idr
 
     bal_usd = wallet_balance_to_usd(chosen)
     return chosen, bal_usd, usd_idr
@@ -267,7 +274,7 @@ def get_live_engine_status(db: Session) -> dict:
     """Return complete status of the Live Trading Engine, RPC nodes, and Hot Wallets."""
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
-    sol_wallet, sol_usd, _ = get_live_trading_wallet(db, "Solana")
+    sol_wallet, sol_usd, _ = get_live_trading_wallet(db, "Solana", create_if_missing=False)
     metrics = get_live_equity_metrics(db, usd_idr)
 
     return {
@@ -278,15 +285,19 @@ def get_live_engine_status(db: Session) -> dict:
         "base_rpc": BASE_MAINNET_RPC,
         "dex_aggregators": ["Jupiter v6 (Solana)", "Raydium AMM v4", "PumpSwap", "Uniswap v3 (Base)"],
         "anti_mev_protection": "Jito Block Engine Bundle + Slippage Guard",
-        "primary_live_wallet": {
-            "id": sol_wallet.id,
-            "name": sol_wallet.name,
-            "address": sol_wallet.address,
-            "chain": sol_wallet.chain,
-            "balance": sol_wallet.balance,
-            "token": sol_wallet.token,
-            "balance_usd": round(sol_usd, 2),
-            "balance_idr": round(sol_usd * usd_idr, 0),
-        },
+        "primary_live_wallet": (
+            {
+                "id": sol_wallet.id,
+                "name": sol_wallet.name,
+                "address": sol_wallet.address,
+                "chain": sol_wallet.chain,
+                "balance": sol_wallet.balance,
+                "token": sol_wallet.token,
+                "balance_usd": round(sol_usd, 2),
+                "balance_idr": round(sol_usd * usd_idr, 0),
+            }
+            if sol_wallet
+            else None
+        ),
         **metrics,
     }

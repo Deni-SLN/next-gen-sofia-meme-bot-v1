@@ -63,6 +63,7 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         r_stop_again = self.client.post("/api/v1/bot/stop", headers=self.headers)
         self.assertEqual(r_stop_again.status_code, 200)
         self.assertEqual(r_stop_again.json()["status"], "stopped")
+        self.client.post("/api/v1/portfolio/reset-paper", headers=self.headers)
 
     def test_paper_150k_idr_live_market_snipe_and_clean_reset(self):
         # 1. Check live FX rate
@@ -134,8 +135,9 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         wallets_list = r_wal.json()["wallets"]
         self.assertGreater(len(wallets_list), 0)
 
-        # Verify changing wallet address works via PUT /api/v1/wallets/{id}
+        # Verify changing wallet address works via PUT /api/v1/wallets/{id} and restore original address
         target_w = wallets_list[0]
+        orig_addr = target_w["address"]
         new_addr = "9xCustomUpdatedSolanaWalletAddress123456789"
         r_upd = self.client.put(
             f"/api/v1/wallets/{target_w['id']}",
@@ -144,6 +146,11 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         )
         self.assertEqual(r_upd.status_code, 200)
         self.assertEqual(r_upd.json()["address"], new_addr)
+        self.client.put(
+            f"/api/v1/wallets/{target_w['id']}",
+            json={"address": orig_addr},
+            headers=self.headers,
+        )
 
     def test_memecoin_sniper_pulse_and_rugshield(self):
         r_pulse = self.client.get("/api/v1/memecoins/pulse", headers=self.headers)
@@ -248,6 +255,14 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertGreater(top_settle["to_main_idr"], 20000.0)
         self.assertGreater(top_settle["to_capital_idr"], 25000.0)
 
+        # Clean up test settlement logs and reset paper account
+        from app.db.session import SessionLocal
+        from app.db.models import Settlement
+        with SessionLocal() as db_s:
+            db_s.query(Settlement).delete()
+            db_s.commit()
+        self.client.post("/api/v1/portfolio/reset-paper", headers=self.headers)
+
     def test_daily_calendar_pnl_by_mode(self):
         # 1. Query calendar with mode=PAPER
         r_paper = self.client.get("/api/v1/performance/daily-calendar?mode=PAPER", headers=self.headers)
@@ -273,45 +288,7 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertIn("usd_idr", cal_all)
 
     def test_live_trading_journal_four_cards_and_neonbase(self):
-        # 1. Fetch Live Trading Journal summary
-        r = self.client.get("/api/v1/journal", headers=self.headers)
-        self.assertEqual(r.status_code, 200)
-        data = r.json()
-        self.assertEqual(data["mode"], "LIVE")
-
-        # 2. Verify all 4 cards requested by user
-        self.assertIn("initial_capital_usd", data)
-        self.assertIn("initial_capital_idr", data)
-        self.assertGreater(data["initial_capital_usd"], 0)
-
-        self.assertIn("total_profit_usd", data)
-        self.assertIn("total_profit_idr", data)
-        self.assertGreaterEqual(data["total_profit_usd"], 0)
-
-        self.assertIn("total_loss_usd", data)
-        self.assertIn("total_loss_idr", data)
-        self.assertGreaterEqual(data["total_loss_usd"], 0)
-
-        self.assertIn("net_result_usd", data)
-        self.assertIn("net_result_idr", data)
-        # Card 4 = Keuntungan - Kerugian
-        expected_net = round(data["total_profit_usd"] - data["total_loss_usd"], 4)
-        self.assertAlmostEqual(data["net_result_usd"], expected_net, places=2)
-
-        # 3. Verify trades details (coin, quantity, price, fees, PnL)
-        trades = data.get("trades", [])
-        self.assertGreaterEqual(len(trades), 1)
-        first = trades[0]
-        self.assertIn("symbol", first)
-        self.assertIn("quantity", first)
-        self.assertIn("price", first)
-        self.assertIn("dex_fee_usd", first)
-        self.assertIn("gas_fee_usd", first)
-        self.assertIn("total_fees_usd", first)
-        self.assertIn("pnl_usd", first)
-        self.assertIn("result", first)
-
-        # 4. Record a new live bot trade into Neonbase
+        # 1. Record a temporary live bot trade into Neonbase to test the 4 cards & table
         r_add = self.client.post(
             "/api/v1/journal/trades",
             json={
@@ -333,6 +310,43 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertEqual(r_add.status_code, 200)
         new_id = r_add.json()["trade_id"]
 
+        # 2. Fetch Live Trading Journal summary
+        r = self.client.get("/api/v1/journal", headers=self.headers)
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertEqual(data["mode"], "LIVE")
+
+        # 3. Verify all 4 cards requested by user
+        self.assertIn("initial_capital_usd", data)
+        self.assertIn("initial_capital_idr", data)
+        self.assertGreaterEqual(data["initial_capital_usd"], 0)
+
+        self.assertIn("total_profit_usd", data)
+        self.assertIn("total_profit_idr", data)
+        self.assertGreaterEqual(data["total_profit_usd"], 20.0)
+
+        self.assertIn("total_loss_usd", data)
+        self.assertIn("total_loss_idr", data)
+        self.assertGreaterEqual(data["total_loss_usd"], 0)
+
+        self.assertIn("net_result_usd", data)
+        self.assertIn("net_result_idr", data)
+        expected_net = round(data["total_profit_usd"] - data["total_loss_usd"], 4)
+        self.assertAlmostEqual(data["net_result_usd"], expected_net, places=2)
+
+        # 4. Verify trades details (coin, quantity, price, fees, PnL)
+        trades = data.get("trades", [])
+        self.assertGreaterEqual(len(trades), 1)
+        first = trades[0]
+        self.assertIn("symbol", first)
+        self.assertIn("quantity", first)
+        self.assertIn("price", first)
+        self.assertIn("dex_fee_usd", first)
+        self.assertIn("gas_fee_usd", first)
+        self.assertIn("total_fees_usd", first)
+        self.assertIn("pnl_usd", first)
+        self.assertIn("result", first)
+
         # 5. Filter by token
         r_filt = self.client.get("/api/v1/journal?q=TESTCOIN", headers=self.headers)
         self.assertEqual(r_filt.status_code, 200)
@@ -340,28 +354,26 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertEqual(len(filt_trades), 1)
         self.assertEqual(filt_trades[0]["symbol"], "TESTCOIN/SOL")
 
-        # 6. Cleanup recorded test trade
-        r_del = self.client.delete(f"/api/v1/journal/trades/{new_id}", headers=self.headers)
-        self.assertEqual(r_del.status_code, 200)
-
-        # 7. Test 10 latest transactions limit constraint
+        # 6. Test 10 latest transactions limit constraint
         r_limit = self.client.get("/api/v1/journal?limit=5", headers=self.headers)
         self.assertEqual(r_limit.status_code, 200)
         self.assertLessEqual(len(r_limit.json()["trades"]), 5)
 
-        # 8. Test Export to Excel (CSV with UTF-8 BOM for Microsoft Excel)
+        # 7. Test Export to Excel (CSV with UTF-8 BOM for Microsoft Excel)
         r_excel = self.client.get("/api/v1/journal/export-excel", headers=self.headers)
         self.assertEqual(r_excel.status_code, 200)
         self.assertIn("text/csv", r_excel.headers.get("content-type", ""))
         self.assertIn("attachment; filename=", r_excel.headers.get("content-disposition", ""))
-        # Verify UTF-8 BOM is present
         self.assertTrue(r_excel.content.startswith(b"\xef\xbb\xbf"))
-        # Verify CSV column headers
         csv_text = r_excel.content.decode("utf-8")
         self.assertIn("ID Transaksi", csv_text)
         self.assertIn("Koin / Token", csv_text)
         self.assertIn("Keuntungan / Kerugian ($)", csv_text)
         self.assertIn("Tx Hash Explorer", csv_text)
+
+        # 8. Cleanup recorded test trade so database stays clean
+        r_del = self.client.delete(f"/api/v1/journal/trades/{new_id}", headers=self.headers)
+        self.assertEqual(r_del.status_code, 200)
 
     def test_live_mode_end_to_end_snipe_sell_and_pumpsniper_config(self):
         # 1. Test PumpSniper Terminal Config GET & PUT
@@ -386,15 +398,26 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertEqual(r_upd_cfg.json()["relay_mode"], "JITO_0SLOT")
         self.assertEqual(r_upd_cfg.json()["auto_tp_pct"], 40.0)
 
-        # 2. Check Live Wallet Status & On-Chain RPC Check
+        # 2. Create a temporary funded Live Wallet for testing
+        r_create_w = self.client.post(
+            "/api/v1/wallets",
+            json={
+                "name": "Temp Test Live Wallet",
+                "address": "11111111111111111111111111111111",
+                "chain": "Solana",
+                "balance": 2.0,
+                "token": "SOL",
+                "gate": "trading",
+            },
+            headers=self.headers,
+        )
+        self.assertIn(r_create_w.status_code, (200, 201))
+        temp_w_id = r_create_w.json()["id"]
+
         r_live_stat = self.client.get("/api/v1/wallets/live-status", headers=self.headers)
         self.assertEqual(r_live_stat.status_code, 200)
         self.assertGreater(r_live_stat.json()["live_cash_usd"], 0)
-        primary_w = r_live_stat.json()["primary_live_wallet"]
-        orig_w_id = primary_w["id"]
-        orig_w_bal = primary_w["balance"]
 
-        # Record max Trade.id before the test so we can cleanly delete all test trades afterward
         from app.db.session import SessionLocal
         from app.db.models import Trade
         with SessionLocal() as db_check:
@@ -431,17 +454,13 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertEqual(r_panic.status_code, 200)
         self.assertEqual(r_panic.json()["status"], "liquidated_all")
 
-        # 5. Clean up test LIVE trades & restore primary live wallet balance
+        # 5. Clean up test LIVE trades & delete temporary test wallet
         with SessionLocal() as db_clean:
             for t in db_clean.query(Trade).filter(Trade.id > max_id_before).all():
                 db_clean.delete(t)
             db_clean.commit()
 
-        self.client.put(
-            f"/api/v1/wallets/{orig_w_id}",
-            json={"balance": orig_w_bal},
-            headers=self.headers,
-        )
+        self.client.delete(f"/api/v1/wallets/{temp_w_id}", headers=self.headers)
         self.client.post("/api/v1/portfolio/reset-paper", headers=self.headers)
 
 

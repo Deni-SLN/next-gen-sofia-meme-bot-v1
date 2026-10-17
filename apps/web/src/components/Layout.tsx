@@ -97,8 +97,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<'PAPER' | 'LIVE'>('PAPER');
   const [botRunning, setBotRunning] = useState<boolean>(false);
   const [headerNotice, setHeaderNotice] = useState<string>('');
-  const [liveBalanceUsd, setLiveBalanceUsd] = useState<number>(58667.30);
-  const [liveBalanceIdr, setLiveBalanceIdr] = useState<number>(1053023000);
+  const [liveBalanceUsd, setLiveBalanceUsd] = useState<number>(0);
+  const [liveBalanceIdr, setLiveBalanceIdr] = useState<number>(0);
 
   // Mobile Menu & Web3 Extension Modal & PWA Install State
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -114,10 +114,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           const liveWallets = res.wallets.filter((w: any) => !w.name?.includes('Modal Paper'));
           const totalUsd = liveWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_usd) || 0), 0);
           const totalIdr = liveWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_idr) || 0), 0);
-          if (totalUsd > 0) {
-            setLiveBalanceUsd(totalUsd);
-            setLiveBalanceIdr(totalIdr);
-          }
+          setLiveBalanceUsd(totalUsd);
+          setLiveBalanceIdr(totalIdr);
         }
       })
       .catch(() => {});

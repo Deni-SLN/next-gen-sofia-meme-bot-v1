@@ -176,36 +176,8 @@ export function WalletConnectModal({
             </div>
           )}
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/40 text-rose-200 text-xs space-y-2">
-              <div>⚠️ {errorMsg}</div>
-              <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleInstantExtensionBridge(
-                      'phantom',
-                      '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-                      'Solana'
-                    )
-                  }
-                  className="px-2.5 py-1 rounded bg-emerald-500 text-obsidian-950 font-extrabold text-[10px]"
-                >
-                  ⚡ Gunakan Bridge Phantom Aktif (9WzD...AWWM)
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleInstantExtensionBridge(
-                      'metamask',
-                      '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-                      'Base'
-                    )
-                  }
-                  className="px-2.5 py-1 rounded bg-cyan-500 text-obsidian-950 font-extrabold text-[10px]"
-                >
-                  ⚡ Gunakan Bridge MetaMask Aktif (0x742d...f44e)
-                </button>
-              </div>
+            <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/40 text-rose-200 text-xs">
+              ⚠️ {errorMsg}
             </div>
           )}
 
@@ -395,37 +367,9 @@ export function WalletConnectModal({
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                3. Direct Wallet Bridge / Paste Public Address
+                3. Direct Wallet Bridge / Paste Public Address Asli Anda
               </span>
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleInstantExtensionBridge(
-                      'phantom',
-                      '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-                      'Solana'
-                    )
-                  }
-                  className="text-[10px] text-emerald-400 hover:underline"
-                >
-                  ⚡ Quick Phantom
-                </button>
-                <span className="text-slate-600">|</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleInstantExtensionBridge(
-                      'metamask',
-                      '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-                      'Base'
-                    )
-                  }
-                  className="text-[10px] text-cyan-400 hover:underline"
-                >
-                  ⚡ Quick MetaMask
-                </button>
-              </div>
+              <span className="text-[10px] text-emerald-400">Auto-Sync Mainnet RPC</span>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <select

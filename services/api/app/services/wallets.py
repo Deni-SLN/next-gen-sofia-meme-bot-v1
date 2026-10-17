@@ -54,7 +54,7 @@ def sync_wallet_onchain(db: Session, wallet_id: int, apply_onchain_balance: bool
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
     rpc_res = live_engine.query_onchain_wallet_balance(w.address, w.chain)
-    if apply_onchain_balance and rpc_res.get("onchain_balance") is not None and float(rpc_res["onchain_balance"]) > 0:
+    if apply_onchain_balance and rpc_res.get("onchain_balance") is not None:
         w.balance = float(rpc_res["onchain_balance"])
         w.updated_at = datetime.now(timezone.utc)
         db.commit()
