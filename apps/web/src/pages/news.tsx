@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { api } from '@/lib/api';
 import { LucideIcon } from '@/components/LucideIcon';
+
+interface NewsTag {
+  id: string;
+  label: string;
+  tone: 'danger' | 'warning' | 'neutral' | 'success' | 'emerald' | 'info' | 'amber' | 'purple';
+}
 
 interface NewsArticle {
   id: string;
@@ -14,7 +20,9 @@ interface NewsArticle {
   publisher_url: string;
   category: string;
   category_label: string;
-  sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  sentiment: 'BAHAYA' | 'WASPADA' | 'NETRAL' | 'POSITIF' | 'PELUANG_CUAN';
+  sentiment_label?: string;
+  tags?: NewsTag[];
   published_at: string;
   published_ts: number;
   formatted_date?: string;
@@ -22,12 +30,12 @@ interface NewsArticle {
 }
 
 const CATEGORY_TABS = [
-  { id: 'all', label: 'Semua Kategori', badge: 'TERKINI', icon: 'newspaper', color: 'cyan' },
-  { id: 'crypto', label: 'Crypto', badge: 'WEB3 & KOIN', icon: 'zap', color: 'amber' },
-  { id: 'saham', label: 'Saham', badge: 'IHSG & BEI', icon: 'trending-up', color: 'emerald' },
-  { id: 'emas', label: 'Emas', badge: 'ANTAM & XAU', icon: 'layers', color: 'yellow' },
-  { id: 'ekonomi', label: 'Ekonomi', badge: 'MAKRO & BI', icon: 'banknote', color: 'blue' },
-  { id: 'teknologi', label: 'Teknologi', badge: 'AI & DIGITAL', icon: 'bot', color: 'purple' },
+  { id: 'all', label: 'Semua Kategori', badge: 'TERKINI', icon: 'newspaper' },
+  { id: 'crypto', label: 'Crypto', badge: 'WEB3 & KOIN', icon: 'zap' },
+  { id: 'saham', label: 'Saham', badge: 'IHSG & BEI', icon: 'trending-up' },
+  { id: 'emas', label: 'Emas', badge: 'ANTAM & XAU', icon: 'layers' },
+  { id: 'ekonomi', label: 'Ekonomi', badge: 'MAKRO & BI', icon: 'banknote' },
+  { id: 'teknologi', label: 'Teknologi', badge: 'AI & DIGITAL', icon: 'bot' },
 ];
 
 const FALLBACK_THUMBS: Record<string, string> = {
@@ -42,7 +50,8 @@ export default function NewsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchInput, setSearchInput] = useState<string>('');
   const [activeQuery, setActiveQuery] = useState<string>('');
-  const [sentimentFilter, setSentimentFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH' | 'NEUTRAL'>('ALL');
+  const [sentimentFilter, setSentimentFilter] = useState<string>('ALL');
+  const [selectedTopicTag, setSelectedTopicTag] = useState<string>('ALL');
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -84,6 +93,7 @@ export default function NewsPage() {
   );
 
   useEffect(() => {
+    setSelectedTopicTag('ALL');
     loadNews(selectedCategory, activeQuery, false);
   }, [selectedCategory, activeQuery, loadNews]);
 
@@ -92,14 +102,39 @@ export default function NewsPage() {
     setActiveQuery(searchInput.trim());
   };
 
+  // Extract unique contextual topic tags from loaded articles
+  const availableTopicTags = useMemo(() => {
+    const map = new Map<string, { id: string; label: string; tone: string; count: number }>();
+    for (const art of articles) {
+      for (const t of art.tags || []) {
+        // Skip primary status tags since they have their own dedicated status filter bar
+        if (['BAHAYA', 'WASPADA', 'NETRAL', 'POSITIF', 'PELUANG_CUAN'].includes(t.id)) continue;
+        const existing = map.get(t.id);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          map.set(t.id, { id: t.id, label: t.label, tone: t.tone, count: 1 });
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [articles]);
+
   const filteredArticles = articles.filter((a) => {
     if (sentimentFilter !== 'ALL' && a.sentiment !== sentimentFilter) return false;
+    if (selectedTopicTag !== 'ALL') {
+      const hasTag = (a.tags || []).some((t) => t.id === selectedTopicTag);
+      if (!hasTag) return false;
+    }
     return true;
   });
 
-  const bullishCount = articles.filter((a) => a.sentiment === 'BULLISH').length;
-  const bearishCount = articles.filter((a) => a.sentiment === 'BEARISH').length;
-  const neutralCount = articles.filter((a) => a.sentiment === 'NEUTRAL').length;
+  const countBySentiment = (s: string) => articles.filter((a) => a.sentiment === s).length;
+  const bahayaCount = countBySentiment('BAHAYA');
+  const waspadaCount = countBySentiment('WASPADA');
+  const netralCount = countBySentiment('NETRAL');
+  const positifCount = countBySentiment('POSITIF');
+  const cuanCount = countBySentiment('PELUANG_CUAN');
 
   const getCategoryBadgeStyle = (cat: string) => {
     switch (cat) {
@@ -118,26 +153,61 @@ export default function NewsPage() {
     }
   };
 
-  const getSentimentBadge = (sentiment: string) => {
-    if (sentiment === 'BULLISH') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-          ▲ POSITIF
-        </span>
-      );
+  const getPrimaryStatusBadge = (article: NewsArticle) => {
+    const s = article.sentiment;
+    const label = article.sentiment_label || s;
+    switch (s) {
+      case 'BAHAYA':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-600/25 text-rose-300 border border-rose-500/50 shadow-sm shadow-rose-950/60 animate-pulse">
+            {label}
+          </span>
+        );
+      case 'WASPADA':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            {label}
+          </span>
+        );
+      case 'PELUANG_CUAN':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-500/25 text-emerald-300 border border-emerald-400/50 shadow-sm shadow-emerald-950/60">
+            {label}
+          </span>
+        );
+      case 'POSITIF':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40">
+            {label}
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-800/90 text-slate-300 border border-slate-700">
+            {label || '⚖️ NETRAL'}
+          </span>
+        );
     }
-    if (sentiment === 'BEARISH') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-          ▼ NEGATIF
-        </span>
-      );
+  };
+
+  const getTopicTagPillStyle = (tone: string) => {
+    switch (tone) {
+      case 'danger':
+        return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
+      case 'warning':
+        return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+      case 'emerald':
+      case 'success':
+        return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+      case 'amber':
+        return 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30';
+      case 'purple':
+        return 'bg-purple-500/15 text-purple-300 border-purple-500/30';
+      case 'info':
+        return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+      default:
+        return 'bg-slate-800/80 text-slate-300 border-slate-700';
     }
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
-        ● NETRAL
-      </span>
-    );
   };
 
   return (
@@ -168,7 +238,7 @@ export default function NewsPage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Berita finansial, komoditas & teknologi Bahasa Indonesia (maksimal 1 minggu terakhir) • Klik berita untuk langsung membuka sumber artikel asli
+                    Berita finansial, komoditas & teknologi Bahasa Indonesia lengkap dengan Tag Sinyal Risiko (Bahaya, Waspada, Netral, Positif, Peluang Cuan)
                   </p>
                 </div>
               </div>
@@ -217,82 +287,146 @@ export default function NewsPage() {
           </div>
 
           {/* Category Filter Tabs */}
-          <div className="mt-5 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-              {CATEGORY_TABS.map((tab) => {
-                const active = selectedCategory === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setSelectedCategory(tab.id)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap border ${
-                      active
-                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-lg shadow-cyan-950/50'
-                        : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:bg-slate-800/70 hover:text-slate-200'
-                    }`}
-                  >
-                    <LucideIcon name={tab.icon} className="w-3.5 h-3.5" />
-                    <span>{tab.label}</span>
-                    <span
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
-                        active ? 'bg-cyan-400/20 text-cyan-200' : 'bg-slate-800 text-slate-400'
+          <div className="mt-5 pt-4 border-t border-slate-800/80 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {CATEGORY_TABS.map((tab) => {
+                  const active = selectedCategory === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(tab.id)}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap border ${
+                        active
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-lg shadow-cyan-950/50'
+                          : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:bg-slate-800/70 hover:text-slate-200'
                       }`}
                     >
-                      {tab.badge}
-                    </span>
-                  </button>
-                );
-              })}
+                      <LucideIcon name={tab.icon} className="w-3.5 h-3.5" />
+                      <span>{tab.label}</span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
+                          active ? 'bg-cyan-400/20 text-cyan-200' : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {tab.badge}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Status / Risk Tag Filter Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mr-1">
+                  Tag Status:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSentimentFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                    sentimentFilter === 'ALL'
+                      ? 'bg-slate-800 text-white border-slate-500'
+                      : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  Semua ({articles.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSentimentFilter('BAHAYA')}
+                  className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                    sentimentFilter === 'BAHAYA'
+                      ? 'bg-rose-600/30 text-rose-200 border-rose-500 shadow-sm shadow-rose-950'
+                      : 'bg-slate-950/60 text-rose-400 border-rose-500/30 hover:bg-rose-500/15'
+                  }`}
+                >
+                  🚨 Bahaya ({bahayaCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSentimentFilter('WASPADA')}
+                  className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                    sentimentFilter === 'WASPADA'
+                      ? 'bg-amber-500/25 text-amber-200 border-amber-400'
+                      : 'bg-slate-950/60 text-amber-400 border-amber-500/30 hover:bg-amber-500/15'
+                  }`}
+                >
+                  ⚠️ Waspada ({waspadaCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSentimentFilter('NETRAL')}
+                  className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                    sentimentFilter === 'NETRAL'
+                      ? 'bg-slate-700 text-white border-slate-400'
+                      : 'bg-slate-950/60 text-slate-300 border-slate-800 hover:bg-slate-800'
+                  }`}
+                >
+                  ⚖️ Netral ({netralCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSentimentFilter('POSITIF')}
+                  className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                    sentimentFilter === 'POSITIF'
+                      ? 'bg-teal-500/25 text-teal-200 border-teal-400'
+                      : 'bg-slate-950/60 text-teal-400 border-teal-500/30 hover:bg-teal-500/15'
+                  }`}
+                >
+                  📈 Positif ({positifCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSentimentFilter('PELUANG_CUAN')}
+                  className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                    sentimentFilter === 'PELUANG_CUAN'
+                      ? 'bg-emerald-500/30 text-emerald-200 border-emerald-400 shadow-sm shadow-emerald-950'
+                      : 'bg-slate-950/60 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/15'
+                  }`}
+                >
+                  🚀 Peluang Cuan ({cuanCount})
+                </button>
+              </div>
             </div>
 
-            {/* Sentiment Quick Filter */}
-            <div className="flex items-center gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setSentimentFilter('ALL')}
-                className={`px-2.5 py-1 rounded-lg font-semibold border transition ${
-                  sentimentFilter === 'ALL'
-                    ? 'bg-slate-800 text-white border-slate-600'
-                    : 'bg-slate-950/60 text-slate-400 border-slate-800/80 hover:text-slate-200'
-                }`}
-              >
-                Semua ({articles.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSentimentFilter('BULLISH')}
-                className={`px-2.5 py-1 rounded-lg font-semibold border transition ${
-                  sentimentFilter === 'BULLISH'
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-slate-950/60 text-emerald-400/70 border-slate-800/80 hover:text-emerald-300'
-                }`}
-              >
-                ▲ Positif ({bullishCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSentimentFilter('BEARISH')}
-                className={`px-2.5 py-1 rounded-lg font-semibold border transition ${
-                  sentimentFilter === 'BEARISH'
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                    : 'bg-slate-950/60 text-rose-400/70 border-slate-800/80 hover:text-rose-300'
-                }`}
-              >
-                ▼ Negatif ({bearishCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSentimentFilter('NEUTRAL')}
-                className={`px-2.5 py-1 rounded-lg font-semibold border transition ${
-                  sentimentFilter === 'NEUTRAL'
-                    ? 'bg-slate-700/60 text-slate-200 border-slate-500'
-                    : 'bg-slate-950/60 text-slate-400 border-slate-800/80 hover:text-slate-300'
-                }`}
-              >
-                ● Netral ({neutralCount})
-              </button>
-            </div>
+            {/* Contextual Topic Tags Bar */}
+            {availableTopicTags.length > 0 && (
+              <div className="pt-2 border-t border-slate-800/50 flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0 mr-1">
+                  Tag Topik:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTopicTag('ALL')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap ${
+                    selectedTopicTag === 'ALL'
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                      : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  # Semua Topik
+                </button>
+                {availableTopicTags.map((tag) => {
+                  const active = selectedTopicTag === tag.id;
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => setSelectedTopicTag(active ? 'ALL' : tag.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition whitespace-nowrap ${
+                        active
+                          ? 'bg-cyan-500/25 text-cyan-200 border-cyan-400 shadow-sm'
+                          : 'bg-slate-950/60 text-slate-300 border-slate-800/90 hover:border-slate-700 hover:text-white'
+                      }`}
+                    >
+                      {tag.label} <span className="text-[10px] opacity-75">({tag.count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -305,7 +439,9 @@ export default function NewsPage() {
               <strong className="text-cyan-400">
                 {CATEGORY_TABS.find((t) => t.id === selectedCategory)?.label || 'Semua'}
               </strong>
-              {activeQuery ? ` dengan kata kunci "${activeQuery}"` : ''} • Diurutkan dari paling baru ke paling lama
+              {sentimentFilter !== 'ALL' ? ` • Tag Status: ${sentimentFilter}` : ''}
+              {selectedTopicTag !== 'ALL' ? ` • Topik: ${selectedTopicTag}` : ''}
+              {activeQuery ? ` • Kata kunci "${activeQuery}"` : ''}
             </span>
           </div>
           {lastUpdated && (
@@ -355,35 +491,40 @@ export default function NewsPage() {
             <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-slate-400">
               <LucideIcon name="newspaper" className="w-6 h-6" />
             </div>
-            <h3 className="text-sm font-bold text-slate-200">Tidak Ada Artikel dalam 7 Hari Terakhir</h3>
+            <h3 className="text-sm font-bold text-slate-200">Tidak Ada Artikel dengan Filter Tag Ini</h3>
             <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Belum ada berita untuk filter atau kata kunci ini dalam 1 minggu terakhir. Coba ganti kategori atau reset filter sentimen.
+              Belum ada berita untuk kombinasi tag status atau topik ini dalam 1 minggu terakhir. Klik tombol di bawah untuk mereset filter tag.
             </p>
             <button
               type="button"
               onClick={() => {
                 setSentimentFilter('ALL');
+                setSelectedTopicTag('ALL');
                 setSearchInput('');
                 setActiveQuery('');
-                loadNews(selectedCategory, '', true);
               }}
               className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold"
             >
-              Tampilkan Semua Berita
+              Reset Filter Tag
             </button>
           </div>
         ) : (
-          /* News Grid with Visual Thumbnail - Ordered Newest to Oldest (Max 7 Days) */
+          /* News Grid with Visual Thumbnail & Multi-Tags - Ordered Newest to Oldest (Max 7 Days) */
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {filteredArticles.map((article, index) => {
               const fallbackThumb = FALLBACK_THUMBS[article.category] || FALLBACK_THUMBS.ekonomi;
+              const isDanger = article.sentiment === 'BAHAYA';
               return (
                 <a
                   key={article.id}
                   href={article.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group rounded-2xl border border-slate-800/90 hover:border-cyan-500/50 bg-[#0b101d]/95 hover:bg-[#0f172a] overflow-hidden flex flex-col justify-between transition-all duration-200 shadow-lg hover:shadow-cyan-950/40"
+                  className={`group rounded-2xl border ${
+                    isDanger
+                      ? 'border-rose-500/40 hover:border-rose-500/80'
+                      : 'border-slate-800/90 hover:border-cyan-500/50'
+                  } bg-[#0b101d]/95 hover:bg-[#0f172a] overflow-hidden flex flex-col justify-between transition-all duration-200 shadow-lg hover:shadow-cyan-950/40`}
                 >
                   <div>
                     {/* Article Thumbnail Image */}
@@ -402,7 +543,7 @@ export default function NewsPage() {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-[#0b101d] via-transparent to-black/30" />
 
-                      {/* Top Left Overlay: Category Badge + Rank #1..N */}
+                      {/* Top Left Overlay: Rank #1..N + Category Badge */}
                       <div className="absolute top-3 left-3 flex items-center gap-1.5">
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-black font-mono bg-slate-950/85 text-cyan-300 border border-slate-700/80 backdrop-blur-sm">
                           #{index + 1}
@@ -425,13 +566,13 @@ export default function NewsPage() {
                     </div>
 
                     {/* Content Body */}
-                    <div className="p-4 sm:p-5 space-y-2.5">
-                      {/* Date WIB + Sentiment Row */}
-                      <div className="flex items-center justify-between gap-2">
+                    <div className="p-4 sm:p-5 space-y-3">
+                      {/* Date WIB + Primary Status Tag Row */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-[11px] font-mono text-slate-400">
                           {article.formatted_date || article.relative_time}
                         </span>
-                        {getSentimentBadge(article.sentiment)}
+                        {getPrimaryStatusBadge(article)}
                       </div>
 
                       {/* Headline */}
@@ -443,6 +584,22 @@ export default function NewsPage() {
                       <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
                         {article.summary}
                       </p>
+
+                      {/* Multi-Tags Row */}
+                      {article.tags && article.tags.length > 0 && (
+                        <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                          {article.tags.map((t) => (
+                            <span
+                              key={t.id}
+                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${getTopicTagPillStyle(
+                                t.tone
+                              )}`}
+                            >
+                              {t.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 

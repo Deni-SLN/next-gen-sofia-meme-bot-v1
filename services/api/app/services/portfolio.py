@@ -294,12 +294,16 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     tx_hash = live_engine.generate_tx_hash(target_chain)
 
     if trade_mode == "LIVE":
-        live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain)
+        live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain, create_if_missing=False)
         net_credit_usd = max(0.0, net_proceeds_usd - gas_fee_usd)
-        remaining_cash_usd = live_engine.credit_live_wallet_usd(db, live_wallet, net_credit_usd)
+        if live_wallet:
+            remaining_cash_usd = live_engine.credit_live_wallet_usd(db, live_wallet, net_credit_usd)
+            wallet_label = live_wallet.name
+        else:
+            remaining_cash_usd = 0.0
+            wallet_label = "Live On-Chain Wallet"
         t_state.total_gas_spent_usd = float(t_state.total_gas_spent_usd or 0.0) + gas_fee_usd
         t_state.total_dex_fees_usd = float(t_state.total_dex_fees_usd or 0.0) + dex_fee_usd
-        wallet_label = live_wallet.name
     else:
         # Charge gas fee from Gas Reserve (auto-topping up if reserve < Rp 3.000)
         t_state = treasury.charge_gas_and_dex_fee(

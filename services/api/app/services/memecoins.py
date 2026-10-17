@@ -204,7 +204,12 @@ def execute_snipe(db: Session, data: dict) -> dict:
     wallet_used_name = paper_wallet.name
 
     if snipe_mode == "LIVE":
-        live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain)
+        live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain, create_if_missing=False)
+        if not live_wallet:
+            raise ValueError(
+                "SALDO_LIVE_TIDAK_CUKUP: Belum ada Live Trading Hot Wallet yang dihubungkan. "
+                "Silakan Connect Wallet Chrome atau tambahkan Wallet Live terlebih dahulu."
+            )
         wallet_used_name = live_wallet.name
         remaining_cash_usd = live_engine.deduct_live_wallet_usd(
             db,

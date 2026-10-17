@@ -66,11 +66,12 @@ def usd_to_wallet_token(wallet: Wallet, amount_usd: float) -> float:
 def get_live_trading_wallet(
     db: Session,
     chain: str = "Solana",
-    create_if_missing: bool = True,
+    create_if_missing: bool = False,
 ) -> tuple[Wallet | None, float, float]:
     """
     Retrieve the active Live Trading Hot Wallet (gate='trading', excluding Paper wallet)
     for the requested chain, preferring funded wallets first.
+    Never creates dummy wallets unless explicitly requested.
     Returns (wallet, wallet_balance_usd, usd_idr).
     """
     fx = market.get_fx_rate()
@@ -98,20 +99,6 @@ def get_live_trading_wallet(
 
     if not chosen and trading_wallets:
         chosen = trading_wallets[0]
-
-    if not chosen and create_if_missing:
-        chosen = Wallet(
-            name="Solana Live Wallet",
-            address="",
-            chain="Solana",
-            balance=0.0,
-            token="SOL",
-            gate="trading",
-            updated_at=datetime.now(timezone.utc),
-        )
-        db.add(chosen)
-        db.commit()
-        db.refresh(chosen)
 
     if not chosen:
         return None, 0.0, usd_idr

@@ -111,18 +111,19 @@ def start_bot(db: Session, mode: str) -> BotState:
 
     if norm_mode == "LIVE":
         live_w, live_usd, _ = live_engine.get_live_trading_wallet(db, "Solana")
+        w_name = live_w.name if live_w else "Hot Wallet Belum Terhubung"
         live_idr = round(live_usd * usd_idr, 0)
         _CURRENT_STAGE.update({
             "stage": "SCANNING_DEX",
             "stage_index": 0,
             "target_token": "SOL / BASE Live Pools",
-            "detail": f"Mode LIVE Aktif ({live_w.name}: ${live_usd:,.2f} / Rp {live_idr:,.0f}) • Memindai pool via {_SNIPER_CONFIG['relay_mode']}...",
+            "detail": f"Mode LIVE Aktif ({w_name}: ${live_usd:,.2f} / Rp {live_idr:,.0f}) • Memindai pool via {_SNIPER_CONFIG['relay_mode']}...",
         })
         _append_log(
             "SYSTEM",
             "SOL",
             "ENGINE",
-            f"🟢 Sniper Bot diaktifkan dalam Mode LIVE On-Chain (Hot Wallet: {live_w.name} • Relay: {_SNIPER_CONFIG['relay_mode']})",
+            f"🟢 Sniper Bot diaktifkan dalam Mode LIVE On-Chain (Hot Wallet: {w_name} • Relay: {_SNIPER_CONFIG['relay_mode']})",
             f"Saldo Live: Rp {live_idr:,.0f}",
             "success",
         )

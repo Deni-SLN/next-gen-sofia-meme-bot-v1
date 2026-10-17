@@ -294,7 +294,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="bg-obsidian-950 text-slate-200 font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-300 min-h-screen flex flex-col overflow-x-hidden">
+    <div className="bg-obsidian-950 text-slate-200 font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-300 min-h-screen md:h-screen flex flex-col overflow-x-hidden md:overflow-hidden">
       {/* Web3 Chrome Extension Modal */}
       <WalletConnectModal
         isOpen={walletModalOpen}
@@ -311,7 +311,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       />
 
       {/* BEGIN: MainHeader */}
-      <header className="border-b border-obsidian-700 bg-obsidian-900/95 backdrop-blur-md sticky top-0 z-50">
+      <header className="border-b border-obsidian-700 bg-obsidian-900/95 backdrop-blur-md sticky top-0 z-50 shrink-0">
         <div className="px-2.5 sm:px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
           {/* Left: Mobile Hamburger + Logo & Network Hub */}
           <div className="flex items-center gap-2 sm:gap-3">
@@ -640,9 +640,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
       {/* END: Mobile Slide-Over Navigation Drawer */}
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* BEGIN: Desktop LeftSidebarNav (Hidden on mobile so content gets 100% width) */}
-        <aside className="hidden md:flex md:w-56 shrink-0 bg-obsidian-900 border-r border-obsidian-700/80 flex-col justify-between py-3 select-none">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* BEGIN: Desktop LeftSidebarNav (Fixed / Non-scrolling with page on desktop) */}
+        <aside className="hidden md:flex md:w-56 shrink-0 h-full overflow-y-auto bg-obsidian-900 border-r border-obsidian-700/80 flex-col justify-between py-3 select-none">
           <div className="space-y-4">
             {/* Navigation Category 1 */}
             <div className="px-3">
@@ -718,7 +718,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Bottom Mini Status: Saldo Real Live (USD & IDR), PWA Install & Logout */}
-          <div className="px-3 space-y-2">
+          <div className="px-3 space-y-2 pt-3">
             <div className="bg-obsidian-950 p-2.5 rounded-xl border border-obsidian-800 font-mono">
               <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
                 <span className="flex items-center gap-1.5 text-slate-300 font-bold">
@@ -768,7 +768,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* END: Desktop LeftSidebarNav */}
 
         {/* BEGIN: MainContentArea */}
-        <main className="flex-1 overflow-y-auto px-2.5 sm:px-3.5 py-3 pb-20 md:pb-3 space-y-3 bg-obsidian-950 grid-bg-overlay">
+        <main className="flex-1 min-h-0 overflow-y-auto px-2.5 sm:px-3.5 py-3 pb-20 md:pb-3 space-y-3 bg-obsidian-950 grid-bg-overlay">
           {children}
         </main>
         {/* END: MainContentArea */}
@@ -795,7 +795,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* END: Mobile Fixed Bottom Tab Bar */}
 
       {/* BEGIN: FooterStatusHUD */}
-      <footer className="hidden md:flex bg-obsidian-900 border-t border-obsidian-800 px-4 py-1.5 text-[10px] font-mono text-slate-400 flex-wrap items-center justify-between gap-2">
+      <footer className="hidden md:flex shrink-0 bg-obsidian-900 border-t border-obsidian-800 px-4 py-1.5 text-[10px] font-mono text-slate-400 flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 text-slate-300">
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>

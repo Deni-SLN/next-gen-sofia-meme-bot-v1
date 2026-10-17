@@ -158,7 +158,15 @@ def _extract_image_from_item(item: ET.Element, desc_raw: str) -> str | None:
         img_match = re.search(r'<img[^>]+src=["\'](https?://[^"\']+)["\']', desc_raw, re.IGNORECASE)
         if img_match:
             found_url = img_match.group(1).strip()
-            if not any(skip in found_url.lower() for skip in ["1x1", "pixel", "tracker", "lh3.googleusercontent.com/J6_coFbogxhRI9iM864NL_liGXvsQp2AupsKei7z0cNNfDvGUmWUy20nuUhkREQyrpY4bEeIBuc=s0-w300"]):
+            if not any(
+                skip in found_url.lower()
+                for skip in [
+                    "1x1",
+                    "pixel",
+                    "tracker",
+                    "lh3.googleusercontent.com/J6_coFbogxhRI9iM864NL_liGXvsQp2AupsKei7z0cNNfDvGUmWUy20nuUhkREQyrpY4bEeIBuc=s0-w300",
+                ]
+            ):
                 return found_url
 
     return None
@@ -170,25 +178,150 @@ def _pick_fallback_thumbnail(category: str, title: str) -> str:
     return pool[idx]
 
 
-def _detect_sentiment(title: str) -> str:
-    t = title.lower()
-    bullish_words = [
-        "naik", "melonjak", "menguat", "rekor", "untung", "cuan", "bullish",
-        "reli", "positif", "tumbuh", "melambung", "terbang", "hijau", "surplus",
-        "optimis", "apresiasi", "all time high", "ath", "beli", "akumulasi", "meroket",
+def _classify_article_tags(title: str, summary: str, category: str) -> dict:
+    """
+    Classify article into rich Indonesian market status & topic tags:
+    Primary status (`sentiment`):
+      - BAHAYA (🚨 Bahaya / Risiko Tinggi)
+      - WASPADA (⚠️ Waspada / Tekanan Pasar)
+      - PELUANG_CUAN (🚀 Peluang Cuan / Katalis Kuat)
+      - POSITIF (📈 Positif / Menguat)
+      - NETRAL (⚖️ Netral / Informasi Pasar)
+    Plus contextual topic tags (`tags` list).
+    """
+    text = f"{title} {summary}".lower()
+
+    danger_words = [
+        "bahaya", "scam", "rug pull", "rugpull", "bobol", "diretas", "hack", "peretasan",
+        "penipuan", "bodong", "ilegal", "dilarang", "sanksi", "pailit", "bangkrut",
+        "anjlok parah", "krisis", "perang", "delisting", "likuidasi", "gembok", "suspen",
+        "suspensi", "darurat", "kerugian besar", "jebakan", "manipulasi", "kejahatan",
     ]
-    bearish_words = [
-        "turun", "anjlok", "melemah", "rugi", "koreksi", "bearish", "merah",
-        "jatuh", "tertekan", "defisit", "krisis", "waspada", "dump",
-        "longsor", "kebakaran", "phk", "sanksi", "terjun",
+    caution_words = [
+        "waspada", "hati-hati", "turun", "anjlok", "melemah", "rugi", "koreksi",
+        "bearish", "merah", "jatuh", "tertekan", "defisit", "inflasi", "dump",
+        "longsor", "phk", "terjun", "volatilitas", "gejolak", "aksi jual", "outflow",
+        "ketidakpastian", "tarif", "perang dagang", "utang", "beban", "rawan",
     ]
-    b_score = sum(1 for w in bullish_words if w in t)
-    s_score = sum(1 for w in bearish_words if w in t)
-    if b_score > s_score:
-        return "BULLISH"
-    if s_score > b_score:
-        return "BEARISH"
-    return "NEUTRAL"
+    strong_bull_words = [
+        "rekor", "melonjak", "meroket", "terbang", "cuan", "untung besar", "all time high",
+        "ath", "reli", "breakout", "dividen jumbo", "laba melonjak", "surplus besar",
+        "akumulasi", "peluang", "prospek cerah", "bullish",
+    ]
+    positive_words = [
+        "naik", "menguat", "positif", "tumbuh", "melambung", "hijau", "surplus",
+        "optimis", "apresiasi", "beli", "ekspansi", "inovasi", "kerjasama", "adopsi",
+        "stabil", "pulih", "bangkit", "dukung", "resmi",
+    ]
+
+    danger_hits = sum(1 for w in danger_words if w in text)
+    caution_hits = sum(1 for w in caution_words if w in text)
+    strong_bull_hits = sum(1 for w in strong_bull_words if w in text)
+    positive_hits = sum(1 for w in positive_words if w in text)
+
+    tags: list[dict] = []
+
+    # 1. Determine Primary Status Tag
+    if danger_hits > 0:
+        sentiment = "BAHAYA"
+        sentiment_label = "🚨 BAHAYA"
+        tags.append({"id": "BAHAYA", "label": "🚨 Bahaya & Risiko Tinggi", "tone": "danger"})
+    elif caution_hits > (positive_hits + strong_bull_hits):
+        sentiment = "WASPADA"
+        sentiment_label = "⚠️ WASPADA"
+        tags.append({"id": "WASPADA", "label": "⚠️ Waspada Tekanan Pasar", "tone": "warning"})
+    elif strong_bull_hits > 0 and strong_bull_hits >= caution_hits:
+        sentiment = "PELUANG_CUAN"
+        sentiment_label = "🚀 PELUANG CUAN"
+        tags.append({"id": "PELUANG_CUAN", "label": "🚀 Katalis Bullish", "tone": "emerald"})
+    elif positive_hits > caution_hits:
+        sentiment = "POSITIF"
+        sentiment_label = "📈 POSITIF"
+        tags.append({"id": "POSITIF", "label": "📈 Sentimen Positif", "tone": "success"})
+    else:
+        sentiment = "NETRAL"
+        sentiment_label = "⚖️ NETRAL"
+        tags.append({"id": "NETRAL", "label": "⚖️ Netral / Info Pasar", "tone": "neutral"})
+
+    # 2. Contextual Topic Tags (up to 3 additional tags)
+    topic_rules = [
+        (
+            "REGULASI_PAJAK",
+            "🏛️ Regulasi & Pajak",
+            "info",
+            ["pajak", "ojk", "bappebti", "aturan", "regulasi", "kemenkeu", "djp", "undang-undang", "kebijakan", "hukum", "pengawasan"],
+        ),
+        (
+            "MONETER_BI",
+            "🏦 Suku Bunga & BI",
+            "info",
+            ["bank indonesia", "suku bunga", "bi rate", "the fed", "inflasi", "rupiah", "kurs", "moneter", "cadangan devisa"],
+        ),
+        (
+            "KEAMANAN_SIBER",
+            "🛡️ Keamanan & Siber",
+            "danger",
+            ["siber", "keamanan", "hack", "bobol", "data", "privasi", "penipuan", "scam", "gembok", "perlindungan"],
+        ),
+        (
+            "DIVIDEN_EMITEN",
+            "💸 Emiten & Dividen",
+            "emerald",
+            ["dividen", "emiten", "laba", "kuartal", "ipo", "saham", "buyback", "rups", "bei", "ihsg"],
+        ),
+        (
+            "LOGAM_MULIA",
+            "🪙 Harga Emas / Safe Haven",
+            "amber",
+            ["emas", "antam", "pegadaian", "logam mulia", "xau", "safe haven", "komoditas"],
+        ),
+        (
+            "WHALE_INSTITUSI",
+            "🐋 Aksi Institusi & Asing",
+            "purple",
+            ["whale", "institusi", "asing", "investor asing", "etf", "blackrock", "dana", "akumulasi", "inflow", "outflow"],
+        ),
+        (
+            "INOVASI_AI",
+            "🤖 AI & Inovasi Digital",
+            "purple",
+            ["ai", "kecerdasan buatan", "teknologi", "chip", "semikonduktor", "digital", "startup", "aplikasi", "robot", "cloud"],
+        ),
+        (
+            "GEOPOLITIK_GLOBAL",
+            "🌍 Geopolitik & Global",
+            "warning",
+            ["global", "perang", "timur tengah", "china", "amerika", "as", "tarif", "ekspor", "impor", "dunia", "lintas negara"],
+        ),
+    ]
+
+    for tag_id, tag_label, tag_tone, keywords in topic_rules:
+        if any(k in text for k in keywords):
+            tags.append({"id": tag_id, "label": tag_label, "tone": tag_tone})
+        if len(tags) >= 3:
+            break
+
+    # Guarantee at least 2 tags on every article for rich UI display
+    if len(tags) == 1:
+        fallback_topic_by_cat = {
+            "crypto": {"id": "ASET_KRIPTO", "label": "⚡ Pasar Aset Kripto", "tone": "amber"},
+            "saham": {"id": "BURSA_SAHAM", "label": "📊 Bursa Efek Indonesia", "tone": "emerald"},
+            "emas": {"id": "LOGAM_MULIA", "label": "🪙 Harga Emas / Safe Haven", "tone": "amber"},
+            "ekonomi": {"id": "MAKRO_EKONOMI", "label": "🏦 Makroekonomi RI", "tone": "info"},
+            "teknologi": {"id": "INOVASI_AI", "label": "🤖 AI & Inovasi Digital", "tone": "purple"},
+        }
+        tags.append(
+            fallback_topic_by_cat.get(
+                category,
+                {"id": "RISET_PASAR", "label": "📰 Riset Pasar Terkini", "tone": "info"},
+            )
+        )
+
+    return {
+        "sentiment": sentiment,
+        "sentiment_label": sentiment_label,
+        "tags": tags,
+    }
 
 
 def _detect_category_from_text(title: str, summary: str = "") -> str:
@@ -310,7 +443,7 @@ def fetch_indonesian_news(
                 channel = root.find("channel")
                 items = channel.findall("item") if channel is not None else []
 
-                for idx, item in enumerate(items):
+                for item in items:
                     raw_title = (item.findtext("title") or "").strip()
                     link = (item.findtext("link") or "").strip()
                     pub_date_raw = (item.findtext("pubDate") or "").strip()
@@ -364,7 +497,7 @@ def fetch_indonesian_news(
                     native_thumb = _extract_image_from_item(item, desc_raw)
                     image_url = native_thumb or _pick_fallback_thumbnail(resolved_cat, clean_title)
 
-                    sentiment = _detect_sentiment(clean_title)
+                    tag_info = _classify_article_tags(clean_title, clean_desc, resolved_cat)
 
                     articles.append(
                         {
@@ -378,7 +511,9 @@ def fetch_indonesian_news(
                             "publisher_url": publisher_url or link,
                             "category": resolved_cat,
                             "category_label": NEWS_CATEGORIES.get(resolved_cat, cat_meta)["label"],
-                            "sentiment": sentiment,
+                            "sentiment": tag_info["sentiment"],
+                            "sentiment_label": tag_info["sentiment_label"],
+                            "tags": tag_info["tags"],
                             "published_at": pub_iso,
                             "published_ts": pub_ts,
                             "formatted_date": formatted_wib,

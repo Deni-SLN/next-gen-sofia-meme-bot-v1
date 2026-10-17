@@ -295,22 +295,20 @@ def record_equity_snapshot(
     return snap
 
 
-def get_main_wallet(db: Session) -> Wallet:
-    main_w = db.execute(select(Wallet).where(Wallet.gate == "main").order_by(Wallet.id.asc())).scalars().first()
-    if not main_w:
-        main_w = Wallet(
-            name="Main Treasury Vault",
-            address="0x71C...4e88",
-            chain="Ethereum",
-            balance=25000.0,
-            token="USDT",
-            gate="main",
-            updated_at=datetime.now(timezone.utc),
+def get_main_wallet(db: Session) -> Wallet | None:
+    """Return user's real Main Wallet (gate='main') if configured; never auto-create dummy wallets."""
+    return (
+        db.execute(
+            select(Wallet)
+            .where(
+                Wallet.gate == "main",
+                ~Wallet.name.contains("Modal Paper"),
+            )
+            .order_by(Wallet.id.asc())
         )
-        db.add(main_w)
-        db.commit()
-        db.refresh(main_w)
-    return main_w
+        .scalars()
+        .first()
+    )
 
 
 def get_treasury_summary(db: Session) -> dict:
@@ -379,12 +377,12 @@ def get_treasury_summary(db: Session) -> dict:
             "to_gas_idr": round(projected_to_gas_usd * usd_idr, 0),
         },
         "main_wallet": {
-            "id": main_w.id,
-            "name": main_w.name,
-            "address": main_w.address,
-            "chain": main_w.chain,
-            "balance": round(main_w.balance, 4),
-            "token": main_w.token,
+            "id": main_w.id if main_w else None,
+            "name": main_w.name if main_w else "Vault Utama Paper (Simulasi)",
+            "address": main_w.address if main_w else "PAPER-MAIN-VAULT",
+            "chain": main_w.chain if main_w else "Solana",
+            "balance": round(main_w.balance, 4) if main_w else round(t.paper_main_vault_usd or 0.0, 4),
+            "token": main_w.token if main_w else "USD",
             "paper_main_vault_usd": round(t.paper_main_vault_usd or 0.0, 4),
             "paper_main_vault_idr": round((t.paper_main_vault_usd or 0.0) * usd_idr, 0),
         },
@@ -481,9 +479,11 @@ def run_daily_settlement(
         paper_wallet.balance = max(0.0, round(float(paper_wallet.balance) - needed_cash_out, 6))
         paper_wallet.updated_at = datetime.now(timezone.utc)
 
-        # Credit 40% to Main Wallet
-        main_w.balance = round(float(main_w.balance) + to_main_usd, 6)
-        main_w.updated_at = datetime.now(timezone.utc)
+        main_addr = main_w.address if (main_w and main_w.address) else "PAPER-MAIN-VAULT"
+        # Credit 40% to Main Wallet (if configured) and Paper Main Vault
+        if main_w is not None:
+            main_w.balance = round(float(main_w.balance) + to_main_usd, 6)
+            main_w.updated_at = datetime.now(timezone.utc)
         t.paper_main_vault_usd = round((t.paper_main_vault_usd or 0.0) + to_main_usd, 6)
 
         # Credit gas portion of 60% to Gas Reserve
@@ -505,7 +505,7 @@ def run_daily_settlement(
 
         note = (
             f"TRANSFERRED (05:00 WIB): Keuntungan bersih {net_profit_pct:+.2f}% (Rp {net_profit_usd * usd_idr:,.0f}) > 40%. "
-            f"40% (Rp {to_main_usd * usd_idr:,.0f}) ditransfer ke Wallet Utama ({main_w.address}), "
+            f"40% (Rp {to_main_usd * usd_idr:,.0f}) ditransfer ke Wallet Utama ({main_addr}), "
             f"60% diakumulasi ke Modal (+Rp {to_capital_usd * usd_idr:,.0f}) & Gas Fee (+Rp {to_gas_usd * usd_idr:,.0f})."
         )
         settlement = Settlement(
@@ -519,7 +519,7 @@ def run_daily_settlement(
             to_main_usd=to_main_usd,
             to_capital_usd=to_capital_usd,
             to_gas_usd=to_gas_usd,
-            main_wallet_address=main_w.address,
+            main_wallet_address=main_addr,
             usd_idr=usd_idr,
             note=note,
             created_at=datetime.now(timezone.utc),
@@ -536,6 +536,7 @@ def run_daily_settlement(
             "success",
         )
     else:
+        main_addr = main_w.address if (main_w and main_w.address) else "PAPER-MAIN-VAULT"
         t.last_settlement_date = wib_date
         t.updated_at = datetime.now(timezone.utc)
         note = (
@@ -554,7 +555,7 @@ def run_daily_settlement(
             to_main_usd=0.0,
             to_capital_usd=0.0,
             to_gas_usd=0.0,
-            main_wallet_address=main_w.address,
+            main_wallet_address=main_addr,
             usd_idr=usd_idr,
             note=note,
             created_at=datetime.now(timezone.utc),
