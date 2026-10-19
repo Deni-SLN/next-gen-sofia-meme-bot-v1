@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { api } from '@/lib/api';
 import { LucideIcon } from '@/components/LucideIcon';
+import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 interface NewsTag {
   id: string;
@@ -47,6 +48,7 @@ const FALLBACK_THUMBS: Record<string, string> = {
 };
 
 export default function NewsPage() {
+  const isUltrawide = useUltrawide();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchInput, setSearchInput] = useState<string>('');
   const [activeQuery, setActiveQuery] = useState<string>('');
@@ -216,7 +218,7 @@ export default function NewsPage() {
         <title>News & Riset Pasar Indonesia | SOFIA Trenches v3.8 PRO</title>
       </Head>
 
-      <div className="p-4 lg:p-6 space-y-5 max-w-[1600px] mx-auto">
+      <div className={`p-4 lg:p-6 space-y-5 ${isUltrawide ? 'w-full max-w-none' : 'max-w-[1600px] mx-auto'}`}>
         {/* Top Header */}
         <div className="rounded-2xl border border-slate-800/90 bg-gradient-to-r from-[#0b101d] via-[#0f172a] to-[#0b101d] p-5 shadow-xl">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -228,7 +230,7 @@ export default function NewsPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-lg sm:text-xl font-black tracking-tight text-white">
-                      NEWS & RISET PASAR INDONESIA
+                      NEWS &amp; RISET PASAR INDONESIA
                     </h1>
                     <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                       TERBARU → TERLAMA
@@ -238,7 +240,7 @@ export default function NewsPage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Berita finansial, komoditas & teknologi Bahasa Indonesia lengkap dengan Tag Sinyal Risiko (Bahaya, Waspada, Netral, Positif, Peluang Cuan)
+                    Berita finansial, komoditas &amp; teknologi Bahasa Indonesia lengkap dengan Tag Sinyal Risiko (Bahaya, Waspada, Netral, Positif, Peluang Cuan)
                   </p>
                 </div>
               </div>
@@ -246,6 +248,20 @@ export default function NewsPage() {
 
             {/* Search & Refresh Controls */}
             <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => toggleUltrawide(!isUltrawide)}
+                className={`px-3 py-2 rounded-xl border text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                  isUltrawide
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                }`}
+                title="Mode Layar Lebar: Menampilkan berita dalam 4-5 kolom ke samping"
+              >
+                <LucideIcon name={isUltrawide ? 'Minimize2' : 'Maximize2'} className="w-3.5 h-3.5" />
+                <span>{isUltrawide ? 'Layar Biasa' : 'Layar Lebar'}</span>
+              </button>
+
               <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 flex-1 sm:flex-initial">
                 <input
                   type="text"
@@ -467,8 +483,8 @@ export default function NewsPage() {
 
         {/* Loading Skeleton */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {Array.from({ length: 9 }).map((_, idx) => (
+          <div className={isUltrawide ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4" : "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"}>
+            {Array.from({ length: isUltrawide ? 15 : 9 }).map((_, idx) => (
               <div
                 key={idx}
                 className="rounded-2xl border border-slate-800/80 bg-[#0b101d] overflow-hidden animate-pulse"
@@ -510,7 +526,7 @@ export default function NewsPage() {
           </div>
         ) : (
           /* News Grid with Visual Thumbnail & Multi-Tags - Ordered Newest to Oldest (Max 7 Days) */
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className={isUltrawide ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4" : "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"}>
             {filteredArticles.map((article, index) => {
               const fallbackThumb = FALLBACK_THUMBS[article.category] || FALLBACK_THUMBS.ekonomi;
               const isDanger = article.sentiment === 'BAHAYA';

@@ -17,6 +17,7 @@ import {
 } from '@/lib/web3';
 import { LucideIcon } from '@/components/LucideIcon';
 import { WalletConnectModal } from '@/components/WalletConnectModal';
+import { SettingsDrawer } from '@/components/SettingsDrawer';
 import { LoginPortal } from '@/pages/login';
 
 interface NavItem {
@@ -41,11 +42,14 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: 'Analisa & Riset Pasar',
     items: [
+      { href: '/chat', label: 'AI Chat & Research', icon: 'message-square', badge: 'AI TOOLS', badgeTone: 'emerald' },
       { href: '/stocks', label: 'Analisa Saham BEI', icon: 'trending-up', badge: 'IDX', badgeTone: 'emerald' },
       { href: '/crypto', label: 'Analisa Crypto', icon: 'cpu', badge: '24/7', badgeTone: 'cyan' },
       { href: '/gold', label: 'Portofolio Emas', icon: 'coins', badge: 'XAU', badgeTone: 'amber' },
+      { href: '/calculator', label: 'Kalkulator Deposito & Obligasi', icon: 'calculator', badge: 'SIMULASI', badgeTone: 'emerald' },
       { href: '/news', label: 'News & Riset', icon: 'newspaper' },
       { href: '/signals', label: 'Alpha Signals', icon: 'radio' },
+      { href: '/encyclopedia', label: 'Ensiklopedia Pasar', icon: 'book', badge: 'KAMUS', badgeTone: 'cyan' },
     ],
   },
   {
@@ -57,6 +61,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { href: '/agents', label: 'AI Degen Agents', icon: 'bot' },
       { href: '/risk', label: 'Risk & Slippage', icon: 'sliders' },
       { href: '/wallets', label: 'Multi-Gate Wallets', icon: 'layers' },
+      { href: '/settings', label: 'Pengaturan Sistem', icon: 'sliders', badge: 'CONFIG', badgeTone: 'cyan' },
     ],
   },
 ];
@@ -103,9 +108,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [walletModalOpen, setWalletModalOpen] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [isUltrawide, setIsUltrawide] = useState<boolean>(false);
   const [connectedWallet, setConnectedWallet] = useState<ConnectedExtensionWallet | null>(null);
   const [deferredPwaPrompt, setDeferredPwaPrompt] = useState<any>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsUltrawide(localStorage.getItem('sofia_ultrawide') === 'true');
+      const ultHandler = (e: any) => {
+        setIsUltrawide(Boolean(e?.detail));
+      };
+      window.addEventListener('sofia-ultrawide-toggle', ultHandler);
+      return () => window.removeEventListener('sofia-ultrawide-toggle', ultHandler);
+    }
+  }, []);
+
+  const handleToggleUltrawide = (enabled: boolean) => {
+    setIsUltrawide(enabled);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sofia_ultrawide', enabled ? 'true' : 'false');
+      window.dispatchEvent(new CustomEvent('sofia-ultrawide-toggle', { detail: enabled }));
+    }
+  };
 
   const handleToggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -113,6 +139,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('sofia_theme', next);
       document.documentElement.classList.toggle('light-theme', next === 'light');
+      window.dispatchEvent(new CustomEvent('sofia-theme-change', { detail: next }));
     }
   };
 
@@ -437,6 +464,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </span>
             </button>
 
+            {/* Ultrawide / Layar Lebar Toggle Button */}
+            <button
+              type="button"
+              onClick={() => handleToggleUltrawide(!isUltrawide)}
+              className={`flex items-center justify-center w-8 h-8 rounded-lg border transition ${
+                isUltrawide
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                  : 'bg-obsidian-900 hover:bg-obsidian-850 text-slate-400 hover:text-slate-200 border-obsidian-700/80'
+              }`}
+              title={
+                isUltrawide
+                  ? 'Mode Layar Lebar Aktif (Klik untuk Mode Standar)'
+                  : 'Aktifkan Mode Layar Lebar (Maksimalkan Monitor)'
+              }
+            >
+              <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Side Menu Setting Button */}
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-700/80 text-slate-400 hover:text-slate-200 transition"
+              title="Buka Pengaturan Sistem (API, Wallet, Tampilan)"
+            >
+              <LucideIcon name="sliders" className="w-3.5 h-3.5" />
+            </button>
+
             {/* Theme Toggle */}
             <button
               type="button"
@@ -520,6 +575,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <Link
                           key={item.href}
                           href={item.href}
+                          onClick={(e) => {
+                            if (item.href === '/settings') {
+                              e.preventDefault();
+                              setSettingsOpen(true);
+                              setMobileMenuOpen(false);
+                            }
+                          }}
                           className={
                             active
                               ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-obsidian-800 text-white border border-obsidian-700 font-medium text-xs'
@@ -596,6 +658,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={(e) => {
+                          if (item.href === '/settings') {
+                            e.preventDefault();
+                            setSettingsOpen(true);
+                          }
+                        }}
                         className={
                           active
                             ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-obsidian-800 text-white border border-obsidian-700 font-medium text-xs transition'
@@ -668,11 +736,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* END: Clean AnalisMarket-Style Left Sidebar */}
 
         {/* BEGIN: MainContentArea */}
-        <main className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-4 pb-20 md:pb-5 space-y-4 bg-obsidian-950 grid-bg-overlay">
-          <div className="max-w-[1440px] mx-auto space-y-4">{children}</div>
+        <main className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-5 py-4 pb-20 md:pb-5 space-y-4 bg-obsidian-950 grid-bg-overlay">
+          <div
+            className={
+              isUltrawide
+                ? 'w-full max-w-none px-1 sm:px-3 space-y-4 transition-all duration-300'
+                : 'max-w-[1440px] mx-auto space-y-4 transition-all duration-300'
+            }
+          >
+            {children}
+          </div>
         </main>
         {/* END: MainContentArea */}
       </div>
+
+      {/* Side Menu Setting Drawer */}
+      <SettingsDrawer
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        isUltrawide={isUltrawide}
+        onToggleUltrawide={handleToggleUltrawide}
+      />
 
       {/* BEGIN: Mobile Fixed Bottom Tab Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 grid grid-cols-5 py-1.5 px-1 text-[10px]">

@@ -74,11 +74,16 @@ h1, h2, h3, h4 {
 
 /* =========================================================================
    LIGHT MODE THEME OVERRIDES (html.light-theme)
-   Clean AnalisMarket Daylight Workspace
+   Stockbit-Inspired Institutional Daylight Workspace
    ========================================================================= */
 html.light-theme body {
   background-color: #f8fafc !important;
   color: #0f172a !important;
+}
+
+html.light-theme main,
+html.light-theme main.bg-obsidian-950 {
+  background-color: #f8fafc !important;
 }
 
 html.light-theme ::-webkit-scrollbar-track {
@@ -93,81 +98,190 @@ html.light-theme ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
+/* Subtle Institutional Lighting Overlay */
 html.light-theme .grid-bg-overlay {
   background-image:
-    radial-gradient(circle at 15% 0%, rgba(229, 173, 81, 0.05), transparent 36%),
-    radial-gradient(circle at 85% 0%, rgba(16, 185, 129, 0.04), transparent 36%);
+    radial-gradient(circle at 15% 0%, rgba(16, 185, 129, 0.04), transparent 40%),
+    radial-gradient(circle at 85% 0%, rgba(14, 165, 233, 0.04), transparent 40%) !important;
 }
 
-/* Main surfaces & card backgrounds */
-html.light-theme .bg-obsidian-950,
-html.light-theme main.bg-obsidian-950 {
-  background-color: #f8fafc !important;
+/* Topbar & Header Navigation */
+html.light-theme header,
+html.light-theme header.bg-obsidian-950\/90 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03) !important;
 }
 
+/* Sidebar Navigation */
+html.light-theme aside,
+html.light-theme aside.bg-obsidian-900\/70,
+html.light-theme aside.bg-obsidian-900 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Active Navigation Item (Stockbit signature emerald indicator) */
+html.light-theme aside nav a.bg-obsidian-800,
+html.light-theme aside nav a.bg-obsidian-850 {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
+  font-weight: 600 !important;
+}
+
+html.light-theme aside nav a.bg-obsidian-800 svg,
+html.light-theme aside nav a.bg-obsidian-850 svg {
+  color: #059669 !important;
+}
+
+/* Main Cards & Primary Surfaces (Stockbit Clean White Cards with Soft Shadow) */
 html.light-theme .bg-obsidian-900,
 html.light-theme .bg-obsidian-900\/95,
 html.light-theme .bg-obsidian-900\/90,
 html.light-theme .bg-obsidian-900\/80,
+html.light-theme .bg-obsidian-900\/70,
+html.light-theme .bg-obsidian-900\/60,
+html.light-theme .bg-obsidian-900\/50,
+html.light-theme .bg-\[\#0B0E14\],
+html.light-theme .bg-\[\#0b0e14\],
+html.light-theme .bg-\[\#0b0f17\],
 html.light-theme .bg-\[\#0b101d\],
 html.light-theme .bg-\[\#0b101d\]\/95,
+html.light-theme .bg-\[\#090d16\],
+html.light-theme .bg-\[\#0a0d14\],
+html.light-theme .bg-\[\#0c1322\],
+html.light-theme .bg-\[\#0d1326\],
+html.light-theme .bg-\[\#111927\],
+html.light-theme [class*="bg-[#0B0E14]"],
+html.light-theme [class*="bg-[#0b0e14]"],
+html.light-theme [class*="bg-[#0b0f17]"],
+html.light-theme [class*="bg-[#0b101d]"],
+html.light-theme [class*="bg-[#090d16]"],
+html.light-theme [class*="bg-[#0a0d14]"],
+html.light-theme [class*="bg-[#0c1322]"],
+html.light-theme [class*="bg-[#0d1326]"],
+html.light-theme [class*="bg-[#111927]"],
 html.light-theme .bg-slate-900,
+html.light-theme [class*="bg-slate-900"],
+html.light-theme [class*="bg-obsidian-900"],
+html.light-theme .bg-slate-900\/95,
 html.light-theme .bg-slate-900\/90,
 html.light-theme .bg-slate-900\/80,
 html.light-theme .bg-slate-900\/70,
-html.light-theme .bg-slate-900\/60 {
+html.light-theme .bg-slate-900\/60,
+html.light-theme .bg-slate-900\/50,
+html.light-theme .bg-slate-900\/40 {
   background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
 }
 
+/* Nested Wells, Stat Cards & Inner Sub-Panels */
+html.light-theme [class*="bg-obsidian-950"],
+html.light-theme [class*="bg-slate-950"],
+html.light-theme .bg-obsidian-950,
+html.light-theme .bg-obsidian-950\/90,
+html.light-theme .bg-obsidian-950\/85,
+html.light-theme .bg-obsidian-950\/80,
+html.light-theme .bg-obsidian-950\/70,
+html.light-theme .bg-obsidian-950\/60,
+html.light-theme .bg-obsidian-950\/40,
 html.light-theme .bg-obsidian-850,
+html.light-theme .bg-obsidian-850\/90,
 html.light-theme .bg-obsidian-850\/80,
 html.light-theme .bg-obsidian-800,
 html.light-theme .bg-obsidian-800\/80,
+html.light-theme .bg-obsidian-750,
 html.light-theme .bg-slate-950,
 html.light-theme .bg-slate-950\/90,
 html.light-theme .bg-slate-950\/85,
 html.light-theme .bg-slate-950\/80,
 html.light-theme .bg-slate-950\/70,
 html.light-theme .bg-slate-950\/60,
+html.light-theme .bg-slate-950\/50,
 html.light-theme .bg-slate-950\/40,
 html.light-theme .bg-slate-800,
 html.light-theme .bg-slate-800\/90,
-html.light-theme .bg-slate-800\/80 {
+html.light-theme .bg-slate-800\/80,
+html.light-theme .bg-slate-800\/70,
+html.light-theme .bg-slate-800\/60,
+html.light-theme .bg-slate-800\/50,
+html.light-theme .bg-slate-800\/40,
+html.light-theme .bg-slate-750,
+html.light-theme [data-purpose="terminal-feed-box"] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Segmented Switches & Topbar Controls */
+html.light-theme [data-purpose="network-selector"],
+html.light-theme [data-purpose="trading-mode-toggle"] {
   background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
 }
 
-/* Gradient header cards */
-html.light-theme .bg-gradient-to-r.from-\[\#0b101d\] {
+html.light-theme [data-purpose="network-selector"] button.bg-obsidian-800 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Gradient Hero Banners (Stockbit Clean Daylight Gradient) */
+html.light-theme .from-\[\#0B0E14\],
+html.light-theme .from-\[\#0b101d\],
+html.light-theme .from-obsidian-900,
+html.light-theme .from-obsidian-950,
+html.light-theme .from-slate-900,
+html.light-theme .from-slate-950,
+html.light-theme [class*="from-[#0"],
+html.light-theme [class*="from-[#1"],
+html.light-theme [class*="from-obsidian"],
+html.light-theme [class*="from-slate-9"] {
   background-image: linear-gradient(to right, #ffffff, #f8fafc, #ffffff) !important;
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
 }
 
-/* Hover states on cards and nav items */
+/* Hover States for Interactive Rows & Buttons */
 html.light-theme .hover\:bg-\[\#0f172a\]:hover,
 html.light-theme .hover\:bg-obsidian-800:hover,
 html.light-theme .hover\:bg-obsidian-800\/80:hover,
 html.light-theme .hover\:bg-obsidian-850:hover,
+html.light-theme .hover\:bg-obsidian-750:hover,
 html.light-theme .hover\:bg-slate-800\/70:hover,
-html.light-theme .hover\:bg-slate-800:hover {
-  background-color: #e2e8f0 !important;
+html.light-theme .hover\:bg-slate-800:hover,
+html.light-theme .hover\:bg-slate-700:hover,
+html.light-theme .hover\:bg-slate-900:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
 }
 
-/* Borders */
+/* Universal Clean Divider Borders */
 html.light-theme .border-obsidian-700,
+html.light-theme .border-obsidian-700\/70,
 html.light-theme .border-obsidian-700\/80,
 html.light-theme .border-obsidian-700\/60,
+html.light-theme .border-obsidian-750,
 html.light-theme .border-obsidian-800,
 html.light-theme .border-obsidian-800\/80,
 html.light-theme .border-obsidian-800\/60,
+html.light-theme .border-obsidian-800\/50,
 html.light-theme .border-slate-800,
 html.light-theme .border-slate-800\/90,
 html.light-theme .border-slate-800\/80,
+html.light-theme .border-slate-800\/60,
 html.light-theme .border-slate-800\/50,
+html.light-theme .border-slate-800\/40,
 html.light-theme .border-slate-700,
-html.light-theme .border-slate-700\/80 {
+html.light-theme .border-slate-700\/80,
+html.light-theme .border-slate-700\/70,
+html.light-theme .border-slate-750 {
   border-color: #e2e8f0 !important;
 }
 
-/* Primary Typography contrast in Light Mode */
+/* Primary & Secondary Typography Contrast */
 html.light-theme .text-white,
 html.light-theme .text-slate-100,
 html.light-theme .text-slate-200 {
@@ -186,64 +300,43 @@ html.light-theme .text-slate-500 {
   color: #64748b !important;
 }
 
-/* Fix Yellow / Amber backgrounds & text */
-html.light-theme .bg-amber-500\/10,
-html.light-theme .bg-amber-500\/15,
-html.light-theme .bg-amber-500\/20,
-html.light-theme .bg-amber-500\/25,
-html.light-theme .bg-amber-500\/90,
-html.light-theme .bg-yellow-500\/10,
-html.light-theme .bg-yellow-500\/15,
-html.light-theme .bg-yellow-500\/20,
-html.light-theme .bg-yellow-400\/95 {
-  background-color: #fef3c7 !important;
-  color: #78350f !important;
-  border-color: #f59e0b !important;
+html.light-theme .text-slate-600 {
+  color: #475569 !important;
 }
 
-html.light-theme .text-amber-400,
-html.light-theme .text-amber-300,
-html.light-theme .text-amber-200,
-html.light-theme .text-amber-200\/80,
-html.light-theme .text-yellow-400,
-html.light-theme .text-yellow-300,
-html.light-theme .text-yellow-200 {
-  color: #78350f !important;
+/* =========================================================================
+   STOCKBIT FINANCIAL SEMANTIC COLOR SYSTEM
+   High contrast, clear visibility, energetic tone
+   ========================================================================= */
+
+/* 1. EMERALD / GREEN (Bullish, Gain, Buy, Profit) */
+html.light-theme .text-emerald-400,
+html.light-theme .text-emerald-300,
+html.light-theme .text-emerald-500,
+html.light-theme .text-emerald-200 {
+  color: #059669 !important;
 }
 
-/* High-contrast semantic accents for Emerald, Cyan, Rose, Purple, Teal, Blue in Light Mode */
 html.light-theme .bg-emerald-500\/10,
 html.light-theme .bg-emerald-500\/15,
 html.light-theme .bg-emerald-500\/20,
 html.light-theme .bg-emerald-500\/25,
 html.light-theme .bg-emerald-500\/30,
-html.light-theme .bg-emerald-500\/90 {
-  background-color: #d1fae5 !important;
-  color: #064e3b !important;
-  border-color: #10b981 !important;
+html.light-theme .bg-emerald-950\/40,
+html.light-theme .bg-emerald-950\/30 {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
 }
 
-html.light-theme .text-emerald-400,
-html.light-theme .text-emerald-300,
-html.light-theme .text-emerald-200,
-html.light-theme .text-emerald-200\/80 {
-  color: #065f46 !important;
-}
-
-html.light-theme .bg-cyan-500\/10,
-html.light-theme .bg-cyan-500\/15,
-html.light-theme .bg-cyan-500\/20,
-html.light-theme .bg-cyan-500\/25,
-html.light-theme .bg-cyan-500\/90 {
-  background-color: #e0f2fe !important;
-  color: #0c4a6e !important;
-  border-color: #0284c7 !important;
-}
-
-html.light-theme .text-cyan-400,
-html.light-theme .text-cyan-300,
-html.light-theme .text-cyan-200 {
-  color: #075985 !important;
+/* 2. ROSE / CRIMSON RED (Bearish, Loss, Sell, Stop Loss) */
+html.light-theme .text-rose-400,
+html.light-theme .text-rose-300,
+html.light-theme .text-rose-500,
+html.light-theme .text-rose-200,
+html.light-theme .text-red-400,
+html.light-theme .text-red-300 {
+  color: #dc2626 !important;
 }
 
 html.light-theme .bg-rose-500\/10,
@@ -251,60 +344,106 @@ html.light-theme .bg-rose-500\/15,
 html.light-theme .bg-rose-500\/20,
 html.light-theme .bg-rose-600\/20,
 html.light-theme .bg-rose-600\/25,
-html.light-theme .bg-rose-600\/30 {
-  background-color: #ffe4e6 !important;
-  color: #881337 !important;
-  border-color: #f43f5e !important;
+html.light-theme .bg-rose-600\/30,
+html.light-theme .bg-rose-950\/40,
+html.light-theme .bg-red-500\/10,
+html.light-theme .bg-red-500\/15,
+html.light-theme .bg-red-500\/20 {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
 }
 
-html.light-theme .text-rose-400,
-html.light-theme .text-rose-300,
-html.light-theme .text-rose-200 {
-  color: #9f1239 !important;
+/* 3. AMBER / GOLD (Neutral, Hold, Warning, Gold XAU) */
+html.light-theme .text-amber-400,
+html.light-theme .text-amber-300,
+html.light-theme .text-amber-500,
+html.light-theme .text-yellow-400,
+html.light-theme .text-yellow-300 {
+  color: #b45309 !important;
 }
 
-html.light-theme .bg-purple-500\/15,
-html.light-theme .bg-purple-500\/20,
-html.light-theme .bg-purple-500\/90 {
-  background-color: #f3e8ff !important;
-  color: #4c1d95 !important;
-  border-color: #9333ea !important;
+html.light-theme .bg-amber-500\/10,
+html.light-theme .bg-amber-500\/15,
+html.light-theme .bg-amber-500\/20,
+html.light-theme .bg-amber-500\/25,
+html.light-theme .bg-amber-950\/40,
+html.light-theme .bg-yellow-500\/10,
+html.light-theme .bg-yellow-500\/15,
+html.light-theme .bg-yellow-500\/20 {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #b45309 !important;
 }
 
+/* 4. CYAN / SKY (Info, Market Structure, SBN Benchmark) */
+html.light-theme .text-cyan-400,
+html.light-theme .text-cyan-300,
+html.light-theme .text-cyan-500,
+html.light-theme .text-cyan-200 {
+  color: #0369a1 !important;
+}
+
+html.light-theme .bg-cyan-500\/10,
+html.light-theme .bg-cyan-500\/15,
+html.light-theme .bg-cyan-500\/20,
+html.light-theme .bg-cyan-500\/25,
+html.light-theme .bg-cyan-950\/40 {
+  background-color: #f0f9ff !important;
+  border-color: #bae6fd !important;
+  color: #0369a1 !important;
+}
+
+/* 5. PURPLE (Syariah Mudharabah, SMC Order Block) */
 html.light-theme .text-purple-400,
 html.light-theme .text-purple-300,
+html.light-theme .text-purple-500,
 html.light-theme .text-purple-200 {
-  color: #5b21b6 !important;
+  color: #6b21a8 !important;
+}
+
+html.light-theme .bg-purple-500\/10,
+html.light-theme .bg-purple-500\/15,
+html.light-theme .bg-purple-500\/20,
+html.light-theme .bg-purple-950\/40 {
+  background-color: #faf5ff !important;
+  border-color: #e9d5ff !important;
+  color: #6b21a8 !important;
+}
+
+/* 6. BLUE (Index, Obligasi Fixed Rate) */
+html.light-theme .text-blue-400,
+html.light-theme .text-blue-300,
+html.light-theme .text-blue-500 {
+  color: #1d4ed8 !important;
+}
+
+html.light-theme .bg-blue-500\/10,
+html.light-theme .bg-blue-500\/15,
+html.light-theme .bg-blue-500\/20,
+html.light-theme .bg-blue-950\/40 {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+/* 7. TEAL (Liquidity & Cash Flows) */
+html.light-theme .text-teal-400,
+html.light-theme .text-teal-300,
+html.light-theme .text-teal-500 {
+  color: #0f766e !important;
 }
 
 html.light-theme .bg-teal-500\/10,
-html.light-theme .bg-teal-500\/20,
-html.light-theme .bg-teal-500\/25 {
-  background-color: #ccfbf1 !important;
-  color: #134e4a !important;
-  border-color: #14b8a6 !important;
+html.light-theme .bg-teal-500\/15,
+html.light-theme .bg-teal-500\/20 {
+  background-color: #f0fdfa !important;
+  border-color: #99f6e4 !important;
+  color: #0f766e !important;
 }
 
-html.light-theme .text-teal-400,
-html.light-theme .text-teal-300,
-html.light-theme .text-teal-200 {
-  color: #115e59 !important;
-}
-
-html.light-theme .bg-blue-500\/15,
-html.light-theme .bg-blue-500\/90 {
-  background-color: #dbeafe !important;
-  color: #1e3a8a !important;
-  border-color: #3b82f6 !important;
-}
-
-html.light-theme .text-blue-400,
-html.light-theme .text-blue-300 {
-  color: #1e40af !important;
-}
-
-/* Inputs & Selects in Light Mode */
-html.light-theme input,
+/* Form Inputs, Selects & Sliders (Stockbit Emerald Focus) */
+html.light-theme input:not([type="range"]),
 html.light-theme select,
 html.light-theme textarea {
   background-color: #ffffff !important;
@@ -312,7 +451,35 @@ html.light-theme textarea {
   border-color: #cbd5e1 !important;
 }
 
+html.light-theme input:not([type="range"]):focus,
+html.light-theme select:focus,
+html.light-theme textarea:focus {
+  border-color: #059669 !important;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15) !important;
+}
+
+html.light-theme input[type="range"] {
+  accent-color: #059669 !important;
+}
+
 html.light-theme input::placeholder,
 html.light-theme textarea::placeholder {
-  color: #64748b !important;
+  color: #94a3b8 !important;
 }
+
+/* Financial Data Tables (Stockbit-Style Clean Data Grids) */
+html.light-theme table thead,
+html.light-theme table th {
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light-theme table td {
+  border-color: #e2e8f0 !important;
+}
+
+html.light-theme table tbody tr:hover td {
+  background-color: #f8fafc !important;
+}
+

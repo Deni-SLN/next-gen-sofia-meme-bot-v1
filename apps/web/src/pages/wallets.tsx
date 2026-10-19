@@ -8,11 +8,13 @@ import {
   getSavedExtensionWallet,
   shortenAddress,
 } from '@/lib/web3';
+import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 const CHAINS = ['Solana', 'Base', 'Ethereum', 'BSC'];
 const GATES = ['trading', 'main', 'reserve'];
 
 export default function WalletsPage() {
+  const isUltrawide = useUltrawide();
   const walletsQuery = useApiQuery(() => api.getWallets(), []);
   const usdIdr = walletsQuery.data?.usd_idr || 17960;
 
@@ -169,6 +171,19 @@ export default function WalletsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            onClick={() => toggleUltrawide(!isUltrawide)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono text-[11px] font-bold transition ${
+              isUltrawide
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border-obsidian-800 hover:text-white'
+            }`}
+            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
+          >
+            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setShowConnectModal(true)}
             className="px-3.5 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-extrabold text-xs font-mono transition flex items-center gap-1.5"
           >
@@ -297,7 +312,9 @@ export default function WalletsPage() {
       )}
 
       <QueryState isLoading={walletsQuery.isLoading} isError={walletsQuery.isError} error={walletsQuery.error}>
-        <div className="rounded-xl bg-obsidian-900 border border-obsidian-700/80 overflow-hidden">
+        {(() => {
+          const walletsTableBlock = (
+            <div className="rounded-xl bg-obsidian-900 border border-obsidian-700/80 overflow-hidden shadow-lg">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
               <thead className="bg-obsidian-950 text-slate-400 border-b border-obsidian-800 text-[10px] uppercase">
@@ -478,9 +495,9 @@ export default function WalletsPage() {
             </table>
           </div>
         </div>
+        );
 
-        {/* BEGIN: Auto Top-Up Gas Fee & 05:00 WIB Profit Settlement Section */}
-        {walletsQuery.data?.treasury && (
+        const treasuryBlock = walletsQuery.data?.treasury ? (
           <div className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 space-y-4 shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-obsidian-800">
               <div className="flex items-center gap-2">
@@ -657,9 +674,28 @@ export default function WalletsPage() {
                 </div>
               </div>
             )}
-          </div>
-        )}
-        {/* END: Auto Top-Up Gas Fee & 05:00 WIB Profit Settlement Section */}
+            </div>
+          ) : null;
+
+          return isUltrawide ? (
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+              {/* Kolom Kiri: Tabel Multi-Gate Wallets (7 Col) */}
+              <div className="xl:col-span-7 space-y-4">
+                {walletsTableBlock}
+              </div>
+
+              {/* Kolom Kanan: Aturan Gas & 05:00 WIB Settlement dipindahkan ke samping! (5 Col) */}
+              <div className="xl:col-span-5 space-y-4">
+                {treasuryBlock}
+              </div>
+            </div>
+          ) : (
+            <>
+              {walletsTableBlock}
+              {treasuryBlock}
+            </>
+          );
+        })()}
       </QueryState>
     </div>
   );

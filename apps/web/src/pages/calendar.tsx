@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { api, useApiQuery, formatIdr, formatUsd, getTradingMode } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
+import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 export default function CalendarPage() {
+  const isUltrawide = useUltrawide();
   const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE' | 'ALL'>('PAPER');
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
@@ -135,6 +137,21 @@ export default function CalendarPage() {
             </button>
           </div>
 
+          {/* Ultrawide Toggle */}
+          <button
+            type="button"
+            onClick={() => toggleUltrawide(!isUltrawide)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono text-[11px] font-bold transition ${
+              isUltrawide
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border-obsidian-800 hover:text-white'
+            }`}
+            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
+          >
+            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
+          </button>
+
           {/* Month Navigator Controls */}
           <div className="flex items-center bg-obsidian-950 rounded-xl border border-obsidian-700 p-0.5">
             <button
@@ -254,8 +271,9 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* 7-Column Interactive Monthly Calendar Grid */}
-        <div className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 shadow-lg">
+        {(() => {
+          const calendarGridBlock = (
+            <div className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 shadow-lg">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
@@ -380,9 +398,10 @@ export default function CalendarPage() {
             })}
           </div>
         </div>
+        );
 
-        {/* Selected Day Trade Inspector Drawer */}
-        <div className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 shadow-lg">
+        const dayInspectorBlock = (
+          <div className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 shadow-lg">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-obsidian-800">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></div>
@@ -518,6 +537,27 @@ export default function CalendarPage() {
             </div>
           )}
         </div>
+        );
+
+        return isUltrawide ? (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+            {/* Kolom Kiri: Kalender Bulanan Interaktif (7 Col) */}
+            <div className="xl:col-span-7 space-y-4">
+              {calendarGridBlock}
+            </div>
+
+            {/* Kolom Kanan: Rincian Transaksi Tanggal Terpilih dipindahkan ke samping! (5 Col) */}
+            <div className="xl:col-span-5 space-y-4">
+              {dayInspectorBlock}
+            </div>
+          </div>
+        ) : (
+          <>
+            {calendarGridBlock}
+            {dayInspectorBlock}
+          </>
+        );
+      })()}
       </QueryState>
     </div>
   );

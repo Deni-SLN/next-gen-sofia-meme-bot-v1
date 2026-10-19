@@ -10,6 +10,7 @@ import {
 import { QueryState } from '@/components/QueryState';
 import { BotActivityCard } from '@/components/BotActivityCard';
 import { LucideIcon } from '@/components/LucideIcon';
+import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 const RELAY_OPTIONS = [
   { id: 'JITO_0SLOT', label: '⚡ Jito 0-Slot Bundle (Anti-MEV)', desc: 'Inklusi blok-0 langsung ke validator Jito' },
@@ -54,6 +55,7 @@ const BOT_STRATEGY_MODES = [
 const QUICK_SNIPE_PRESETS = [15000, 30000, 50000, 100000];
 
 export default function TradingPage() {
+  const isUltrawide = useUltrawide();
   const botQuery = useApiQuery(() => api.getBotStatus(), []);
   const portfolioQuery = useApiQuery(() => api.getPortfolio(), []);
   const walletsQuery = useApiQuery(() => api.getWallets(), []);
@@ -375,6 +377,19 @@ export default function TradingPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-[11px] font-mono">
+          <button
+            type="button"
+            onClick={() => toggleUltrawide(!isUltrawide)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border font-mono text-[11px] font-bold transition ${
+              isUltrawide
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border-obsidian-800 hover:text-white'
+            }`}
+            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
+          >
+            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
+          </button>
           <span className="px-2.5 py-1 rounded-lg bg-obsidian-950 border border-obsidian-800 text-slate-300">
             Auto TP: <strong className="text-emerald-400">+{autoTpPct}%</strong> • SL:{' '}
             <strong className="text-rose-400">-{autoSlPct}%</strong>
@@ -394,8 +409,9 @@ export default function TradingPage() {
       )}
 
       <QueryState isLoading={botQuery.isLoading} isError={botQuery.isError} error={botQuery.error}>
-        {/* Main Switch & Power Control Card */}
-        <div className="p-4 rounded-xl bg-obsidian-900 border border-obsidian-700/80 space-y-4">
+        {(() => {
+          const terminalControlsBlock = (
+            <div className="p-4 rounded-xl bg-obsidian-900 border border-obsidian-700/80 space-y-4 shadow-lg">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-obsidian-800 pb-4">
             {/* Left: Current Engine Status */}
             <div className="space-y-1">
@@ -914,9 +930,10 @@ export default function TradingPage() {
             </button>
           </div>
         </div>
+        );
 
-        {/* Active Open Positions Monitor (With 25%/50%/100% Quick Sell & Panic Sell All) */}
-        <div className="p-4 rounded-xl bg-obsidian-900 border border-obsidian-700/80 space-y-3">
+        const positionsBlock = (
+          <div className="p-4 rounded-xl bg-obsidian-900 border border-obsidian-700/80 space-y-3 shadow-lg">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-obsidian-800 pb-2.5">
             <div className="flex items-center gap-2">
               <LucideIcon name="activity" className="w-4 h-4 text-emerald-400" />
@@ -996,10 +1013,34 @@ export default function TradingPage() {
               </table>
             </div>
           )}
-        </div>
+          </div>
+        );
 
-        {/* Live Bot Activity Stream Card */}
-        <BotActivityCard botStatus={botQuery.data?.status} />
+        const botLogsBlock = (
+          <BotActivityCard botStatus={botQuery.data?.status} />
+        );
+
+        return isUltrawide ? (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+            {/* Kolom Kiri: Control Switch, Strategy & Snipe Terminal (7 Col) */}
+            <div className="xl:col-span-7 space-y-4">
+              {terminalControlsBlock}
+            </div>
+
+            {/* Kolom Kanan: Posisi Aktif & Log Stream dipindahkan ke samping! (5 Col) */}
+            <div className="xl:col-span-5 space-y-4">
+              {positionsBlock}
+              {botLogsBlock}
+            </div>
+          </div>
+        ) : (
+          <>
+            {terminalControlsBlock}
+            {positionsBlock}
+            {botLogsBlock}
+          </>
+        );
+      })()}
       </QueryState>
     </div>
   );

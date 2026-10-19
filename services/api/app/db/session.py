@@ -18,6 +18,8 @@ from app.db.models import (
     StockPortfolioPosition,
     StockWatchlistItem,
     StockSignalJournal,
+    ChatSession,
+    ChatMessage,
 )
 
 connect_args = {}

@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { api } from '@/lib/api';
 import { LucideIcon } from '@/components/LucideIcon';
+import { TradingChart } from '@/components/TradingChart';
+import { TradingViewWidget } from '@/components/TradingViewWidget';
+import { TechnicalIndicatorsCard } from '@/components/TechnicalIndicatorsCard';
+import { useUltrawide } from '@/lib/useUltrawide';
 
 const QUICK_TICKERS = [
   'IHSG',
@@ -53,8 +57,20 @@ export default function StockAnalysisPage() {
   const [stockData, setStockData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [chartMode, setChartMode] = useState<'tradingview' | 'quantitative'>('tradingview');
+  const [focusedIndicator, setFocusedIndicator] = useState<'ALL' | 'SNR' | 'SMC' | 'EMA200' | 'ICHIMOKU' | 'FIBONACCI'>('SNR');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [noticeMsg, setNoticeMsg] = useState<string | null>(null);
+  const isUltrawide = useUltrawide();
+
+  const handleSelectIndicator = (ind: 'ALL' | 'SNR' | 'SMC' | 'EMA200' | 'ICHIMOKU' | 'FIBONACCI') => {
+    setChartMode('quantitative');
+    setFocusedIndicator(ind);
+    const el = document.getElementById('chart-container-root');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
 
   // Quick lot simulator & Dividend tax toggle
   const [simLots, setSimLots] = useState<number>(10);
@@ -291,7 +307,11 @@ export default function StockAnalysisPage() {
         <title>Analisa Saham BEI ({activeTicker}) | SOFIA Trenches v3.8 PRO</title>
       </Head>
 
-      <div className="p-4 lg:p-6 space-y-5 max-w-[1600px] mx-auto pb-24">
+      <div
+        className={`p-4 lg:p-6 space-y-5 pb-24 transition-all duration-300 ${
+          isUltrawide ? 'w-full max-w-none px-4 lg:px-8' : 'max-w-[1600px] mx-auto'
+        }`}
+      >
         {/* Top Search, Truthful Feed Status Badge, IHSG Hari Ini Banner & Quick Ticker Bar */}
         <div className="rounded-2xl border border-slate-800/90 bg-gradient-to-r from-[#0b101d] via-[#0f172a] to-[#0b101d] p-5 shadow-xl space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -355,6 +375,25 @@ export default function StockAnalysisPage() {
                 title="Refresh harga & indikator terbaru"
               >
                 <LucideIcon name="rotate-ccw" className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !isUltrawide;
+                  localStorage.setItem('sofia_ultrawide', next ? 'true' : 'false');
+                  window.dispatchEvent(new CustomEvent('sofia-ultrawide-toggle', { detail: next }));
+                }}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 shrink-0 ${
+                  isUltrawide
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm shadow-cyan-500/10'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+                title="Alihkan susunan card antara Mode Biasa (vertikal & scroll) dan Mode Layar Lebar (multi-card menyamping)"
+              >
+                <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {isUltrawide ? 'Mode Layar Lebar (Aktif)' : 'Mode Layar Lebar'}
+                </span>
               </button>
             </form>
           </div>
@@ -903,13 +942,81 @@ export default function StockAnalysisPage() {
                   </div>
                 </div>
 
-                {/* ROW 2: Kesimpulan Analisa Singkat + Grafik 30 Hari + Simulasi Lot */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                  <div className="lg:col-span-7 rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4 shadow-lg">
+                {/* INTERACTIVE CHART ENGINE & DYNAMIC LAYOUT (NORMAL VS ULTRAWIDE) */}
+                {(() => {
+                  const chartOnlyBlock = (
+                    <div id="chart-container-root" className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 bg-obsidian-900/80 p-2.5 rounded-xl border border-obsidian-800">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-300 font-mono flex items-center gap-1.5">
+                            <LucideIcon name="bar-chart-2" className="w-4 h-4 text-cyan-400" />
+                            Pilihan Mesin Grafik:
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setChartMode('tradingview')}
+                            className={`px-3 py-1.5 rounded-lg font-bold border transition ${
+                              chartMode === 'tradingview'
+                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                                : 'bg-obsidian-950 text-slate-400 border-obsidian-800 hover:text-white'
+                            }`}
+                          >
+                            📈 TradingView Pro (Live Timeframe)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setChartMode('quantitative')}
+                            className={`px-3 py-1.5 rounded-lg font-bold border transition ${
+                              chartMode === 'quantitative'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                                : 'bg-obsidian-950 text-slate-400 border-obsidian-800 hover:text-white'
+                            }`}
+                          >
+                            ⚡ SOFIA Quant (5 Indikator SNR/SMC/EMA/Kumo/Fib)
+                          </button>
+                        </div>
+                      </div>
+
+                      {chartMode === 'tradingview' ? (
+                        <TradingViewWidget
+                          symbol={stockData.code}
+                          timeframe={selectedTimeframe}
+                          isCrypto={false}
+                          height={isUltrawide ? 490 : 500}
+                        />
+                      ) : (
+                        <TradingChart
+                          candles={stockData?.candles || stockData?.recent_candles || candles}
+                          symbol={stockData.code}
+                          timeframe={selectedTimeframe}
+                          currency={stockData.currency}
+                          technicalAudit={stockData.technical_audit}
+                          initialFocus={focusedIndicator}
+                          onFocusChange={setFocusedIndicator}
+                          height={isUltrawide ? 470 : 440}
+                        />
+                      )}
+                    </div>
+                  );
+
+                  const indicatorsBlock = stockData.technical_audit ? (
+                    <TechnicalIndicatorsCard
+                      technicalAudit={stockData.technical_audit}
+                      symbol={stockData.code}
+                      currency={stockData.currency}
+                      focusedIndicator={focusedIndicator}
+                      onSelectIndicator={handleSelectIndicator}
+                    />
+                  ) : null;
+
+                  const summaryBlock = (
+                    <div className="w-full rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4 shadow-lg">
                     <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                       <h3 className="text-sm font-extrabold uppercase tracking-wide text-white flex items-center gap-2">
                         <LucideIcon name="area-chart" className="w-4 h-4 text-emerald-400" />
-                        Kesimpulan Analisa &amp; Grafik Penutupan 30 Hari ({stockData.code})
+                        Ringkasan Sinyal Analisis Saham ({stockData.code})
                       </h3>
                       <span className="text-[11px] font-mono text-slate-400">
                         Satuan: {stockData.currency} • Timeframe: 1D
@@ -965,10 +1072,12 @@ export default function StockAnalysisPage() {
                         </div>
                       </div>
                     )}
-                  </div>
+                    </div>
+                  );
 
-                  {/* Quick Technicals + Lot Simulator */}
-                  <div className="lg:col-span-5 rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4 shadow-lg flex flex-col justify-between">
+                  // Quick Technicals + Lot Simulator
+                  const lotBlock = (
+                    <div className="w-full rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4 shadow-lg flex flex-col justify-between">
                     <div className="space-y-3">
                       <h3 className="text-sm font-extrabold uppercase tracking-wide text-white border-b border-slate-800 pb-3">
                         📊 Indikator Inti &amp; Simulasi Lot Bersih
@@ -1064,95 +1173,167 @@ export default function StockAnalysisPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                  );
+
+                  return isUltrawide ? (
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+                      {/* Kolom 1 (Kiri - 5 Col): Chart Interaktif (TradingView Pro / SOFIA Quant) */}
+                      <div className="xl:col-span-5 space-y-4">
+                        {chartOnlyBlock}
+                      </div>
+
+                      {/* Kolom 2 (Tengah - 4 Col): Audit 5 Indikator Teknis (SNR, SMC, EMA, Kumo, Fib) Dipindahkan ke Samping Chart! */}
+                      <div className="xl:col-span-4 space-y-4">
+                        {indicatorsBlock}
+                      </div>
+
+                      {/* Kolom 3 (Kanan - 3 Col): Ringkasan Sinyal & Simulasi Pembelian Lot */}
+                      <div className="xl:col-span-3 space-y-4">
+                        {summaryBlock}
+                        {lotBlock}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {chartOnlyBlock}
+                      {indicatorsBlock}
+                      {/* ROW 2: Kesimpulan Analisa Singkat + Detail Indikator + Simulasi Lot */}
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                        <div className="lg:col-span-7">{summaryBlock}</div>
+                        <div className="lg:col-span-5">{lotBlock}</div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
 
             {/* =====================================================================
                 TAB 2: TECHNICAL ANALYSIS ENGINE (Section 4B)
                ===================================================================== */}
-            {activeTab === 'technical' && (
-              <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-                  <div>
-                    <h3 className="text-sm font-extrabold uppercase text-cyan-300">
-                      B. Technical Analysis Engine — {stockData.code} (Timeframe: {plan.timeframe_label})
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Kalkulasi terverifikasi bebas look-ahead bias dari {tech.candles_count} candle historis (Split-Adjusted).
-                    </p>
-                  </div>
-                  <span className="px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-emerald-300">
-                    Data Status: {tech.has_sufficient_data ? 'VALID (Histori Memadai)' : 'INSUFFICIENT_DATA'}
-                  </span>
-                </div>
+            {activeTab === 'technical' && (() => {
+              const chartCol = (
+                <div className="space-y-4">
+                  <TradingChart
+                    candles={stockData?.candles || stockData?.recent_candles || candles}
+                    symbol={stockData.code}
+                    timeframe={selectedTimeframe}
+                    currency={stockData.currency}
+                    technicalAudit={stockData.technical_audit}
+                    initialFocus={focusedIndicator}
+                    onFocusChange={setFocusedIndicator}
+                    height={isUltrawide ? 490 : 450}
+                  />
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-[10px] text-slate-400 font-sans">SMA-20 / SMA-50 / SMA-200</div>
-                    <div className="font-bold text-white mt-1">
-                      {fmtPrice(tech.sma_20)} / {fmtPrice(tech.sma_50)}
+                  {/* Price Structure: Breakout, Breakdown & Pullback Detection */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                      <div className="text-[10px] font-bold uppercase text-cyan-300">
+                        Deteksi Breakout / Breakdown (20-Bar Box)
+                      </div>
+                      <div className="font-mono font-bold text-white">
+                        {tech.structure?.breakout_status}
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        Support Box 20H: {fmtPrice(tech.structure?.box_support_20)} • Resistance Box 20H:{' '}
+                        {fmtPrice(tech.structure?.box_resistance_20)}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-slate-400">SMA-200: {fmtPrice(tech.sma_200)}</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-[10px] text-slate-400 font-sans">EMA-20 &amp; EMA-50</div>
-                    <div className="font-bold text-cyan-300 mt-1">
-                      {fmtPrice(tech.ema_20)} / {fmtPrice(tech.ema_50)}
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      Cross: {tech.ema_20 >= tech.ema_50 ? 'Bullish EMA Alignment' : 'Bearish EMA Alignment'}
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-[10px] text-slate-400 font-sans">Bollinger Bands (20, 2σ)</div>
-                    <div className="font-bold text-white mt-1">
-                      {fmtPrice(tech.bollinger?.lower)} – {fmtPrice(tech.bollinger?.upper)}
-                    </div>
-                    <div className="text-[10px] text-amber-300">
-                      %B: {tech.bollinger?.percent_b}% • BW: {tech.bollinger?.bandwidth_pct}%
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="text-[10px] text-slate-400 font-sans">VWAP &amp; Wilder&apos;s ATR-14</div>
-                    <div className="font-bold text-emerald-300 mt-1">
-                      VWAP: {tech.vwap ? fmtPrice(tech.vwap) : 'N/A (EOD)'}
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      ATR-14: {fmtPrice(tech.atr_14)} ({tech.atr_pct}%)
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                      <div className="text-[10px] font-bold uppercase text-amber-300">
+                        Deteksi Pullback / Retest &amp; Volume MA-20
+                      </div>
+                      <div className="font-mono font-bold text-white">
+                        {tech.structure?.pullback_status}
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        Volume Saat Ini: {Number(tech.latest_volume || 0).toLocaleString('id-ID')} lbr vs MA20:{' '}
+                        {Number(tech.avg_volume_20d || 0).toLocaleString('id-ID')} lbr ({tech.volume_ratio}x)
+                      </div>
                     </div>
                   </div>
                 </div>
+              );
 
-                {/* Price Structure: Breakout, Breakdown & Pullback Detection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-[10px] font-bold uppercase text-cyan-300">
-                      Deteksi Breakout / Breakdown (20-Bar Box)
+              const metricsCol = (
+                <div className="space-y-4">
+                  {stockData.technical_audit && (
+                    <TechnicalIndicatorsCard
+                      technicalAudit={stockData.technical_audit}
+                      symbol={stockData.code}
+                      currency={stockData.currency}
+                      focusedIndicator={focusedIndicator}
+                      onSelectIndicator={handleSelectIndicator}
+                    />
+                  )}
+
+                  <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                      <div>
+                        <h3 className="text-sm font-extrabold uppercase text-cyan-300">
+                          B. Detail Metrik Indikator — {stockData.code} (Timeframe: {plan.timeframe_label})
+                        </h3>
+                        <p className="text-xs text-slate-400">
+                          Kalkulasi terverifikasi bebas look-ahead bias dari {tech.candles_count} candle historis (Split-Adjusted).
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-emerald-300">
+                        Data Status: {tech.has_sufficient_data ? 'VALID (Histori Memadai)' : 'INSUFFICIENT_DATA'}
+                      </span>
                     </div>
-                    <div className="font-mono font-bold text-white">
-                      {tech.structure?.breakout_status}
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      Support Box 20H: {fmtPrice(tech.structure?.box_support_20)} • Resistance Box 20H:{' '}
-                      {fmtPrice(tech.structure?.box_resistance_20)}
-                    </div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                    <div className="text-[10px] font-bold uppercase text-amber-300">
-                      Deteksi Pullback / Retest &amp; Volume MA-20
-                    </div>
-                    <div className="font-mono font-bold text-white">
-                      {tech.structure?.pullback_status}
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      Volume Saat Ini: {Number(tech.latest_volume || 0).toLocaleString('id-ID')} lbr vs MA20:{' '}
-                      {Number(tech.avg_volume_20d || 0).toLocaleString('id-ID')} lbr ({tech.volume_ratio}x)
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">SMA-20 / SMA-50 / SMA-200</div>
+                        <div className="font-bold text-white mt-1">
+                          {fmtPrice(tech.sma_20)} / {fmtPrice(tech.sma_50)}
+                        </div>
+                        <div className="text-[10px] text-slate-400">SMA-200: {fmtPrice(tech.sma_200)}</div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">EMA-20 &amp; EMA-50</div>
+                        <div className="font-bold text-cyan-300 mt-1">
+                          {fmtPrice(tech.ema_20)} / {fmtPrice(tech.ema_50)}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          Cross: {tech.ema_20 >= tech.ema_50 ? 'Bullish EMA Alignment' : 'Bearish EMA Alignment'}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">Bollinger Bands (20, 2σ)</div>
+                        <div className="font-bold text-white mt-1">
+                          {fmtPrice(tech.bollinger?.lower)} – {fmtPrice(tech.bollinger?.upper)}
+                        </div>
+                        <div className="text-[10px] text-amber-300">
+                          %B: {tech.bollinger?.percent_b}% • BW: {tech.bollinger?.bandwidth_pct}%
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-sans">VWAP &amp; Wilder&apos;s ATR-14</div>
+                        <div className="font-bold text-emerald-300 mt-1">
+                          VWAP: {tech.vwap ? fmtPrice(tech.vwap) : 'N/A (EOD)'}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          ATR-14: {fmtPrice(tech.atr_14)} ({tech.atr_pct}%)
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+
+              return isUltrawide ? (
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+                  <div className="xl:col-span-6 space-y-4">{chartCol}</div>
+                  <div className="xl:col-span-6 space-y-4">{metricsCol}</div>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {chartCol}
+                  {metricsCol}
+                </div>
+              );
+            })()}
 
             {/* =====================================================================
                 TAB 3: FUNDAMENTAL ANALYSIS ENGINE (Section 4C)
@@ -1820,9 +2001,8 @@ export default function StockAnalysisPage() {
             {/* =====================================================================
                 TAB 10: WALK-FORWARD BACKTEST, SIGNAL JOURNAL & PORTFOLIO (4J & 4K)
                ===================================================================== */}
-            {activeTab === 'backtest' && (
-              <div className="space-y-5">
-                {/* Walk-Forward Backtest Card */}
+            {activeTab === 'backtest' && (() => {
+              const backtestCard = (
                 <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
                   <div className="border-b border-slate-800 pb-3">
                     <h3 className="text-sm font-extrabold uppercase text-amber-300">
@@ -1833,7 +2013,7 @@ export default function StockAnalysisPage() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 font-mono text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono text-xs">
                     <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
                       <div className="text-[10px] text-slate-400">Total Trades</div>
                       <div className="text-sm font-bold text-white">{backtest.overall?.total_trades}</div>
@@ -1868,8 +2048,9 @@ export default function StockAnalysisPage() {
                     </div>
                   </div>
                 </div>
+              );
 
-                {/* Manual IDX Stock Portfolio Integration (Section 4K) */}
+              const portfolioCard = (
                 <div className="rounded-2xl border border-slate-800/90 bg-[#0b101d] p-5 space-y-4">
                   <div className="border-b border-slate-800 pb-3">
                     <h3 className="text-sm font-extrabold uppercase text-emerald-300">
@@ -1953,8 +2134,20 @@ export default function StockAnalysisPage() {
                     </div>
                   )}
                 </div>
-              </div>
-            )}
+              );
+
+              return isUltrawide ? (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+                  {backtestCard}
+                  {portfolioCard}
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {backtestCard}
+                  {portfolioCard}
+                </div>
+              );
+            })()}
 
             {/* =====================================================================
                 TAB 11: DATA QUALITY & SOURCE PROVENANCE (Section 4L)

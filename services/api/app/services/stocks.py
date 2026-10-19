@@ -1922,6 +1922,16 @@ def analyze_stock(
         "disclaimer": "Dividen historis tidak menjamin pembagian dividen masa depan dengan nominal yang sama; bergantung pada laba bersih dan keputusan RUPS.",
     }
 
+    # Standardized 5 Technical Indicators Audit & Synthesis (SNR, SMC, EMA200, Ichimoku, Fibonacci)
+    from app.services.technical_indicators import run_technical_audit_and_synthesis
+    chart_candles = active_tf_candles if active_tf_candles else candles
+    tech_audit = run_technical_audit_and_synthesis(
+        candles=chart_candles,
+        symbol=clean_code,
+        timeframe=tf_norm,
+        current_price=current_price,
+    )
+
     ai_analyst = build_ai_stock_analyst(
         clean_code=clean_code,
         name=company_name,
@@ -2018,7 +2028,9 @@ def analyze_stock(
         "backtest": backtest_res,
         "data_quality": data_quality,
         "summary_notes": signals_notes,
-        "recent_candles": candles[-30:],
+        "technical_audit": tech_audit,
+        "recent_candles": chart_candles[-80:],
+        "candles": chart_candles[-80:],
         "popular_stocks": POPULAR_IDX_STOCKS,
         "ihsg": ihsg_data,
         "updated_at": updated_at_str,

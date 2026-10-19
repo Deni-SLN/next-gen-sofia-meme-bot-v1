@@ -11,6 +11,7 @@ import { QueryState } from '@/components/QueryState';
 import { PnLChart } from '@/components/PnLChart';
 import { BotActivityCard } from '@/components/BotActivityCard';
 import { LucideIcon } from '@/components/LucideIcon';
+import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 const AVATAR_THEMES = [
   {
@@ -39,6 +40,7 @@ const SNIPE_PCT_PRESETS = [
 ];
 
 export default function DashboardPage() {
+  const isUltrawide = useUltrawide();
   const botQuery = useApiQuery(() => api.getBotStatus(), []);
   const portfolioQuery = useApiQuery(() => api.getPortfolio(), []);
   const perfQuery = useApiQuery(() => api.getPerformance(), []);
@@ -245,6 +247,19 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => toggleUltrawide(!isUltrawide)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border font-mono text-[11px] font-bold transition ${
+              isUltrawide
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                : 'bg-obsidian-900 hover:bg-obsidian-850 text-slate-300 border-obsidian-700/80 hover:text-white'
+            }`}
+            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
+          >
+            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
+          </button>
           <span className="px-2.5 py-1 rounded-lg bg-obsidian-900 border border-obsidian-700/80 text-slate-300 font-mono text-[11px]">
             Target: <strong className="text-white">{activeTarget}</strong>
           </span>
@@ -274,7 +289,12 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <QueryState isLoading={botQuery.isLoading} isError={botQuery.isError} error={botQuery.error}>
+      <QueryState
+        isLoading={botQuery.isLoading}
+        isError={botQuery.isError}
+        error={botQuery.error}
+        hasData={!!botQuery.data}
+      >
         {/* BEGIN: Clean 4-Metric KPI Cards */}
         <section
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
@@ -400,35 +420,30 @@ export default function DashboardPage() {
         </section>
         {/* END: Clean 4-Metric KPI Cards */}
 
-        {/* BEGIN: LiveBotActivityAndTerminal */}
-        <BotActivityCard
-          botStatus={botQuery.data?.status}
-          onTargetChange={(t) => setActiveTarget(t)}
-        />
-        {/* END: LiveBotActivityAndTerminal */}
+        {(() => {
+          const terminalAndChartBlock = (
+            <div className="space-y-4">
+              <BotActivityCard
+                botStatus={botQuery.data?.status}
+                onTargetChange={(t) => setActiveTarget(t)}
+              />
+              <PnLChart
+                points={perfQuery.data?.pnl_chart || []}
+                usdIdr={usdIdr}
+                totalTrades={perfQuery.data?.total_trades ?? 0}
+                realizedIdr={realizedPnlIdr}
+                floatingIdr={unrealizedPnlIdr}
+                liveEquityUsd={activeEquityUsd}
+                liveEquityIdr={activeEquityIdr}
+              />
+            </div>
+          );
 
-        {/* BEGIN: EquityCurveSection */}
-        <PnLChart
-          points={perfQuery.data?.pnl_chart || []}
-          usdIdr={usdIdr}
-          totalTrades={perfQuery.data?.total_trades ?? 0}
-          realizedIdr={realizedPnlIdr}
-          floatingIdr={unrealizedPnlIdr}
-          liveEquityUsd={activeEquityUsd}
-          liveEquityIdr={activeEquityIdr}
-        />
-        {/* END: EquityCurveSection */}
-
-        {/* BEGIN: BottomDualPanelsSection */}
-        <section
-          className="grid grid-cols-1 lg:grid-cols-12 gap-4"
-          data-purpose="sniper-and-market-dual-panel"
-        >
-          {/* ================= LEFT PANEL: Instant Token Sniper ================= */}
-          <form
-            onSubmit={handleInstantSnipe}
-            className="lg:col-span-5 bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 flex flex-col justify-between space-y-4"
-          >
+          const sniperCard = (
+            <form
+              onSubmit={handleInstantSnipe}
+              className="w-full bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 flex flex-col justify-between space-y-4 shadow-lg"
+            >
             <div className="space-y-3.5">
               <div className="flex items-center justify-between pb-2.5 border-b border-obsidian-800">
                 <div className="flex items-center gap-2">
@@ -547,9 +562,10 @@ export default function DashboardPage() {
               </button>
             </div>
           </form>
+        );
 
-          {/* ================= RIGHT PANEL: Live DexScreener Meme Feed ================= */}
-          <div className="lg:col-span-7 bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+        const trenchesCard = (
+          <div className="w-full bg-obsidian-900 border border-obsidian-700/70 rounded-xl p-4 space-y-3 flex flex-col justify-between shadow-lg">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-obsidian-800">
                 <div className="flex items-center gap-2">
@@ -650,9 +666,35 @@ export default function DashboardPage() {
               <span>Sumber: DexScreener &amp; GMGN.ai</span>
               <span>Filter: Anti-Rug Verified</span>
             </div>
-          </div>
-        </section>
-        {/* END: BottomDualPanelsSection */}
+            </div>
+          );
+
+          return isUltrawide ? (
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+              {/* Kolom Kiri: Terminal Bot & Kurva Equity PnL (7 Cols) */}
+              <div className="xl:col-span-7 space-y-4">
+                {terminalAndChartBlock}
+              </div>
+
+              {/* Kolom Kanan: Instant Sniper & Trenches Feed dipindahkan ke samping! (5 Cols) */}
+              <div className="xl:col-span-5 space-y-4">
+                {sniperCard}
+                {trenchesCard}
+              </div>
+            </div>
+          ) : (
+            <>
+              {terminalAndChartBlock}
+              <section
+                className="grid grid-cols-1 lg:grid-cols-12 gap-4"
+                data-purpose="sniper-and-market-dual-panel"
+              >
+                <div className="lg:col-span-5">{sniperCard}</div>
+                <div className="lg:col-span-7">{trenchesCard}</div>
+              </section>
+            </>
+          );
+        })()}
       </QueryState>
     </div>
   );

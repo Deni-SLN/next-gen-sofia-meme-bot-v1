@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { api, useApiQuery, formatIdr, formatUsd, getTradingMode, setTradingMode } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { PnLChart } from '@/components/PnLChart';
+import { LucideIcon } from '@/components/LucideIcon';
+import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 export default function PortfolioPage() {
+  const isUltrawide = useUltrawide();
   const portfolioQuery = useApiQuery(() => api.getPortfolio(), []);
   const perfQuery = useApiQuery(() => api.getPerformance(), []);
   const walletsQuery = useApiQuery(() => api.getWallets(), []);
@@ -153,6 +156,19 @@ export default function PortfolioPage() {
         <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
           <button
             type="button"
+            onClick={() => toggleUltrawide(!isUltrawide)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono text-[11px] font-bold transition ${
+              isUltrawide
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border-obsidian-800 hover:text-white'
+            }`}
+            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
+          >
+            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
+          </button>
+          <button
+            type="button"
             onClick={() => {
               const next = mode === 'PAPER' ? 'LIVE' : 'PAPER';
               setMode(next);
@@ -270,19 +286,21 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {/* Redesigned Equity Curve & PnL Chart */}
-        <PnLChart
-          points={perfQuery.data?.pnl_chart || []}
-          usdIdr={usdIdr}
-          totalTrades={perfQuery.data?.total_trades ?? 0}
-          realizedIdr={perfQuery.data?.total_pnl_idr ?? 0}
-          floatingIdr={d?.unrealized_pnl_idr ?? 0}
-          liveEquityUsd={activeEquityUsd}
-          liveEquityIdr={activeEquityIdr}
-        />
+        {(() => {
+          const chartBlock = (
+            <PnLChart
+              points={perfQuery.data?.pnl_chart || []}
+              usdIdr={usdIdr}
+              totalTrades={perfQuery.data?.total_trades ?? 0}
+              realizedIdr={perfQuery.data?.total_pnl_idr ?? 0}
+              floatingIdr={d?.unrealized_pnl_idr ?? 0}
+              liveEquityUsd={activeEquityUsd}
+              liveEquityIdr={activeEquityIdr}
+            />
+          );
 
-        {/* Holdings Table with 1-Click Sell Buttons */}
-        <div className="rounded-xl bg-obsidian-900 border border-obsidian-700/80 overflow-hidden">
+          const holdingsBlock = (
+            <div className="rounded-xl bg-obsidian-900 border border-obsidian-700/80 overflow-hidden shadow-lg">
           <div className="p-3.5 border-b border-obsidian-800 flex flex-wrap items-center justify-between gap-2">
             <div className="font-bold text-xs uppercase tracking-wider text-slate-100">
               Posisi Meme Coin Aktif (Harga Real-Time DexScreener)
@@ -389,6 +407,27 @@ export default function PortfolioPage() {
             </table>
           </div>
         </div>
+        );
+
+        return isUltrawide ? (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+            {/* Kolom Kiri: Kurva PnL Chart (7 Col) */}
+            <div className="xl:col-span-7 space-y-4">
+              {chartBlock}
+            </div>
+
+            {/* Kolom Kanan: Posisi Meme Coin Terbuka dipindahkan ke samping! (5 Col) */}
+            <div className="xl:col-span-5 space-y-4">
+              {holdingsBlock}
+            </div>
+          </div>
+        ) : (
+          <>
+            {chartBlock}
+            {holdingsBlock}
+          </>
+        );
+      })()}
       </QueryState>
     </div>
   );

@@ -4,11 +4,13 @@ interface QueryStateProps {
   isLoading: boolean;
   isError: boolean;
   error?: any;
+  hasData?: boolean;
   children?: React.ReactNode;
 }
 
-export function QueryState({ isLoading, isError, error, children }: QueryStateProps) {
-  if (isLoading) {
+export function QueryState({ isLoading, isError, error, hasData, children }: QueryStateProps) {
+  // If we already have children / cached data, keep displaying it to prevent page flickering
+  if (isLoading && !hasData) {
     return (
       <div className="p-6 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 animate-pulse">
         Memuat data...

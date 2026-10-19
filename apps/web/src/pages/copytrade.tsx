@@ -1,8 +1,11 @@
 import React from 'react';
 import { api, useApiQuery, formatIdr, formatUsd } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
+import { LucideIcon } from '@/components/LucideIcon';
+import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 export default function CopyTradePage() {
+  const isUltrawide = useUltrawide();
   const smQuery = useApiQuery(() => api.getSmartMoney(), []);
   const usdIdr = smQuery.data?.usd_idr || 16500;
 
@@ -13,16 +16,34 @@ export default function CopyTradePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-100">🐋 Smart Money & Auto Copy-Trade</h1>
-        <p className="text-sm text-slate-400">
-          Pantau dompet whale berkinerja tinggi dan salin transaksi mereka otomatis • Kurs Hari Ini: $1 ={' '}
-          <span className="text-emerald-400 font-mono font-bold">{formatIdr(usdIdr)}</span>
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-100 flex items-center gap-2">
+            <span>🐋</span> Smart Money &amp; Auto Copy-Trade
+          </h1>
+          <p className="text-sm text-slate-400">
+            Pantau dompet whale berkinerja tinggi dan salin transaksi mereka otomatis • Kurs Hari Ini: $1 ={' '}
+            <span className="text-emerald-400 font-mono font-bold">{formatIdr(usdIdr)}</span>
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => toggleUltrawide(!isUltrawide)}
+          className={`px-3 py-1.5 rounded-xl border text-xs font-mono font-bold transition flex items-center gap-2 ${
+            isUltrawide
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+          }`}
+          title="Mode Layar Lebar: Menampilkan dompet whale berdampingan multi-kolom horizontal"
+        >
+          <LucideIcon name={isUltrawide ? 'Minimize2' : 'Maximize2'} className="w-4 h-4" />
+          <span>{isUltrawide ? 'Layar Biasa' : 'Mode Layar Lebar'}</span>
+        </button>
       </div>
 
       <QueryState isLoading={smQuery.isLoading} isError={smQuery.isError} error={smQuery.error}>
-        <div className="grid grid-cols-1 gap-4">
+        <div className={isUltrawide ? 'grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 items-stretch' : 'grid grid-cols-1 gap-4'}>
           {(smQuery.data?.wallets || []).map((w: any) => (
             <div
               key={w.id}

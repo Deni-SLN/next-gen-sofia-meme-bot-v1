@@ -81,21 +81,29 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export function useApiQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isFetching, setIsFetching] = useState<boolean>(false);
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState<any>(null);
+  const hasDataRef = useState<{ current: boolean }>({ current: false })[0];
 
   const refetch = useCallback(async () => {
-    setIsLoading(true);
+    // Only trigger full skeleton/loading state if data hasn't been loaded yet
+    if (!hasDataRef.current) {
+      setIsLoading(true);
+    }
+    setIsFetching(true);
     setIsError(false);
     setError(null);
     try {
       const result = await fetcher();
+      hasDataRef.current = true;
       setData(result);
     } catch (err) {
       setIsError(true);
       setError(err);
     } finally {
       setIsLoading(false);
+      setIsFetching(false);
     }
   }, deps);
 
@@ -103,14 +111,14 @@ export function useApiQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
     refetch();
   }, [refetch]);
 
-  return { data, isLoading, isError, error, refetch, setData };
+  return { data, isLoading, isFetching, isError, error, refetch, setData };
 }
 
 export const api = {
-  login: (password: string) =>
+  login: (password: string, username?: string) =>
     request<{ token: string; actor: string; role: string }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, username: username || 'admin' }),
     }),
   getBotStatus: () => request<any>('/bot/status'),
   getSniperConfig: () => request<any>('/bot/config'),
@@ -322,6 +330,31 @@ export const api = {
     exchange_fee_pct?: number;
     tax_pct?: number;
   }) => request<any>('/crypto/risk-calculator', { method: 'POST', body: JSON.stringify(data) }),
+  // AI Chat, Sessions & Tool-Assisted Research Endpoints
+  getChatSessions: () => request<any>('/chat/sessions'),
+  createChatSession: (data: { title?: string; provider?: string; model?: string }) =>
+    request<any>('/chat/sessions', { method: 'POST', body: JSON.stringify(data) }),
+  getChatSession: (sessionId: string) => request<any>(`/chat/sessions/${sessionId}`),
+  updateChatSession: (
+    sessionId: string,
+    data: { title?: string; provider?: string; model?: string }
+  ) => request<any>(`/chat/sessions/${sessionId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteChatSession: (sessionId: string) =>
+    request<any>(`/chat/sessions/${sessionId}`, { method: 'DELETE' }),
+  getChatModels: (provider: string = 'openrouter', freeOnly: boolean = false, refresh: boolean = false) => {
+    const params = new URLSearchParams({ provider });
+    if (freeOnly) params.append('free_only', 'true');
+    if (refresh) params.append('refresh', 'true');
+    return request<any>(`/chat/models?${params.toString()}`);
+  },
+  getChatTools: () => request<any>('/chat/tools'),
+  sendChatMessage: (data: {
+    session_id?: string;
+    message: string;
+    provider?: string;
+    model?: string;
+    api_key?: string;
+  }) => request<any>('/chat/completions', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 

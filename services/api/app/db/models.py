@@ -239,3 +239,32 @@ class StockSignalJournal(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class ChatSession(Base):
+    """Multi-session conversation threads with AI models."""
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), default="Percakapan Baru")
+    provider: Mapped[str] = mapped_column(String(32), default="openrouter")  # openrouter, 9router, google
+    model: Mapped[str] = mapped_column(String(128), default="google/gemini-2.0-flash-exp:free")
+    system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ChatMessage(Base):
+    """Messages inside a chat session, supporting tool calls & execution results."""
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[str] = mapped_column(String(64), index=True)
+    role: Mapped[str] = mapped_column(String(24))  # user, assistant, system, tool
+    content: Mapped[str] = mapped_column(Text, default="")
+    tool_calls: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    tool_results: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    model: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+

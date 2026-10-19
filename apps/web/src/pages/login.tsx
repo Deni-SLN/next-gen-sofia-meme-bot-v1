@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import { api, setToken, getToken } from '@/lib/api';
-import {
-  detectChromeExtensions,
-  connectSolanaExtension,
-  connectEvmExtension,
-  shortenAddress,
-} from '@/lib/web3';
 import { LucideIcon } from '@/components/LucideIcon';
+
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 menit
+const STORAGE_KEY_ATTEMPTS = 'sofia_login_failed_attempts';
+const STORAGE_KEY_LOCKOUT = 'sofia_login_locked_until';
 
 interface LoginPortalProps {
   onSuccess?: () => void;
@@ -15,18 +15,49 @@ interface LoginPortalProps {
 
 export function LoginPortal({ onSuccess }: LoginPortalProps) {
   const router = useRouter();
+  const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
-  const [extDetected, setExtDetected] = useState({ anySolana: false, anyEvm: false });
+  const [lockRemainingSec, setLockRemainingSec] = useState<number>(0);
+
+  // Cek status lockout dari localStorage saat load
+  const checkLockoutStatus = () => {
+    if (typeof window === 'undefined') return 0;
+    const lockedUntilStr = localStorage.getItem(STORAGE_KEY_LOCKOUT);
+    if (lockedUntilStr) {
+      const lockedUntil = parseInt(lockedUntilStr, 10);
+      const remainingMs = lockedUntil - Date.now();
+      if (remainingMs > 0) {
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        setLockRemainingSec(remainingSec);
+        return remainingSec;
+      } else {
+        // Lockout berakhir, bersihkan
+        localStorage.removeItem(STORAGE_KEY_LOCKOUT);
+        localStorage.removeItem(STORAGE_KEY_ATTEMPTS);
+        setLockRemainingSec(0);
+        return 0;
+      }
+    }
+    return 0;
+  };
 
   useEffect(() => {
-    const det = detectChromeExtensions();
-    setExtDetected({ anySolana: det.anySolana, anyEvm: det.anyEvm });
+    checkLockoutStatus();
+    const interval = setInterval(() => {
+      checkLockoutStatus();
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const completeLogin = (token: string) => {
+    // Reset counter gagal login jika berhasil
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY_ATTEMPTS);
+      localStorage.removeItem(STORAGE_KEY_LOCKOUT);
+    }
     setToken(token);
     if (onSuccess) {
       onSuccess();
@@ -38,183 +69,226 @@ export function LoginPortal({ onSuccess }: LoginPortalProps) {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-    setLoading(true);
-    try {
-      const res = await api.login(password || 'changeme');
-      completeLogin(res.token);
-    } catch (err: any) {
-      setLoginError(err?.message || 'Password operator tidak sesuai');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleQuickDemoLogin = async () => {
-    setPassword('changeme');
-    setLoginError('');
-    setLoading(true);
-    try {
-      const res = await api.login('changeme');
-      completeLogin(res.token);
-    } catch (err: any) {
-      setLoginError(err?.message || 'Gagal login cepat');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleWeb3ExtensionLogin = async (type: 'solana' | 'evm') => {
-    setLoginError('');
-    setLoading(true);
-    try {
-      const authRes = await api.login(password || 'changeme');
-      setToken(authRes.token);
-      if (type === 'solana') {
-        await connectSolanaExtension('phantom');
-      } else {
-        await connectEvmExtension('Base', 'metamask');
-      }
-      completeLogin(authRes.token);
-    } catch (err: any) {
+    // Periksa apakah sedang terkunci
+    const remaining = checkLockoutStatus();
+    if (remaining > 0) {
+      const minutes = Math.floor(remaining / 60);
+      const seconds = remaining % 60;
       setLoginError(
-        err?.message ||
-          'Pastikan ekstensi Phantom / MetaMask aktif di Chrome atau gunakan Login Password Operator di atas.'
+        `Akses terkunci karena 5x kesalahan login berturut-turut. Silakan tunggu ${minutes} menit ${seconds} detik.`
+      );
+      return;
+    }
+
+    if (!password.trim()) {
+      setLoginError('Password wajib diisi.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.login(password.trim(), username.trim() || 'Deni26');
+      completeLogin(res.token);
+    } catch (err: any) {
+      // Catat percobaan gagal
+      let currentAttempts = 1;
+      if (typeof window !== 'undefined') {
+        const savedAttempts = parseInt(localStorage.getItem(STORAGE_KEY_ATTEMPTS) || '0', 10);
+        currentAttempts = savedAttempts + 1;
+        localStorage.setItem(STORAGE_KEY_ATTEMPTS, currentAttempts.toString());
+
+        if (currentAttempts >= MAX_FAILED_ATTEMPTS) {
+          const lockTime = Date.now() + LOCKOUT_DURATION_MS;
+          localStorage.setItem(STORAGE_KEY_LOCKOUT, lockTime.toString());
+          setLockRemainingSec(Math.ceil(LOCKOUT_DURATION_MS / 1000));
+          setLoginError(
+            `Akses terkunci! Anda telah 5 kali salah memasukkan informasi login. Harap tunggu 15 menit sebelum mencoba kembali.`
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
+      const sisa = MAX_FAILED_ATTEMPTS - currentAttempts;
+      setLoginError(
+        `${err?.message || 'Username atau Password tidak sesuai.'} (Sisa percobaan: ${sisa}x sebelum terkunci 15 menit)`
       );
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-obsidian-950 grid-bg-overlay flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+  const isLocked = lockRemainingSec > 0;
+  const lockMinutes = Math.floor(lockRemainingSec / 60);
+  const lockSeconds = lockRemainingSec % 60;
 
-      <div className="w-full max-w-md bg-obsidian-900/95 backdrop-blur-xl border border-obsidian-700 rounded-2xl p-6 sm:p-7 space-y-5 shadow-glow-emerald relative z-10">
-        {/* Brand Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-              <LucideIcon name="crosshair" className="w-5 h-5" />
-              <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
+  return (
+    <>
+      <Head>
+        <title>Login — Sofia Market Analyst</title>
+      </Head>
+      <div className="min-h-screen bg-obsidian-950 grid-bg-overlay flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Glow ambient background */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md bg-obsidian-900/95 backdrop-blur-xl border border-obsidian-800 rounded-2xl p-7 sm:p-8 space-y-6 shadow-2xl relative z-10">
+          {/* Brand Header Clean */}
+          <div className="text-center space-y-2">
+            <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500/20 via-teal-500/20 to-cyan-500/20 border border-emerald-500/40 text-emerald-400 mb-1 shadow-glow-emerald">
+              <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                {/* Candle 1 (Awal) */}
+                <line x1="11" y1="26" x2="11" y2="40" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" />
+                <rect x="8.5" y="29" width="5" height="8" rx="1" fill="#10b981" stroke="#34d399" strokeWidth="1" />
+
+                {/* Candle 2 (Akumulasi Rebound) */}
+                <line x1="22" y1="18" x2="22" y2="34" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" />
+                <rect x="19.5" y="21" width="5" height="10" rx="1" fill="#10b981" stroke="#34d399" strokeWidth="1" />
+
+                {/* Candle 3 (Impulsif Bullish Breakout) */}
+                <line x1="33" y1="9" x2="33" y2="28" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" />
+                <rect x="30.5" y="12" width="5" height="12" rx="1" fill="#10b981" stroke="#34d399" strokeWidth="1" />
+
+                {/* Bullish Trend Curve & Arrow */}
+                <path
+                  d="M6 38 C 15 35, 23 26, 40 9"
+                  stroke="#22d3ee"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+                <polyline
+                  points="32,9 41,9 41,18"
+                  stroke="#22d3ee"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+
+                {/* Glowing Spark at Target Peak */}
+                <circle cx="41" cy="9" r="2.5" fill="#38bdf8" />
+              </svg>
             </div>
-            <div>
-              <div className="font-extrabold tracking-wider text-base text-slate-100 flex items-center gap-1.5 font-mono">
-                SOFIA<span className="text-emerald-400">TRENCHES</span>
-                <span className="text-[9px] uppercase px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded font-sans font-semibold">
-                  v3.8 PRO
+            <h1 className="text-2xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
+              Sofia Market Analyst
+            </h1>
+            <p className="text-xs text-slate-400 font-mono tracking-wide">
+              by <span className="text-emerald-400 font-semibold">deni sln</span>
+            </p>
+          </div>
+
+          {/* Lockout Notice */}
+          {isLocked && (
+            <div className="p-4 rounded-xl bg-rose-950/70 border border-rose-500/50 text-rose-200 text-xs font-mono space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-rose-300">
+                <LucideIcon name="shield-alert" className="w-4 h-4" />
+                AKUN TERKUNCI (SECURITY LOCKOUT)
+              </div>
+              <p>
+                Terdeteksi 5 kali kegagalan login. Sistem mengunci akses selama 15 menit demi keamanan.
+              </p>
+              <div className="pt-2 text-rose-300 font-bold text-sm">
+                Waktu tunggu:{' '}
+                <span className="text-amber-400 font-mono">
+                  {String(lockMinutes).padStart(2, '0')}:{String(lockSeconds).padStart(2, '0')}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Dual-Engine Paper &amp; Live On-Chain Meme Sniper
-              </p>
             </div>
-          </div>
-          <span className="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono font-bold">
-            PWA READY
-          </span>
-        </div>
+          )}
 
-        <p className="text-xs text-slate-400 leading-relaxed">
-          Masuk ke <strong>Sniper Command Center</strong> menggunakan Password Operator (default:{' '}
-          <code className="text-emerald-400 font-mono font-bold">changeme</code>) atau hubungkan langsung dengan ekstensi dompet Chrome Anda.
-        </p>
+          {/* Regular Error Notification */}
+          {!isLocked && loginError && (
+            <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs font-mono flex items-start gap-2">
+              <span className="text-rose-400 font-bold text-sm">⚠️</span>
+              <div>{loginError}</div>
+            </div>
+          )}
 
-        {loginError && (
-          <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/40 text-rose-200 text-xs font-mono">
-            ⚠️ {loginError}
-          </div>
-        )}
-
-        {/* Password Login Form */}
-        <form onSubmit={handleLogin} className="space-y-3.5">
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
-                Operator Password
+          {/* Clean User & Password Login Form */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            {/* Username Input */}
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5 font-mono">
+                Username
               </label>
-              <button
-                type="button"
-                onClick={handleQuickDemoLogin}
-                className="text-[10px] font-mono text-emerald-400 hover:underline"
-              >
-                ⚡ Masuk Cepat (Default: changeme)
-              </button>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-slate-500">
+                  <LucideIcon name="user" className="w-4 h-4" />
+                </span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Masukkan username (Deni26)..."
+                  disabled={isLocked || loading}
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-obsidian-950 border border-obsidian-700 text-slate-100 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 transition"
+                  autoComplete="username"
+                />
+              </div>
             </div>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Masukkan password operator (changeme)..."
-                className="w-full px-3.5 py-2.5 pr-16 rounded-xl bg-obsidian-950 border border-obsidian-700 text-slate-100 text-xs font-mono focus:outline-none focus:border-emerald-500"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2.5 top-2 px-2 py-0.5 rounded bg-obsidian-800 text-[10px] font-mono text-slate-400 hover:text-white"
-              >
-                {showPassword ? 'HIDE' : 'SHOW'}
-              </button>
+
+            {/* Password Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-slate-300 font-mono">
+                  Password
+                </label>
+              </div>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-slate-500">
+                  <LucideIcon name="lock" className="w-4 h-4" />
+                </span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Masukkan password..."
+                  disabled={isLocked || loading}
+                  className="w-full pl-10 pr-16 py-2.5 rounded-xl bg-obsidian-950 border border-obsidian-700 text-slate-100 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 transition"
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLocked || loading}
+                  className="absolute right-2.5 top-2 px-2 py-0.5 rounded bg-obsidian-800 text-[10px] font-mono text-slate-400 hover:text-white transition"
+                >
+                  {showPassword ? 'HIDE' : 'SHOW'}
+                </button>
+              </div>
             </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLocked || loading}
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-obsidian-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200 mt-2"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-obsidian-950 border-t-transparent rounded-full animate-spin" />
+                  Memverifikasi...
+                </span>
+              ) : isLocked ? (
+                `Terkunci (${String(lockMinutes).padStart(2, '0')}:${String(lockSeconds).padStart(2, '0')})`
+              ) : (
+                'Masuk ke Sistem'
+              )}
+            </button>
+          </form>
+
+          {/* System Footer Note */}
+          <div className="pt-3 border-t border-obsidian-800 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Sistem Aktif
+            </span>
+            <span>Sofia Market Analyst © {new Date().getFullYear()}</span>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-obsidian-950 font-extrabold text-xs uppercase tracking-wider shadow-glow-emerald transition"
-          >
-            {loading ? '⏳ Memverifikasi Akses...' : '⚡ Unlock Sniper Command Center'}
-          </button>
-        </form>
-
-        {/* Divider */}
-        <div className="relative flex py-1 items-center">
-          <div className="flex-grow border-t border-obsidian-800"></div>
-          <span className="flex-shrink mx-3 text-[10px] font-mono uppercase text-slate-500">
-            Atau Login + Connect Ekstensi Chrome
-          </span>
-          <div className="flex-grow border-t border-obsidian-800"></div>
-        </div>
-
-        {/* Web3 Chrome Extension Login Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 font-mono text-xs">
-          <button
-            type="button"
-            onClick={() => handleWeb3ExtensionLogin('solana')}
-            className="py-2.5 px-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 hover:border-purple-500/50 text-purple-300 font-bold flex items-center justify-center gap-2 transition"
-          >
-            <span>👻 Phantom / Solflare</span>
-            {extDetected.anySolana && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleWeb3ExtensionLogin('evm')}
-            className="py-2.5 px-3 rounded-xl bg-obsidian-950 hover:bg-obsidian-800 border border-obsidian-700 hover:border-orange-500/50 text-orange-300 font-bold flex items-center justify-center gap-2 transition"
-          >
-            <span>🦊 MetaMask / Rabby</span>
-            {extDetected.anyEvm && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            )}
-          </button>
-        </div>
-
-        {/* System Status Footer */}
-        <div className="pt-2 border-t border-obsidian-800 flex items-center justify-between text-[10px] font-mono text-slate-500">
-          <span className="flex items-center gap-1.5 text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-            Neonbase Cloud Connected
-          </span>
-          <span>Mode Paper &amp; Live 100% Aktif</span>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

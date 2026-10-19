@@ -693,8 +693,9 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertEqual(r_port_add.status_code, 200)
         p_data = r_port_add.json()
         self.assertGreaterEqual(len(p_data["positions"]), 1)
-        pos_id = p_data["positions"][0]["id"]
-        self.assertEqual(p_data["positions"][0]["shares"], 1000)
+        target_pos = next((p for p in p_data["positions"] if p.get("notes") == "Unit test position"), p_data["positions"][-1])
+        pos_id = target_pos["id"]
+        self.assertEqual(target_pos["shares"], 1000)
 
         r_watch_add = self.client.post(
             "/api/v1/stocks/watchlist",
