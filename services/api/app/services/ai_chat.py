@@ -706,16 +706,31 @@ def run_chat_completion(
     # HEURISTIC PROACTIVE INTENT & TOOL DETECTION
     # Guarantees that all SOFIA tools are executed accurately across IDX stocks, crypto, gold, rugcheck, news, and encyclopedia
     auto_tool_context = ""
-    COMMON_EXCLUDE = {
-        "YANG", "DARI", "PADA", "BISA", "AKAN", "SAYA", "KAMU", "HALO", "HARI", "JUGA",
-        "INFO", "BACA", "BUAT", "CHAT", "BAIK", "CARA", "DANA", "BAGI", "LABA", "ATAS",
-        "NAIK", "TURUN", "BELI", "JUAL", "KOIN", "EMAS", "FREE", "LIVE", "RATE", "ZONE",
-        "FEED", "OPEN", "TIME", "HIGH", "PLUS", "REAL", "APAK", "BAGA", "SELA", "KITA",
-        "INVE", "JUTA", "SBN", "NOTE", "TEST", "USER", "BOT", "TOOL", "MENU", "MODE",
-    }
+
+    # Check if user is asking general questions, greeting, or capabilities
+    is_general_or_capabilities = any(re.search(p, lower_user) for p in [
+        r"apa yang bisa (?:kamu|kemu|bot|ai) lakukan",
+        r"kamu bisa apa",
+        r"bisa apa saja",
+        r"fitur (?:apa saja|kamu|bot|ai)",
+        r"siapa kamu",
+        r"fungsi (?:kamu|bot|ai)",
+        r"bisa bantu apa",
+        r"respon tidak nyambung",
+        r"apa kemampuanmu",
+        r"^halo\b",
+        r"^hai\b",
+        r"^selamat (?:pagi|siang|sore|malam)\b",
+        r"^bantuan\b",
+        r"^help\b",
+    ])
+
+    if is_general_or_capabilities:
+        # General capabilities requested, do not run background financial tools
+        pass
 
     # 1. Memecoin Rugcheck & Security Audit
-    if any(k in lower_user for k in ("rugcheck", "rug check", "honeypot", "audit token", "cek token", "pump.fun", "pumpfun", "scam coin")):
+    elif any(k in lower_user for k in ("rugcheck", "rug check", "honeypot", "audit token", "cek token", "pump.fun", "pumpfun", "scam coin")):
         tok_match = re.search(r"\b(?:rugcheck|audit|token|koin|cek)?\s*([a-zA-Z0-9]{2,44})\b", last_user_msg, re.IGNORECASE)
         target_token = tok_match.group(1).upper() if tok_match and tok_match.group(1).lower() not in ("cek", "rugcheck", "token") else "BONK"
         res = execute_application_tool("analyze_memecoin_rugcheck", {"token": target_token}, db)
@@ -784,11 +799,26 @@ def run_chat_completion(
         executed_tool_results.append(res)
         auto_tool_context += f"\n\n[DATA TOOL SOFIA: search_market_news()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
 
-    # 6. Stocks Check (BEI / IDX) - Supports any 4-letter stock ticker
+    # 6. Stocks Check (BEI / IDX) - Strict validation to prevent random words being treated as stock tickers
     else:
-        # Check if user mentioned stock or stock tickers
-        cands = [w.upper() for w in re.findall(r"\b[a-zA-Z]{4}\b", last_user_msg) if w.upper() not in COMMON_EXCLUDE]
-        stock_ticker = "IHSG" if "ihsg" in lower_user else (cands[0] if cands else None)
+        stock_ticker = None
+        has_stock_intent = any(k in lower_user for k in ("saham", "emiten", "ihsg", "bei", "idx", "dividen", "bandarmologi", "valuasi", "analisa saham", "harga saham"))
+
+        if "ihsg" in lower_user:
+            stock_ticker = "IHSG"
+        elif has_stock_intent:
+            # When stock intent exists, find candidate ticker (e.g. 'saham BBRI', 'analisa BRIS', 'emiten BREN')
+            m_code = re.search(r"\b(?:saham|emiten|analisa|evaluasi|harga|kode)?\s*([a-zA-Z]{4})\b", last_user_msg, re.IGNORECASE)
+            if m_code and m_code.group(1).upper() not in ("SAHA", "EMIT", "ANAL", "EVAL", "HARG", "KODE"):
+                cand = m_code.group(1).upper()
+                if cand not in ("YANG", "DARI", "PADA", "BISA", "AKAN", "SAYA", "KAMU", "KEMU", "HARI", "INFO"):
+                    stock_ticker = cand
+        else:
+            # Only trigger if user wrote an explicit ALL-CAPS 4-letter ticker (like 'BBRI', 'BRIS', 'BREN')
+            all_caps_words = re.findall(r"\b([A-Z]{4})\b", last_user_msg)
+            valid_caps = [w for w in all_caps_words if w not in ("YANG", "DARI", "PADA", "BISA", "AKAN", "SAYA", "KAMU", "KEMU", "HARI", "INFO", "USER", "TEST", "NOTE", "CHAT")]
+            if valid_caps:
+                stock_ticker = valid_caps[0]
 
         if stock_ticker:
             res = execute_application_tool("analyze_stock", {"code": stock_ticker, "timeframe": "1d"}, db)
@@ -882,48 +912,64 @@ def run_chat_completion(
             tname = res0.get("tool")
 
             if tname == "analyze_stock":
-                p_curr = _fmt_n(res0.get("current_price"))
-                tp1 = _fmt_n(res0.get("tp_1"))
-                tp2 = _fmt_n(res0.get("tp_2"))
-                sl = _fmt_n(res0.get("stop_loss"))
-                val_base = _fmt_n(res0.get("valuation_base"))
-                day_chg = res0.get("day_change_pct") or 0.0
+                # Check if tool execution was an error or empty
+                if res0.get("status") != "success" or not res0.get("code") or res0.get("current_price") is None:
+                    target_code = res0.get("arguments", {}).get("code") or res0.get("code") or "yang dimasukkan"
+                    assistant_content = (
+                        f"⚠️ Kode saham **{target_code}** tidak ditemukan di Bursa Efek Indonesia (BEI).\n\n"
+                        f"Pastikan memasukkan 4 huruf kode emiten resmi (contoh: `BBRI`, `BBCA`, `BMRI`, `TLKM`, `ASII`, `BREN`, `BRIS`, `ANTM`, atau `IHSG`).\n\n"
+                        f"Ketik `Analisa BBRI` atau klik salah satu starter card di bawah untuk memulai analisa."
+                    )
+                else:
+                    p_curr = _fmt_n(res0.get("current_price"))
+                    tp1 = _fmt_n(res0.get("tp_1"))
+                    tp2 = _fmt_n(res0.get("tp_2"))
+                    sl = _fmt_n(res0.get("stop_loss"))
+                    val_base = _fmt_n(res0.get("valuation_base"))
+                    day_chg = res0.get("day_change_pct") or 0.0
 
-                assistant_content = (
-                    f"### 📊 Hasil Analisa Saham: **{res0.get('code')}** ({res0.get('name')})\n\n"
-                    f"- **Harga Saat Ini**: {p_curr} ({'+' if day_chg >= 0 else ''}{day_chg}%)\n"
-                    f"- **Sinyal Kuantitatif**: **{res0.get('signal_direction', 'NETRAL')}** ({res0.get('action_verdict', 'HOLD')})\n"
-                    f"- **Zona Beli (Entry Range)**: **{res0.get('entry_zone', 'N/A')}**\n"
-                    f"- **Target Profit 1 (Konservatif)**: {tp1}\n"
-                    f"- **Target Profit 2 (Ekspansi)**: {tp2}\n"
-                    f"- **Stop Loss Proteksi**: {sl}\n"
-                    f"- **Rasio Reward/Risk Bersih**: **{res0.get('net_rr_ratio', 1.5)}x** (Setelah Fee Beli 0.15% & Jual 0.25%)\n"
-                    f"- **Status Tren**: {res0.get('trend_status', 'Konsolidasi')}\n\n"
-                    f"**Ringkasan Valuasi Fundamental:**\n"
-                    f"- Nilai Wajar Base Case (DCF & Multiples): {val_base} ({res0.get('valuation_verdict', 'Fairly Valued')})\n\n"
-                    f"💡 *Catatan Manajemen Risiko*: Disiplin memasang Stop Loss ketat dan batasi alokasi maksimal 1–2% risiko modal portofolio per posisi."
-                )
+                    assistant_content = (
+                        f"### 📊 Hasil Analisa Saham: **{res0.get('code')}** ({res0.get('name')})\n\n"
+                        f"- **Harga Saat Ini**: {p_curr} ({'+' if day_chg >= 0 else ''}{day_chg}%)\n"
+                        f"- **Sinyal Kuantitatif**: **{res0.get('signal_direction', 'NETRAL')}** ({res0.get('action_verdict', 'HOLD')})\n"
+                        f"- **Zona Beli (Entry Range)**: **{res0.get('entry_zone', 'N/A')}**\n"
+                        f"- **Target Profit 1 (Konservatif)**: {tp1}\n"
+                        f"- **Target Profit 2 (Ekspansi)**: {tp2}\n"
+                        f"- **Stop Loss Proteksi**: {sl}\n"
+                        f"- **Rasio Reward/Risk Bersih**: **{res0.get('net_rr_ratio', 1.5)}x** (Setelah Fee Beli 0.15% & Jual 0.25%)\n"
+                        f"- **Status Tren**: {res0.get('trend_status', 'Konsolidasi')}\n\n"
+                        f"**Ringkasan Valuasi Fundamental:**\n"
+                        f"- Nilai Wajar Base Case (DCF & Multiples): {val_base} ({res0.get('valuation_verdict', 'Fairly Valued')})\n\n"
+                        f"💡 *Catatan Manajemen Risiko*: Disiplin memasang Stop Loss ketat dan batasi alokasi maksimal 1–2% risiko modal portofolio per posisi."
+                    )
 
             elif tname == "analyze_crypto":
-                p_usd = _fmt_n(res0.get("price_usd"), prefix="$")
-                p_idr = _fmt_n(res0.get("price_idr"), prefix="Rp ")
-                tp1_usd = _fmt_n(res0.get("tp_1_usd"), prefix="$")
-                tp2_usd = _fmt_n(res0.get("tp_2_usd"), prefix="$")
-                sl_usd = _fmt_n(res0.get("stop_loss_usd"), prefix="$")
-                day_chg = res0.get("day_change_pct") or 0.0
+                if res0.get("status") != "success" or not res0.get("symbol") or res0.get("price_usd") is None:
+                    sym = res0.get("symbol") or "yang dimasukkan"
+                    assistant_content = (
+                        f"⚠️ Aset crypto **{sym}** tidak ditemukan.\n\n"
+                        f"Pastikan memasukkan simbol koin global resmi seperti `BTC`, `ETH`, `SOL`, `XRP`, `DOGE`, `ADA`, atau `BNB`."
+                    )
+                else:
+                    p_usd = _fmt_n(res0.get("price_usd"), prefix="$")
+                    p_idr = _fmt_n(res0.get("price_idr"), prefix="Rp ")
+                    tp1_usd = _fmt_n(res0.get("tp_1_usd"), prefix="$")
+                    tp2_usd = _fmt_n(res0.get("tp_2_usd"), prefix="$")
+                    sl_usd = _fmt_n(res0.get("stop_loss_usd"), prefix="$")
+                    day_chg = res0.get("day_change_pct") or 0.0
 
-                assistant_content = (
-                    f"### 🪙 Hasil Analisa Crypto: **{res0.get('symbol')}** ({res0.get('name')})\n\n"
-                    f"- **Harga Live**: **{p_usd}** (≈ {p_idr})\n"
-                    f"- **Perubahan 24 Jam**: {'+' if day_chg >= 0 else ''}{day_chg}%\n"
-                    f"- **Sinyal Algoritmik**: **{res0.get('signal_direction', 'NEUTRAL')}** ({res0.get('action_verdict', 'WATCH')})\n"
-                    f"- **Zona Entry Ideal**: **{res0.get('entry_zone', 'N/A')}**\n"
-                    f"- **Target Profit 1**: {tp1_usd}\n"
-                    f"- **Target Profit 2**: {tp2_usd}\n"
-                    f"- **Stop Loss**: {sl_usd}\n"
-                    f"- **Net R/R Ratio**: **{res0.get('net_rr_ratio', 2.0)}x** (setelah fee exchange & PPh 0.10% + PPN 0.11%)\n"
-                    f"- **Estimasi Staking APR**: {res0.get('staking_yield_apr', 'N/A')}%\n"
-                )
+                    assistant_content = (
+                        f"### 🪙 Hasil Analisa Crypto: **{res0.get('symbol')}** ({res0.get('name')})\n\n"
+                        f"- **Harga Live**: **{p_usd}** (≈ {p_idr})\n"
+                        f"- **Perubahan 24 Jam**: {'+' if day_chg >= 0 else ''}{day_chg}%\n"
+                        f"- **Sinyal Algoritmik**: **{res0.get('signal_direction', 'NEUTRAL')}** ({res0.get('action_verdict', 'WATCH')})\n"
+                        f"- **Zona Entry Ideal**: **{res0.get('entry_zone', 'N/A')}**\n"
+                        f"- **Target Profit 1**: {tp1_usd}\n"
+                        f"- **Target Profit 2**: {tp2_usd}\n"
+                        f"- **Stop Loss**: {sl_usd}\n"
+                        f"- **Net R/R Ratio**: **{res0.get('net_rr_ratio', 2.0)}x** (setelah fee exchange & PPh 0.10% + PPN 0.11%)\n"
+                        f"- **Estimasi Staking APR**: {res0.get('staking_yield_apr', 'N/A')}%\n"
+                    )
 
             elif tname == "get_gold_prices":
                 assistant_content = (
@@ -1005,15 +1051,16 @@ def run_chat_completion(
 
         else:
             assistant_content = (
-                f"Halo! Saya **SOFIA AI Quant & Research Assistant**. Saya terhubung langsung dengan seluruh tool aplikasi ini:\n\n"
-                f"1. 📈 **Analisa Saham BEI**: Ketik `Analisa BBRI`, `Saham BRIS`, `BREN`, atau emiten lainnya.\n"
-                f"2. 🪙 **Analisa Crypto Global**: Ketik `Analisa BTC`, `SOL`, atau `ETH`.\n"
-                f"3. 🛡️ **Audit Rugcheck Memecoin**: Ketik `Cek rugcheck BONK` atau masukkan contract address.\n"
-                f"4. 🏆 **Emas & Buyback**: Ketik `Harga emas hari ini`.\n"
-                f"5. 💰 **Kalkulator Deposito vs Obligasi**: Ketik `Simulasi 50 juta deposito vs obligasi`.\n"
-                f"6. 📰 **Berita Pasar**: Ketik `Berita IHSG hari ini`.\n"
-                f"7. 📚 **Ensiklopedia Finansial**: Ketik `Apa itu Order Block` atau `Apa itu Mudharabah`.\n\n"
-                f"Silakan ketik pertanyaan Anda untuk memulai analisa kuantitatif!"
+                f"Halo! Saya adalah **SOFIA AI Quant & Research Assistant** — asisten riset pasar finansial multi-aset terpadu di platform SOFIA.\n\n"
+                f"Berikut adalah kapabilitas dan data yang dapat saya sediakan langsung untuk Anda:\n\n"
+                f"1. 📈 **Analisa Saham BEI (IDX)**: Ketik `Analisa BBRI`, `Saham BBCA`, `BRIS`, atau `BREN` untuk mendapatkan harga live, Trading Plan (Entry, TP, SL), dan valuasi fundamental DCF & PBV/PER.\n"
+                f"2. 🪙 **Analisa Crypto Global**: Ketik `Analisa BTC`, `SOL`, atau `ETH` untuk melihat tren, level teknikal, dan estimasi APR staking.\n"
+                f"3. 🛡️ **Audit Keamanan Memecoin / Rugcheck**: Ketik `Cek rugcheck BONK` atau masukkan contract address token Solana/Pump.fun.\n"
+                f"4. 🏆 **Harga Emas & Spread Buyback**: Ketik `Harga emas hari ini` untuk melihat harga Antam CertiEye 1g, harga buyback, dan spot XAU/USD.\n"
+                f"5. 💰 **Kalkulator Deposito vs Obligasi**: Ketik `Simulasi 50 juta deposito syariah vs sukuk` untuk menghitung perbandingan imbal hasil bersih setelah pajak (PPh 20% vs 10%).\n"
+                f"6. 📰 **Berita Pasar Terkini**: Ketik `Berita IHSG hari ini` untuk membaca rangkuman berita finansial dari CNBC Indonesia dan Antara.\n"
+                f"7. 📚 **Ensiklopedia Finansial**: Ketik `Apa itu Order Block`, `Apa itu FVG`, atau `Apa itu Mudharabah`.\n\n"
+                f"Silakan ketik pertanyaan Anda sesuai kebutuhan analisa di atas!"
             )
 
     return {
