@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { api } from '@/lib/api';
 import { LucideIcon } from '@/components/LucideIcon';
+import { MarkdownMessage } from '@/components/MarkdownMessage';
 
 interface ChatSessionItem {
   id: string;
@@ -779,10 +780,8 @@ export default function ChatPage() {
                             </div>
                           )}
 
-                          {/* Message Content formatted */}
-                          <div className="whitespace-pre-wrap font-sans text-xs sm:text-[13px] leading-relaxed break-words">
-                            {msg.content}
-                          </div>
+                          {/* Message Content with Real Bold Typography (No ** asterisks) */}
+                          <MarkdownMessage content={msg.content} isUser={isUser} />
 
                           <div
                             className={`text-[9px] font-mono flex items-center justify-end ${
