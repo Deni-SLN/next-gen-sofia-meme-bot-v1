@@ -77,6 +77,22 @@ const STARTER_PROMPTS = [
   },
 ];
 
+const formatTimeWIB = (dateStr?: string) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr.slice(11, 16);
+    return d.toLocaleTimeString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return dateStr.slice(11, 16);
+  }
+};
+
 export default function ChatPage() {
   // Navigation & Sessions State
   const [sessions, setSessions] = useState<ChatSessionItem[]>([]);
@@ -497,7 +513,7 @@ export default function ChatPage() {
                           <div className="truncate">
                             <span className="font-medium truncate block">{sess.title}</span>
                             <span className="text-[10px] text-slate-500 block font-mono">
-                              {sess.provider} • {sess.updated_at ? sess.updated_at.slice(11, 16) : ''}
+                              {sess.provider} • {sess.updated_at ? `${formatTimeWIB(sess.updated_at)} WIB` : ''}
                             </span>
                           </div>
                         )}
@@ -787,8 +803,9 @@ export default function ChatPage() {
                             className={`text-[9px] font-mono flex items-center justify-end ${
                               isUser ? 'text-emerald-200' : 'text-slate-500'
                             }`}
+                            title="Waktu Indonesia Barat (WIB) — Depok / Jakarta"
                           >
-                            {msg.created_at ? msg.created_at.slice(11, 16) : ''}
+                            {msg.created_at ? `${formatTimeWIB(msg.created_at)} WIB` : ''}
                           </div>
                         </div>
 

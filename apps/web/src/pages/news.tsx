@@ -78,10 +78,12 @@ export default function NewsPage() {
           const dt = new Date(res.updated_at);
           setLastUpdated(
             dt.toLocaleTimeString('id-ID', {
+              timeZone: 'Asia/Jakarta',
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
-            })
+              hour12: false,
+            }) + ' WIB'
           );
         }
       } catch (err: any) {

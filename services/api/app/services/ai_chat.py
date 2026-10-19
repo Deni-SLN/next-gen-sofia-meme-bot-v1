@@ -20,8 +20,102 @@ import json
 import re
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
+
+WIB_TZ = timezone(timedelta(hours=7))
+
+HARI_ID = {
+    0: "Senin",
+    1: "Selasa",
+    2: "Rabu",
+    3: "Kamis",
+    4: "Jumat",
+    5: "Sabtu",
+    6: "Minggu",
+}
+
+BULAN_ID = {
+    1: "Januari",
+    2: "Februari",
+    3: "Maret",
+    4: "April",
+    5: "Mei",
+    6: "Juni",
+    7: "Juli",
+    8: "Agustus",
+    9: "September",
+    10: "Oktober",
+    11: "November",
+    12: "Desember",
+}
+
+
+def get_current_wib_info() -> Dict[str, Any]:
+    now_wib = datetime.now(WIB_TZ)
+    hari = HARI_ID.get(now_wib.weekday(), "Hari Ini")
+    bulan = BULAN_ID.get(now_wib.month, "")
+    jam_str = now_wib.strftime("%H:%M:%S")
+    date_str = f"{hari}, {now_wib.day} {bulan} {now_wib.year}"
+    full_str = f"{date_str} pukul {jam_str} WIB"
+
+    # Status Sesi Bursa Efek Indonesia (BEI)
+    day_idx = now_wib.weekday()
+    hour_min = now_wib.hour * 60 + now_wib.minute
+    is_weekend = day_idx in (5, 6)
+
+    if is_weekend:
+        bei_status = "TUTUP (Libur Akhir Pekan)"
+        bei_note = "Bursa Efek Indonesia libur pada akhir pekan dan akan dibuka kembali pada hari Senin pukul 09:00 WIB."
+    elif day_idx == 4:  # Jumat
+        if hour_min < 8 * 60 + 45:
+            bei_status = "PRE-OPENING (Pasar dibuka 09:00 WIB)"
+            bei_note = "Sesi perdagangan 1 dibuka pukul 09:00 WIB."
+        elif hour_min < 11 * 60 + 30:
+            bei_status = "SESI 1 AKTIF (09:00 - 11:30 WIB)"
+            bei_note = "Pasar saham BEI sedang aktif pada Sesi 1."
+        elif hour_min < 14 * 60:
+            bei_status = "ISTIRAHAT JUMAT (11:30 - 14:00 WIB)"
+            bei_note = "Bursa sedang istirahat siang hari Jumat. Sesi 2 dimulai pukul 14:00 WIB."
+        elif hour_min < 15 * 60 + 49:
+            bei_status = "SESI 2 AKTIF (14:00 - 15:49 WIB)"
+            bei_note = "Pasar saham BEI sedang aktif pada Sesi 2."
+        elif hour_min < 16 * 60:
+            bei_status = "PRE-CLOSING / PASCA-PENUTUPAN (15:50 - 16:00 WIB)"
+            bei_note = "Pembentukan harga penutupan dan penutupan perdagangan."
+        else:
+            bei_status = "TUTUP (Perdagangan selesai hari ini)"
+            bei_note = "Bursa Efek Indonesia telah tutup dan akan dibuka kembali hari Senin pukul 09:00 WIB."
+    else:  # Senin - Kamis
+        if hour_min < 8 * 60 + 45:
+            bei_status = "PRE-OPENING (Pasar dibuka 09:00 WIB)"
+            bei_note = "Sesi perdagangan 1 dibuka pukul 09:00 WIB."
+        elif hour_min < 12 * 60:
+            bei_status = "SESI 1 AKTIF (09:00 - 12:00 WIB)"
+            bei_note = "Pasar saham BEI sedang aktif pada Sesi 1."
+        elif hour_min < 13 * 60 + 30:
+            bei_status = "ISTIRAHAT SIANG (12:00 - 13:30 WIB)"
+            bei_note = "Bursa sedang istirahat siang. Sesi 2 dimulai pukul 13:30 WIB."
+        elif hour_min < 15 * 60 + 49:
+            bei_status = "SESI 2 AKTIF (13:30 - 15:49 WIB)"
+            bei_note = "Pasar saham BEI sedang aktif pada Sesi 2."
+        elif hour_min < 16 * 60:
+            bei_status = "PRE-CLOSING / PASCA-PENUTUPAN (15:50 - 16:00 WIB)"
+            bei_note = "Pembentukan harga penutupan dan penutupan perdagangan."
+        else:
+            bei_status = "TUTUP (Perdagangan selesai hari ini)"
+            bei_note = "Bursa Efek Indonesia telah tutup dan akan dibuka kembali besok pukul 09:00 WIB."
+
+    return {
+        "timezone": "Asia/Jakarta (WIB, UTC+7)",
+        "city_reference": "Depok, Jawa Barat / Jakarta",
+        "current_time_wib": jam_str[:5] + " WIB",
+        "current_time_full": full_str,
+        "date_wib": date_str,
+        "time_hms": jam_str,
+        "bei_status": bei_status,
+        "bei_note": bei_note,
+    }
 
 import httpx
 from sqlalchemy import select, desc
@@ -676,9 +770,13 @@ def run_chat_completion(
     prov = (provider or "openrouter").lower().strip()
     selected_model = model or "google/gemini-2.0-flash-exp:free"
 
+    wib_info = get_current_wib_info()
     default_system = (
         "Anda adalah SOFIA AI Quant & Research Assistant — asisten analis pasar keuangan multi-aset kuantitatif "
-        "yang cerdas, objektif, dan profesional di SOFIA Market Analyst v3.8.\n\n"
+        "yang cerdas, objektif, dan profesional di SOFIA Market Analyst v3.8.\n"
+        f"LOKASI & WAKTU PENGGUNA: Depok / Jawa Barat (Zona Waktu: Waktu Indonesia Barat / WIB, UTC+7).\n"
+        f"WAKTU SISTEM SAAT INI: {wib_info['current_time_full']}.\n"
+        f"STATUS BURSA EFEK INDONESIA (BEI): {wib_info['bei_status']}.\n\n"
         "KEMAMPUAN UTAMA:\n"
         "1. Anda memiliki akses langsung ke Tools aplikasi SOFIA (Analisa Saham BEI, Analisa Crypto Global, "
         "Harga Emas & Spread Buyback, Kalkulator Deposito vs Obligasi SBN, Berita Finansial, Status Bot & Portofolio, dan Ensiklopedia).\n"
@@ -709,6 +807,21 @@ def run_chat_completion(
     # Guarantees that all SOFIA tools are executed accurately across IDX stocks, crypto, gold, rugcheck, news, and encyclopedia
     auto_tool_context = ""
 
+    # Check if user is asking about local time / jam / Depok
+    is_asking_time = any(re.search(p, lower_user) for p in [
+        r"\bjam berapa\b",
+        r"\bsekarang jam\b",
+        r"\bwaktu sekarang\b",
+        r"\bjam sekarang\b",
+        r"\bpukul berapa\b",
+        r"\bjam di depok\b",
+        r"\bwaktu depok\b",
+        r"\bjam lokal\b",
+        r"\bperbaiki jam\b",
+        r"\btinggal di depok\b",
+        r"\bdepok\b",
+    ])
+
     # Check if user is asking general questions, greeting, or capabilities
     is_general_or_capabilities = any(re.search(p, lower_user) for p in [
         r"apa yang bisa (?:kamu|kemu|bot|ai) lakukan",
@@ -727,8 +840,8 @@ def run_chat_completion(
         r"^help\b",
     ])
 
-    if is_general_or_capabilities:
-        # General capabilities requested, do not run background financial tools
+    if is_asking_time or is_general_or_capabilities:
+        # Time or general capabilities requested, do not run background financial tools
         pass
 
     # 1. Memecoin Rugcheck & Security Audit
@@ -1073,18 +1186,38 @@ def run_chat_completion(
                 assistant_content = f"Data dari tool **{tname}** berhasil diproses: {json.dumps(res0, ensure_ascii=False)}"
 
         else:
-            assistant_content = (
-                f"Halo! Saya adalah **SOFIA AI Quant & Research Assistant** — asisten riset pasar finansial multi-aset terpadu di platform SOFIA.\n\n"
-                f"Berikut adalah kapabilitas dan data yang dapat saya sediakan langsung untuk Anda:\n\n"
-                f"1. 📈 **Analisa Saham BEI (IDX)**: Ketik `Analisa BBRI`, `Saham BBCA`, `BRIS`, atau `BREN` untuk mendapatkan harga live, Trading Plan (Entry, TP, SL), dan valuasi fundamental DCF & PBV/PER.\n"
-                f"2. 🪙 **Analisa Crypto Global**: Ketik `Analisa BTC`, `SOL`, atau `ETH` untuk melihat tren, level teknikal, dan estimasi APR staking.\n"
-                f"3. 🛡️ **Audit Keamanan Memecoin / Rugcheck**: Ketik `Cek rugcheck BONK` atau masukkan contract address token Solana/Pump.fun.\n"
-                f"4. 🏆 **Harga Emas & Spread Buyback**: Ketik `Harga emas hari ini` untuk melihat harga Antam CertiEye 1g, harga buyback, dan spot XAU/USD.\n"
-                f"5. 💰 **Kalkulator Deposito vs Obligasi**: Ketik `Simulasi 50 juta deposito syariah vs sukuk` untuk menghitung perbandingan imbal hasil bersih setelah pajak (PPh 20% vs 10%).\n"
-                f"6. 📰 **Berita Pasar Terkini**: Ketik `Berita IHSG hari ini` untuk membaca rangkuman berita finansial dari CNBC Indonesia dan Antara.\n"
-                f"7. 📚 **Ensiklopedia Finansial**: Ketik `Apa itu Order Block`, `Apa itu FVG`, atau `Apa itu Mudharabah`.\n\n"
-                f"Silakan ketik pertanyaan Anda sesuai kebutuhan analisa di atas!"
-            )
+            if is_asking_time:
+                assistant_content = (
+                    f"### ⏰ Jam & Waktu Operasional Pasar (Depok / WIB)\n\n"
+                    f"Waktu lokal saat ini di **Depok, Jawa Barat**:\n"
+                    f"- 🕒 **Jam Sekarang**: **{wib_info['current_time_wib']}** ({wib_info['time_hms']} WIB)\n"
+                    f"- 📅 **Hari & Tanggal**: **{wib_info['date_wib']}**\n"
+                    f"- 🌐 **Zona Waktu**: **Waktu Indonesia Barat (WIB / UTC+7)** (Asia/Jakarta)\n\n"
+                    f"---\n\n"
+                    f"### 📊 Status Pasar Finansial Terkini:\n"
+                    f"- 🏛️ **Bursa Efek Indonesia (BEI / IHSG)**: **{wib_info['bei_status']}**\n"
+                    f"  - *Keterangan*: {wib_info['bei_note']}\n"
+                    f"  - *Jadwal Reguler BEI*:\n"
+                    f"    - **Sesi 1**: 09:00 – 12:00 WIB (Jumat: 09:00 – 11:30 WIB)\n"
+                    f"    - **Sesi 2**: 13:30 – 15:49 WIB (Jumat: 14:00 – 15:49 WIB)\n"
+                    f"- ⚡ **Pasar Aset Kripto (Solana, Bitcoin, dsb.)**: **AKTIF 24/7 (Non-stop)**\n"
+                    f"- 🪙 **Pasar Emas Fisik (Antam / UBS)**: Pembaruan harga resmi setiap hari bursa pukul 08:30–09:00 WIB.\n\n"
+                    f"💡 *Catatan Sinkronisasi*: Seluruh tampilan jam di platform SOFIA (Chat AI, Berita, Jurnal Trading, dan Indikator Jam Real-Time di Header) "
+                    f"telah disesuaikan akurat mengikuti waktu **Depok / WIB (UTC+7)**."
+                )
+            else:
+                assistant_content = (
+                    f"Halo! Saya adalah **SOFIA AI Quant & Research Assistant** — asisten riset pasar finansial multi-aset terpadu di platform SOFIA.\n\n"
+                    f"Berikut adalah kapabilitas dan data yang dapat saya sediakan langsung untuk Anda:\n\n"
+                    f"1. 📈 **Analisa Saham BEI (IDX)**: Ketik `Analisa BBRI`, `Saham BBCA`, `BRIS`, atau `BREN` untuk mendapatkan harga live, Trading Plan (Entry, TP, SL), dan valuasi fundamental DCF & PBV/PER.\n"
+                    f"2. 🪙 **Analisa Crypto Global**: Ketik `Analisa BTC`, `SOL`, atau `ETH` untuk melihat tren, level teknikal, dan estimasi APR staking.\n"
+                    f"3. 🛡️ **Audit Keamanan Memecoin / Rugcheck**: Ketik `Cek rugcheck BONK` atau masukkan contract address token Solana/Pump.fun.\n"
+                    f"4. 🏆 **Harga Emas & Spread Buyback**: Ketik `Harga emas hari ini` untuk melihat harga Antam CertiEye 1g, harga buyback, dan spot XAU/USD.\n"
+                    f"5. 💰 **Kalkulator Deposito vs Obligasi**: Ketik `Simulasi 50 juta deposito syariah vs sukuk` untuk menghitung perbandingan imbal hasil bersih setelah pajak (PPh 20% vs 10%).\n"
+                    f"6. 📰 **Berita Pasar Terkini**: Ketik `Berita IHSG hari ini` untuk membaca rangkuman berita finansial dari CNBC Indonesia dan Antara.\n"
+                    f"7. 📚 **Ensiklopedia Finansial**: Ketik `Apa itu Order Block`, `Apa itu FVG`, atau `Apa itu Mudharabah`.\n\n"
+                    f"Silakan ketik pertanyaan Anda sesuai kebutuhan analisa di atas!"
+                )
 
     return {
         "content": assistant_content,

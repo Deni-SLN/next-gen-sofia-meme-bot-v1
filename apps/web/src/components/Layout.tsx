@@ -111,6 +111,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [connectedWallet, setConnectedWallet] = useState<ConnectedExtensionWallet | null>(null);
   const [deferredPwaPrompt, setDeferredPwaPrompt] = useState<any>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [timeWIB, setTimeWIB] = useState<string>('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setTimeWIB(
+        now.toLocaleTimeString('id-ID', {
+          timeZone: 'Asia/Jakarta',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+      );
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -397,6 +416,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-obsidian-900 border border-obsidian-700/70 text-[11px] text-slate-400">
               <span>USD/IDR</span>
               <span className="text-slate-200 font-mono font-medium">{formatIdr(usdIdr)}</span>
+            </div>
+
+            {/* Live Clock WIB / Depok */}
+            <div
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-obsidian-900 border border-obsidian-700/70 text-[11px] text-slate-300 font-mono shadow-xs"
+              title="Waktu Indonesia Barat (WIB) — Depok / Jakarta (UTC+7)"
+            >
+              <LucideIcon name="clock" className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <span className="text-white font-medium tracking-wide">{timeWIB || '--:--:--'}</span>
+              <span className="text-cyan-400 text-[10px] font-bold">WIB</span>
             </div>
           </div>
 

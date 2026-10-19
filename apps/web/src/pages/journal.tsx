@@ -389,11 +389,12 @@ export default function JournalPage() {
                     const dateStr = t.closed_at || t.opened_at;
                     const formattedDate = dateStr
                       ? new Date(dateStr).toLocaleString('id-ID', {
+                          timeZone: 'Asia/Jakarta',
                           day: '2-digit',
                           month: 'short',
                           hour: '2-digit',
                           minute: '2-digit',
-                        })
+                        }) + ' WIB'
                       : '-';
 
                     return (
