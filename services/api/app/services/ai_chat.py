@@ -602,18 +602,63 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
         elif name == "lookup_market_encyclopedia":
             kw = str(arguments.get("keyword") or "").lower().strip()
             encyclopedia_dict = {
-                "bos": "Break of Structure (BOS) dalam Smart Money Concepts (SMC): Lilin harga menembus Swing High sebelumnya dalam tren naik, atau menembus Swing Low dalam tren turun.",
-                "choch": "Change of Character (CHoCH): Tanda awal potensi pembalikan tren saat struktur pasar terdekat gagal bertahan.",
+                # SMC & Analisis Teknikal
+                "bos": "Break of Structure (BOS) dalam Smart Money Concepts (SMC): Lilin harga menembus Swing High sebelumnya dalam tren naik, atau menembus Swing Low dalam tren turun yang mengonfirmasi kelanjutan tren utama.",
+                "break of structure": "Break of Structure (BOS): Lilin harga menembus level struktur swing high/low sebelumnya, menandakan tren dominan masih berlanjut.",
+                "choch": "Change of Character (CHoCH): Tanda awal pembalikan arah tren ketika struktur swing terakhir tertembus ke arah yang berlawanan.",
+                "change of character": "Change of Character (CHoCH): Perpindahan karakter tren dari bullish ke bearish atau sebaliknya saat harga mematahkan swing point terakhir.",
                 "ob": "Order Block (OB): Jejak lilin berlawanan arah terakhir institusi sebelum pergerakan impulsif (Demand Zone untuk Bullish OB, Supply Zone untuk Bearish OB).",
                 "order block": "Order Block (OB): Jejak akumulasi/distribusi likuiditas institusi pintar sebelum reli atau penurunan tajam.",
                 "fvg": "Fair Value Gap (FVG): Celah ketidakseimbangan likuiditas antara lilin ke-1 dan ke-3 yang sering dituju harga untuk retest.",
                 "fair value gap": "Fair Value Gap (FVG): Celah ketidakseimbangan likuiditas akibat pergerakan harga impulsif 3 candlestick berturut-turut.",
+                "rsi": "Relative Strength Index (RSI): Indikator osilator momentum 14 periode (skala 0-100) untuk mendeteksi Overbought (>70), Oversold (<30), dan Regular/Hidden Divergence.",
+                "divergence": "Divergence: Ketidakselarasan antara arah pergerakan harga dan indikator momentum (RSI/MACD), merupakan sinyal peringatan awal pembalikan arah atau kelanjutan tren kuat.",
+                "macd": "MACD: Indikator momentum berbasis selisih EMA 12 dan EMA 26 dengan garis sinyal EMA 9 serta histogram untuk mendeteksi crossover dan pergantian momentum.",
+                "bollinger": "Bollinger Bands: Pita volatilitas (SMA 20 ± 2 Standar Deviasi). Fenomena 'Squeeze' (penyempitan pita) mengindikasikan volatilitas rendah yang mendahului ledakan tren (breakout).",
+                "vsa": "Volume Spread Analysis (VSA): Metode membaca niat smart money melalui hubungan antara volume bursa dan rentang tubuh lilin (Akumulasi, Spring, Upthrust, No Demand).",
+                "wyckoff": "Metode Wyckoff: Kerangka 4 siklus pasar (Akumulasi, Markup, Distribusi, Markdown) untuk mendeteksi jejak bandar/institusi besar.",
+                "atr": "Average True Range (ATR): Indikator pengukur volatilitas pasar murni 14 periode untuk menentukan Stop Loss dinamis (umumnya 1.5x - 2.0x ATR) dan trailing stop Chandelier Exit.",
+                "kelly criterion": "Kelly Criterion: Formula kuantitatif f* = (p*b - q)/b untuk menghitung fraksi modal optimal per transaksi guna memaksimalkan pertumbuhan majemuk dan mencegah risiko kebangkrutan.",
+
+                # Pasar Saham BEI (IHSG)
                 "ara": "Auto Rejection Atas (ARA): Batas persentase kenaikan harga saham maksimal dalam 1 hari perdagangan bursa di BEI (35% untuk <Rp200, 25% untuk Rp200-Rp5000, 20% untuk >Rp5000).",
                 "arb": "Auto Rejection Bawah (ARB): Batas persentase penurunan harga saham maksimal simetris dalam 1 hari di BEI.",
-                "troy ounce": "Standar ukuran berat logam mulia internasional. 1 Troy Ounce setara tepat dengan 31.1034768 gram.",
-                "mudharabah": "Akad kemitraan bagi hasil dalam perbankan syariah di mana nasabah (shahibul mal) menyediakan 100% modal dan bank (mudharib) mengelolanya dengan nisbah disepakati.",
+                "bandarmologi": "Bandarmologi: Analisis aliran dana pemodal besar (smart money/institusi) melalui Broker Summary untuk mendeteksi akumulasi, distribusi, dan average harga modal bandar.",
+                "broker summary": "Broker Summary (Broksum): Rangkuman transaksi sekuritas di BEI untuk melacak aksi beli/jual broker asing (BK, AK, ZP, RX), BUMN (CC, YP, NI), dan ritel swasta (PD, XC, MG).",
+                "ppk": "Papan Pemantauan Khusus (PPK): Papan pencatatan BEI untuk saham berkriteria khusus (11 kriteria Peraturan I-X) yang diperdagangkan secara lelang berkala (Full Call Auction / FCA).",
+                "fca": "Full Call Auction (FCA): Mekanisme perdagangan saham di PPK BEI tanpa antrean bid-offer real-time, melainkan order dikumpulkan dan dicocokkan serentak pada sesi lelang tertentu.",
+                "notasi khusus": "Notasi Khusus BEI ('Tato' Saham): Huruf peringatan di belakang kode saham, misal E (ekuitas negatif), L (telat LK), S (tanpa pendapatan), B (pailit), A (opini adverse), X (masuk PPK).",
+                "waran": "Waran Terstruktur: Efek derivatif hak beli saham induk BEI dengan leverage yang diterbitkan sekuritas, berakhiran kode W dengan rasio konversi dan tanggal expiry tertentu.",
+                "dcf": "Discounted Cash Flow (DCF): Metode valuasi nilai wajar intrinsik saham dengan memproyeksikan arus kas bebas (FCFF) dan mendiskontokannya dengan tingkat biaya modal WACC.",
+                "graham": "Formula Benjamin Graham: Rumus nilai wajar konservatif emiten sehat: Nilai Intrinsik = √(22.5 × EPS × BVPS) untuk mengukur Margin of Safety (MoS) saham diskon.",
+                "lq45": "Indeks LQ45: Indeks 45 saham di BEI dengan likuiditas tertinggi, kapitalisasi pasar besar, dan fundamental keuangan solid yang dievaluasi berkala tiap 6 bulan.",
                 "per": "Price to Earnings Ratio: Rasio harga saham terhadap laba per saham (EPS). Mengukur berapa rupiah yang dibayar investor untuk setiap Rp1 laba emiten.",
                 "pbv": "Price to Book Value: Rasio harga saham terhadap nilai buku ekuitas (Book Value). PBV < 1.0x menandakan saham dijual di bawah modal bersihnya.",
+                "cum date": "Cum Date: Hari bursa terakhir di mana pembelian saham masih berhak mendapatkan dividen tunai emiten.",
+                "ex date": "Ex Date: Hari bursa pertama di mana pembelian saham sudah tidak berhak lagi atas dividen (harga saham biasanya terkoreksi sebesar nilai dividen).",
+
+                # Crypto & Web3
+                "pump.fun": "Pump.fun: Platform peluncuran memecoin di Solana dengan kurva ikatan matematis (bonding curve) tanpa likuiditas awal, yang bermigrasi ke Raydium saat mencapai 85 SOL.",
+                "bonding curve": "Bonding Curve: Formula matematis penetapan harga token secara otomatis di mana harga meningkat seiring bertambahnya suplai yang dibeli dari kontrak.",
+                "dev dump": "Dev Dump: Aksi pengembang atau insider membuang pasokan token besar-besaran saat token lulus bonding curve dan bermigrasi ke pool DEX Raydium.",
+                "layer 2": "Layer 2 (L2): Jaringan sekunder (seperti Base, Arbitrum, Optimism) yang memproses transaksi di luar rantai utama Ethereum untuk menghemat gas fee hingga 99%.",
+                "base": "Base Network: Blockchain Layer 2 Ethereum yang diinkubasi oleh Coinbase menggunakan OP Stack dengan transaksi cepat dan gas fee sangat murah (<$0.01).",
+                "gwei": "Gwei: Satuan pecahan Ethereum (1 Gwei = 10^-9 ETH) yang digunakan untuk mengukur biaya bahan bakar (Gas Fee) transaksi di jaringan EVM.",
+                "funding rate": "Funding Rate: Pembayaran periodik antara trader posisi Long dan Short di pasar Perpetual Futures untuk menjaga harga kontrak tetap selaras dengan harga spot.",
+                "perpetual": "Perpetual Futures: Kontrak derivatif berjangka kripto tanpa tanggal kedaluwarsa (expiry), memungkinkan leverage trading tanpa batas waktu.",
+                "ltv": "Loan-to-Value (LTV): Rasio maksimal pinjaman yang dapat diambil terhadap nilai aset jaminan di protokol pinjaman DeFi (Aave/Compound).",
+                "health factor": "Health Factor: Indikator keamanan pinjaman di DeFi. Jika skor turun ke angka ≤ 1.0, protokol otomatis mengeksekusi likuidasi jaminan.",
+
+                # Emas & Makroekonomi
+                "troy ounce": "Standar ukuran berat logam mulia internasional. 1 Troy Ounce setara tepat dengan 31.1034768 gram.",
+                "mudharabah": "Akad kemitraan bagi hasil dalam perbankan syariah di mana nasabah (shahibul mal) menyediakan 100% modal dan bank (mudharib) mengelolanya dengan nisbah disepakati.",
+                "bi-rate": "BI-Rate: Suku bunga kebijakan acuan Bank Indonesia untuk mengendalikan laju inflasi dan menjaga stabilitas nilai tukar Rupiah terhadap Dolar AS.",
+                "the fed": "The Fed (Federal Reserve): Bank sentral Amerika Serikat yang menentukan suku bunga Fed Funds Rate (FFR) melalui rapat komite FOMC.",
+                "dxy": "Indeks Dolar AS (DXY): Indeks kekuatan mata uang USD terhadap 6 mata uang utama dunia (Euro, Yen, GBP, CAD, SEK, CHF). Kenaikan DXY cenderung menekan harga emas dan Rupiah.",
+                "emas digital": "Emas Digital Bappebti: Transaksi tabungan emas fisik digital berizin Bappebti dengan underlying fisik emas 100% di brankas kliring (ICDX/KBI) dengan spread lebih ramping.",
+                "sbn": "Surat Berharga Negara (SBN Ritel): Obligasi resmi pemerintah Indonesia (ORI, SR, SBR, ST) dengan pajak kupon hanya 10% (lebih hemat dari pajak deposito 20%).",
+                "ori": "Obligasi Negara Ritel (ORI): SBN konvensional berkupon tetap (Fixed Rate) yang dapat diperjualbelikan di pasar sekunder (Tradable).",
+                "sukuk": "Sukuk Ritel (SR): Obligasi syariah pemerintah berakad Ijarah dengan imbalan tetap bulanan dan bersifat Tradable di pasar sekunder.",
             }
             res = encyclopedia_dict.get(kw)
             if not res:
@@ -623,7 +668,7 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
                         break
                 if not res:
                     for k, v in encyclopedia_dict.items():
-                        if len(k) >= 4 and (k in kw or kw in k):
+                        if len(k) >= 3 and (k in kw or kw in k):
                             res = v
                             break
             if not res:
@@ -844,19 +889,27 @@ def run_chat_completion(
         # Time or general capabilities requested, do not run background financial tools
         pass
 
-    # 1. Memecoin Rugcheck & Security Audit
-    elif any(k in lower_user for k in ("rugcheck", "rug check", "honeypot", "audit token", "cek token", "pump.fun", "pumpfun", "scam coin")):
-        tok_match = re.search(r"\b(?:rugcheck|audit|token|koin|cek)?\s*([a-zA-Z0-9]{2,44})\b", last_user_msg, re.IGNORECASE)
-        target_token = tok_match.group(1).upper() if tok_match and tok_match.group(1).lower() not in ("cek", "rugcheck", "token") else "BONK"
-        res = execute_application_tool("analyze_memecoin_rugcheck", {"token": target_token}, db)
-        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_memecoin_rugcheck", "arguments": {"token": target_token}})
-        executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_memecoin_rugcheck('{target_token}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
-
-    # 2. Market Encyclopedia & Financial Terms
-    elif any(k in lower_user for k in ("apa itu", "pengertian", "istilah", "maksud dari", "arti dari", "order block", "fvg", "bos", "choch", "ara", "arb", "mudharabah", "fair value gap")):
+    # 1. Market Encyclopedia & Financial Terms (Evaluated first for educational questions)
+    elif any(k in lower_user for k in (
+        "apa itu", "pengertian", "istilah", "maksud dari", "arti dari", "ensiklopedia",
+        "order block", "fvg", "bos", "choch", "ara", "arb", "mudharabah", "fair value gap",
+        "bandarmologi", "broker summary", "broksum", "fca", "ppk", "notasi khusus", "tato saham",
+        "waran", "dcf", "graham", "lq45", "idx30", "bonding curve", "dev dump",
+        "layer 2", "funding rate", "perpetual", "ltv", "health factor", "bi-rate", "the fed",
+        "fomc", "dxy", "emas digital", "rsi", "divergence", "macd", "bollinger", "vsa", "wyckoff",
+        "atr", "chandelier", "kelly criterion", "cum date", "ex date"
+    )):
         kw = lower_user
-        for term in ("order block", "fair value gap", "break of structure", "mudharabah", "fvg", "bos", "choch", "ara", "arb", "per", "pbv", "troy ounce"):
+        candidate_terms = (
+            "bandarmologi", "broker summary", "notasi khusus", "tato saham", "full call auction",
+            "papan pemantauan khusus", "waran", "dcf", "graham", "lq45", "idx30", "bonding curve",
+            "pump.fun", "dev dump", "layer 2", "funding rate", "perpetual", "health factor", "ltv",
+            "bi-rate", "the fed", "fomc", "dxy", "emas digital", "sbn", "ori", "sukuk",
+            "divergence", "rsi", "macd", "bollinger", "wyckoff", "vsa", "kelly criterion", "atr",
+            "order block", "fair value gap", "break of structure", "mudharabah", "fvg", "bos", "choch",
+            "ara", "arb", "per", "pbv", "troy ounce", "cum date", "ex date"
+        )
+        for term in candidate_terms:
             if term in lower_user:
                 kw = term
                 break
@@ -864,6 +917,15 @@ def run_chat_completion(
         executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "lookup_market_encyclopedia", "arguments": {"keyword": kw}})
         executed_tool_results.append(res)
         auto_tool_context += f"\n\n[DATA TOOL SOFIA: lookup_market_encyclopedia('{kw}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 2. Memecoin Rugcheck & Security Audit
+    elif any(k in lower_user for k in ("rugcheck", "rug check", "honeypot", "audit token", "cek token", "scam coin", "audit")):
+        tok_match = re.search(r"\b(?:rugcheck|audit|token|koin|cek)?\s*([a-zA-Z0-9]{2,44})\b", last_user_msg, re.IGNORECASE)
+        target_token = tok_match.group(1).upper() if tok_match and tok_match.group(1).lower() not in ("cek", "rugcheck", "token") else "BONK"
+        res = execute_application_tool("analyze_memecoin_rugcheck", {"token": target_token}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_memecoin_rugcheck", "arguments": {"token": target_token}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_memecoin_rugcheck('{target_token}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
 
     # 3. Gold Prices & Buyback
     elif any(k in lower_user for k in ("emas", "antam", "buyback", "xau", "ubs", "galeri24", "logam mulia")):
