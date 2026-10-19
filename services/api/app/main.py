@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import init_db, SessionLocal
-from app.routers import auth, bot, portfolio, signals, ai, risk, performance, wallets, memecoins, journal, news, stocks, gold, crypto, chat
+from app.routers import auth, bot, portfolio, signals, ai, risk, performance, wallets, memecoins, journal, news, stocks, gold, crypto, chat, mcp as mcp_router
+from app.mcp_server import mcp
 from app.services import treasury
 
 
@@ -60,6 +61,10 @@ app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["Analisa Saham 
 app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Analisa Crypto Global"])
 app.include_router(gold.router, prefix="/api/v1/gold", tags=["Harga & Portofolio Emas"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["AI Chat & Research"])
+app.include_router(mcp_router.router, prefix="/api/v1/mcp", tags=["Model Context Protocol (MCP)"])
+
+# Mount FastMCP SSE Endpoint for Hermes Agent, OpenClaw, and Networked MCP Clients
+app.mount("/mcp", mcp.sse_app())
 
 
 @app.get("/health", tags=["Health"])

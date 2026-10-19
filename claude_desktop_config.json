@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "sofia": {
+      "command": "python",
+      "args": [
+        "D:\\nextgentsofia trade\\run_mcp.py"
+      ]
+    }
+  }
+}

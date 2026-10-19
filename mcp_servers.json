@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "sofia-intelligence": {
+      "command": "python",
+      "args": [
+        "D:\\nextgentsofia trade\\run_mcp.py"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      },
+      "description": "SOFIA Intelligence MCP: Real-time Indonesian stocks (IDX/BEI), global crypto, Antam gold prices, Solana meme coin rugcheck, and deposito/SBN calculators."
+    }
+  }
+}

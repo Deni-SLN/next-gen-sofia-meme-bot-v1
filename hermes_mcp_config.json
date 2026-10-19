@@ -1,0 +1,24 @@
+{
+  "agent_name": "Hermes-SOFIA-Market-Analyst",
+  "model": "nousresearch/hermes-3-llama-3.1-405b",
+  "mcp_servers": [
+    {
+      "name": "sofia-intelligence",
+      "transport": "stdio",
+      "command": "python",
+      "args": [
+        "D:\\nextgentsofia trade\\run_mcp.py"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    },
+    {
+      "name": "sofia-intelligence-sse",
+      "transport": "sse",
+      "url": "http://127.0.0.1:8000/mcp/sse",
+      "description": "Alternative networked SSE connection when FastAPI server is running"
+    }
+  ],
+  "system_prompt": "Anda adalah agen analisis finansial cerdas yang ditenagai oleh SOFIA Intelligence Engine. Gunakan tools MCP yang disediakan untuk menganalisa saham BEI (IDX), kripto global, harga fisik emas Antam, audit rugcheck token Solana, simulasi deposito/SBN, dan berita pasar terpercaya."
+}

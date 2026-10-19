@@ -1,0 +1,44 @@
+{
+  "name": "openclaw-sofia-collector",
+  "version": "1.0.0",
+  "description": "OpenClaw configuration for extracting financial data and market intelligence from SOFIA",
+  "connections": {
+    "mcp": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "D:\\nextgentsofia trade\\run_mcp.py"
+      ]
+    },
+    "http_fallback": {
+      "type": "rest_jsonrpc",
+      "base_url": "http://127.0.0.1:8000/api/v1/mcp",
+      "tools_endpoint": "/tools",
+      "call_endpoint": "/call"
+    }
+  },
+  "tasks": [
+    {
+      "name": "daily_gold_scraping",
+      "tool": "get_gold_market",
+      "schedule": "0 8 * * *",
+      "description": "Fetch Antam retail and buyback prices every morning at 08:00 WIB"
+    },
+    {
+      "name": "idx_bluechip_scan",
+      "tool": "analyze_stock",
+      "arguments": {
+        "ticker": "BBRI",
+        "timeframe": "1d"
+      },
+      "schedule": "30 9 * * 1-5"
+    },
+    {
+      "name": "meme_risk_audit",
+      "tool": "analyze_memecoin_rugcheck",
+      "arguments": {
+        "token_query": "BONK"
+      }
+    }
+  ]
+}
