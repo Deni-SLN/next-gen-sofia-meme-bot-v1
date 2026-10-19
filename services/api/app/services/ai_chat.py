@@ -756,62 +756,89 @@ def run_chat_completion(
 
     # If provider call returned empty or error, synthesize intelligent response using application tools
     if not assistant_content:
+        def _fmt_n(v, is_curr=True, prefix="Rp "):
+            if v is None:
+                return "N/A"
+            try:
+                val = float(v)
+                if is_curr:
+                    return f"{prefix}{int(val):,}" if val == int(val) else f"{prefix}{val:,.2f}"
+                return f"{int(val):,}" if val == int(val) else f"{val:,.2f}"
+            except Exception:
+                return str(v)
+
         if executed_tool_results:
             # Build high-quality response directly from tool outputs
             res0 = executed_tool_results[0]
             tname = res0.get("tool")
             if tname == "analyze_stock":
+                p_curr = _fmt_n(res0.get("current_price"))
+                tp1 = _fmt_n(res0.get("tp_1"))
+                tp2 = _fmt_n(res0.get("tp_2"))
+                sl = _fmt_n(res0.get("stop_loss"))
+                val_base = _fmt_n(res0.get("valuation_base"))
+                day_chg = res0.get("day_change_pct") or 0.0
+
                 assistant_content = (
                     f"### 📊 Hasil Analisa Saham: **{res0.get('code')}** ({res0.get('name')})\n\n"
-                    f"- **Harga Saat Ini**: Rp {res0.get('current_price'):,} ({'+' if (res0.get('day_change') or 0) >= 0 else ''}{res0.get('day_change_pct')}%\n"
-                    f"- **Sinyal Kuantitatif**: **{res0.get('signal_direction')}** ({res0.get('action_verdict')})\n"
-                    f"- **Zona Beli (Entry Range)**: **{res0.get('entry_zone')}**\n"
-                    f"- **Target Profit 1 (Konservatif)**: Rp {res0.get('tp_1'):,}\n"
-                    f"- **Target Profit 2 (Ekspansi)**: Rp {res0.get('tp_2'):,}\n"
-                    f"- **Stop Loss Proteksi**: Rp {res0.get('stop_loss'):,}\n"
-                    f"- **Rasio Reward/Risk Bersih**: **{res0.get('net_rr_ratio')}x** (Setelah Fee Beli 0.15% & Jual 0.25%)\n"
-                    f"- **Status Tren**: {res0.get('trend_status')}\n\n"
+                    f"- **Harga Saat Ini**: {p_curr} ({'+' if day_chg >= 0 else ''}{day_chg}%)\n"
+                    f"- **Sinyal Kuantitatif**: **{res0.get('signal_direction', 'NETRAL')}** ({res0.get('action_verdict', 'HOLD')})\n"
+                    f"- **Zona Beli (Entry Range)**: **{res0.get('entry_zone', 'N/A')}**\n"
+                    f"- **Target Profit 1 (Konservatif)**: {tp1}\n"
+                    f"- **Target Profit 2 (Ekspansi)**: {tp2}\n"
+                    f"- **Stop Loss Proteksi**: {sl}\n"
+                    f"- **Rasio Reward/Risk Bersih**: **{res0.get('net_rr_ratio', 1.5)}x** (Setelah Fee Beli 0.15% & Jual 0.25%)\n"
+                    f"- **Status Tren**: {res0.get('trend_status', 'Konsolidasi')}\n\n"
                     f"**Ringkasan Valuasi:**\n"
-                    f"- Nilai Wajar Base Case: Rp {res0.get('valuation_base'):,} ({res0.get('valuation_verdict')})\n\n"
+                    f"- Nilai Wajar Base Case: {val_base} ({res0.get('valuation_verdict', 'Fairly Valued')})\n\n"
                     f"💡 *Catatan Risiko*: Disiplin memasang Stop Loss ketat dan batasi alokasi maksimal 1–2% risiko modal portofolio per posisi."
                 )
             elif tname == "analyze_crypto":
+                p_usd = _fmt_n(res0.get("price_usd"), prefix="$")
+                p_idr = _fmt_n(res0.get("price_idr"), prefix="Rp ")
+                tp1_usd = _fmt_n(res0.get("tp_1_usd"), prefix="$")
+                tp2_usd = _fmt_n(res0.get("tp_2_usd"), prefix="$")
+                sl_usd = _fmt_n(res0.get("stop_loss_usd"), prefix="$")
+                day_chg = res0.get("day_change_pct") or 0.0
+
                 assistant_content = (
                     f"### 🪙 Hasil Analisa Crypto: **{res0.get('symbol')}** ({res0.get('name')})\n\n"
-                    f"- **Harga Live**: **${res0.get('price_usd'):,}** (≈ Rp {res0.get('price_idr'):,})\n"
-                    f"- **Perubahan 24 Jam**: {'+' if (res0.get('day_change_pct') or 0) >= 0 else ''}{res0.get('day_change_pct')}%\n"
-                    f"- **Sinyal Algoritmik**: **{res0.get('signal_direction')}** ({res0.get('action_verdict')})\n"
-                    f"- **Zona Entry Ideal**: **{res0.get('entry_zone')}**\n"
-                    f"- **Target Profit 1**: ${res0.get('tp_1_usd'):,}\n"
-                    f"- **Target Profit 2**: ${res0.get('tp_2_usd'):,}\n"
-                    f"- **Stop Loss**: ${res0.get('stop_loss_usd'):,}\n"
-                    f"- **Net R/R Ratio**: **{res0.get('net_rr_ratio')}x** (setelah fee exchange & PPh 0.10% + PPN 0.11%)\n"
+                    f"- **Harga Live**: **{p_usd}** (≈ {p_idr})\n"
+                    f"- **Perubahan 24 Jam**: {'+' if day_chg >= 0 else ''}{day_chg}%\n"
+                    f"- **Sinyal Algoritmik**: **{res0.get('signal_direction', 'NEUTRAL')}** ({res0.get('action_verdict', 'WATCH')})\n"
+                    f"- **Zona Entry Ideal**: **{res0.get('entry_zone', 'N/A')}**\n"
+                    f"- **Target Profit 1**: {tp1_usd}\n"
+                    f"- **Target Profit 2**: {tp2_usd}\n"
+                    f"- **Stop Loss**: {sl_usd}\n"
+                    f"- **Net R/R Ratio**: **{res0.get('net_rr_ratio', 2.0)}x** (setelah fee exchange & PPh 0.10% + PPN 0.11%)\n"
                     f"- **Estimasi Staking APR**: {res0.get('staking_yield_apr', 'N/A')}%\n"
                 )
             elif tname == "get_gold_prices":
                 assistant_content = (
                     f"### 🏆 Harga Emas & Spread Buyback Terkini (SOFIA Gold Engine)\n\n"
-                    f"- **Emas Antam CertiEye 1 Gram**: **Rp {res0.get('antam_1g_retail_idr'):,}**\n"
-                    f"- **Harga Buyback Resmi (Jual Kembali)**: **Rp {res0.get('antam_1g_buyback_idr'):,}**\n"
-                    f"- **Spread Buyback (Selisih Beli - Jual)**: **{res0.get('buyback_spread_pct')}%**\n"
-                    f"- **Emas UBS 1 Gram**: Rp {res0.get('ubs_1g_retail_idr'):,}\n"
-                    f"- **Spot Dunia XAU/USD**: ${res0.get('spot_xau_usd'):,} / Troy Ounce (Kurs: Rp {res0.get('usd_idr_rate'):,})\n\n"
-                    f"💡 *Saran Finansial*: Karena spread buyback emas Antam saat ini berkisar {res0.get('buyback_spread_pct')}%, "
+                    f"- **Emas Antam CertiEye 1 Gram**: **{_fmt_n(res0.get('antam_1g_retail_idr'))}**\n"
+                    f"- **Harga Buyback Resmi (Jual Kembali)**: **{_fmt_n(res0.get('antam_1g_buyback_idr'))}**\n"
+                    f"- **Spread Buyback (Selisih Beli - Jual)**: **{res0.get('buyback_spread_pct', 8.5)}%**\n"
+                    f"- **Emas UBS 1 Gram**: {_fmt_n(res0.get('ubs_1g_retail_idr'))}\n"
+                    f"- **Spot Dunia XAU/USD**: {_fmt_n(res0.get('spot_xau_usd'), prefix='$')} / Troy Ounce (Kurs: {_fmt_n(res0.get('usd_idr_rate'))})\n\n"
+                    f"💡 *Saran Finansial*: Karena spread buyback emas Antam saat ini berkisar {res0.get('buyback_spread_pct', 8.5)}%, "
                     f"emas sangat ideal untuk instrumen lindung nilai jangka menengah–panjang (> 1–3 tahun) agar keuntungan modal melampaui selisih spread."
                 )
             elif tname == "calculate_deposito_and_bonds":
+                dep = res0.get("deposito", {})
+                ob = res0.get("obligasi_sbn", {})
                 assistant_content = (
-                    f"### 💰 Simulasi Deposito vs Obligasi SBN (Nominal Rp {res0.get('nominal_idr'):,})\n\n"
-                    f"**1. Deposito Perbankan ({res0['deposito']['rate_pa_pct']}% p.a.)**\n"
-                    f"- Bunga Kotor: Rp {res0['deposito']['gross_profit_idr']:,}\n"
-                    f"- Potongan Pajak PPh 20%: -Rp {res0['deposito']['tax_pph_20_idr']:,}\n"
-                    f"- **Keuntungan Bersih**: **Rp {res0['deposito']['net_profit_idr']:,}** (Yield Bersih: {res0['deposito']['net_yield_pct']}%)\n\n"
-                    f"**2. Surat Berharga Negara / Obligasi SBN ({res0['obligasi_sbn']['kupon_pa_pct']}% p.a.)**\n"
-                    f"- Kupon Kotor: Rp {res0['obligasi_sbn']['gross_profit_idr']:,}\n"
-                    f"- Potongan Pajak PPh 10%: -Rp {res0['obligasi_sbn']['tax_pph_10_idr']:,}\n"
-                    f"- **Keuntungan Bersih**: **Rp {res0['obligasi_sbn']['net_profit_idr']:,}** (Yield Bersih: {res0['obligasi_sbn']['net_yield_pct']}%)\n\n"
-                    f"🎯 **Selisih Tambahan Bersih**: **+Rp {res0.get('selisih_keuntungan_bersih_idr'):,}** lebih menguntungkan di Obligasi SBN!\n"
-                    f"{res0.get('rekomendasi')}"
+                    f"### 💰 Simulasi Deposito vs Obligasi SBN (Nominal {_fmt_n(res0.get('nominal_idr'))})\n\n"
+                    f"**1. Deposito Perbankan ({dep.get('rate_pa_pct', 5.0)}% p.a.)**\n"
+                    f"- Bunga Kotor: {_fmt_n(dep.get('gross_profit_idr'))}\n"
+                    f"- Potongan Pajak PPh 20%: -{_fmt_n(dep.get('tax_pph_20_idr'))}\n"
+                    f"- **Keuntungan Bersih**: **{_fmt_n(dep.get('net_profit_idr'))}** (Yield Bersih: {dep.get('net_yield_pct', 4.0)}%)\n\n"
+                    f"**2. Surat Berharga Negara / Obligasi SBN ({ob.get('kupon_pa_pct', 6.5)}% p.a.)**\n"
+                    f"- Kupon Kotor: {_fmt_n(ob.get('gross_profit_idr'))}\n"
+                    f"- Potongan Pajak PPh 10%: -{_fmt_n(ob.get('tax_pph_10_idr'))}\n"
+                    f"- **Keuntungan Bersih**: **{_fmt_n(ob.get('net_profit_idr'))}** (Yield Bersih: {ob.get('net_yield_pct', 5.85)}%)\n\n"
+                    f"🎯 **Selisih Tambahan Bersih**: **+{_fmt_n(res0.get('selisih_keuntungan_bersih_idr'))}** lebih menguntungkan di Obligasi SBN!\n"
+                    f"{res0.get('rekomendasi', '')}"
                 )
         else:
             assistant_content = (
@@ -838,6 +865,16 @@ def run_chat_completion(
 # DATABASE SESSION & MESSAGE HELPERS
 # ==============================================================================
 
+def _resolve_session(db: Session, session_id: Optional[str]) -> Optional[ChatSession]:
+    if not session_id:
+        return None
+    sid_str = str(session_id).strip()
+    session = db.execute(select(ChatSession).where(ChatSession.session_id == sid_str)).scalar_one_or_none()
+    if not session and sid_str.isdigit():
+        session = db.execute(select(ChatSession).where(ChatSession.id == int(sid_str))).scalar_one_or_none()
+    return session
+
+
 def list_chat_sessions(db: Session) -> List[Dict[str, Any]]:
     """List all chat sessions ordered by latest updated."""
     sessions = db.execute(select(ChatSession).order_by(desc(ChatSession.updated_at))).scalars().all()
@@ -848,8 +885,9 @@ def list_chat_sessions(db: Session) -> List[Dict[str, Any]]:
             select(ChatMessage).where(ChatMessage.session_id == s.session_id)
         ).scalars().all()
         res.append({
-            "id": s.id,
+            "id": s.session_id,
             "session_id": s.session_id,
+            "db_id": s.id,
             "title": s.title,
             "provider": s.provider,
             "model": s.model,
@@ -880,8 +918,9 @@ def create_chat_session(
     db.commit()
     db.refresh(session)
     return {
-        "id": session.id,
+        "id": session.session_id,
         "session_id": session.session_id,
+        "db_id": session.id,
         "title": session.title,
         "provider": session.provider,
         "model": session.model,
@@ -892,20 +931,18 @@ def create_chat_session(
 
 def get_chat_session_with_messages(db: Session, session_id: str) -> Optional[Dict[str, Any]]:
     """Get session and its chronological message history."""
-    session = db.execute(
-        select(ChatSession).where(ChatSession.session_id == session_id)
-    ).scalar_one_or_none()
+    session = _resolve_session(db, session_id)
     if not session:
         return None
 
     messages = db.execute(
         select(ChatMessage)
-        .where(ChatMessage.session_id == session_id)
+        .where(ChatMessage.session_id == session.session_id)
         .order_by(ChatMessage.created_at)
     ).scalars().all()
 
     return {
-        "id": session.id,
+        "id": session.session_id,
         "session_id": session.session_id,
         "title": session.title,
         "provider": session.provider,
@@ -915,7 +952,7 @@ def get_chat_session_with_messages(db: Session, session_id: str) -> Optional[Dic
         "updated_at": session.updated_at.isoformat() if session.updated_at else None,
         "messages": [
             {
-                "id": m.id,
+                "id": str(m.id),
                 "role": m.role,
                 "content": m.content,
                 "tool_calls": m.tool_calls,
@@ -936,9 +973,7 @@ def update_chat_session(
     model: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Update title, provider, or model for a session."""
-    session = db.execute(
-        select(ChatSession).where(ChatSession.session_id == session_id)
-    ).scalar_one_or_none()
+    session = _resolve_session(db, session_id)
     if not session:
         return None
 
@@ -953,7 +988,7 @@ def update_chat_session(
     db.commit()
     db.refresh(session)
     return {
-        "id": session.id,
+        "id": session.session_id,
         "session_id": session.session_id,
         "title": session.title,
         "provider": session.provider,
@@ -964,14 +999,12 @@ def update_chat_session(
 
 def delete_chat_session(db: Session, session_id: str) -> bool:
     """Delete a session and all its messages."""
-    session = db.execute(
-        select(ChatSession).where(ChatSession.session_id == session_id)
-    ).scalar_one_or_none()
+    session = _resolve_session(db, session_id)
     if not session:
         return False
 
     messages = db.execute(
-        select(ChatMessage).where(ChatMessage.session_id == session_id)
+        select(ChatMessage).where(ChatMessage.session_id == session.session_id)
     ).scalars().all()
     for m in messages:
         db.delete(m)
@@ -991,9 +1024,9 @@ def save_chat_message(
     model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Append a message to a session and touch updated_at."""
-    session = db.execute(
-        select(ChatSession).where(ChatSession.session_id == session_id)
-    ).scalar_one_or_none()
+    session = _resolve_session(db, session_id)
+    target_sid = session.session_id if session else str(session_id)
+
     if session:
         session.updated_at = datetime.now(timezone.utc)
         # If title is default "Percakapan Baru" and user sends first message, rename smartly
@@ -1001,9 +1034,10 @@ def save_chat_message(
             snippet = content.strip().replace("\n", " ")[:40]
             if snippet:
                 session.title = snippet + ("..." if len(content) > 40 else "")
+        db.commit()
 
     msg = ChatMessage(
-        session_id=session_id,
+        session_id=target_sid,
         role=role,
         content=content,
         tool_calls=tool_calls,
@@ -1014,8 +1048,8 @@ def save_chat_message(
     db.commit()
     db.refresh(msg)
     return {
-        "id": msg.id,
-        "session_id": msg.session_id,
+        "id": str(msg.id),
+        "session_id": target_sid,
         "role": msg.role,
         "content": msg.content,
         "tool_calls": msg.tool_calls,

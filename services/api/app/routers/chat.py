@@ -25,7 +25,7 @@ class UpdateSessionRequest(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    session_id: str
+    session_id: Optional[str] = None
     message: str
     provider: Optional[str] = None
     model: Optional[str] = None
@@ -124,9 +124,12 @@ def post_completion(body: ChatCompletionRequest, db: Session = Depends(get_db)):
     """
     Send user message, execute tools if needed, save messages to DB, and return assistant response.
     """
-    session = ai_chat.get_chat_session_with_messages(db, body.session_id)
+    session = None
+    if body.session_id:
+        session = ai_chat.get_chat_session_with_messages(db, body.session_id)
+
     if not session:
-        # Auto-create session if not found
+        # Auto-create session if not found or not provided
         session = ai_chat.create_chat_session(
             db,
             title="Percakapan Baru",
@@ -135,10 +138,12 @@ def post_completion(body: ChatCompletionRequest, db: Session = Depends(get_db)):
         )
         session["messages"] = []
 
+    actual_sid = session.get("session_id") or session.get("id")
+
     # 1. Save user message to database
     user_msg = ai_chat.save_chat_message(
         db,
-        session_id=body.session_id,
+        session_id=actual_sid,
         role="user",
         content=body.message,
     )
@@ -162,7 +167,7 @@ def post_completion(body: ChatCompletionRequest, db: Session = Depends(get_db)):
     # 4. Save assistant response to database
     assistant_msg = ai_chat.save_chat_message(
         db,
-        session_id=body.session_id,
+        session_id=actual_sid,
         role="assistant",
         content=completion_res.get("content", ""),
         tool_calls=completion_res.get("tool_calls"),
@@ -171,9 +176,12 @@ def post_completion(body: ChatCompletionRequest, db: Session = Depends(get_db)):
     )
 
     return {
-        "session_id": body.session_id,
+        "session_id": actual_sid,
         "user_message": user_msg,
         "assistant_message": assistant_msg,
+        "message": assistant_msg,
+        "tool_calls": completion_res.get("tool_calls", []),
+        "tool_results": completion_res.get("tool_results", []),
         "model": model,
         "provider": provider,
     }

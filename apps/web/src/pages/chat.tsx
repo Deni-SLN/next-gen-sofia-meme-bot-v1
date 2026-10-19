@@ -5,9 +5,11 @@ import { LucideIcon } from '@/components/LucideIcon';
 
 interface ChatSessionItem {
   id: string;
+  session_id?: string;
   title: string;
   provider: string;
   model: string;
+  message_count?: number;
   updated_at: string;
   created_at: string;
 }
@@ -28,8 +30,8 @@ interface ChatModelItem {
   context_length?: number;
   is_free: boolean;
   pricing?: {
-    prompt: number;
-    completion: number;
+    prompt: number | string;
+    completion: number | string;
   };
   description?: string;
 }
@@ -42,9 +44,9 @@ interface SofiaToolItem {
 }
 
 const PROVIDERS = [
-  { id: 'openrouter', label: 'OpenRouter', badge: 'AI Hub (200+ Models)' },
-  { id: '9router', label: '9Router', badge: 'Multi-Engine Pro' },
-  { id: 'gemini', label: 'Google Gemini', badge: 'Google Cloud AI' },
+  { id: 'openrouter', label: 'OpenRouter', badge: 'AI Hub (200+)' },
+  { id: '9router', label: '9Router', badge: 'Multi-Engine' },
+  { id: 'google', label: 'Google Gemini', badge: 'Google AI' },
 ];
 
 const STARTER_PROMPTS = [
@@ -52,25 +54,25 @@ const STARTER_PROMPTS = [
     title: 'Analisis Saham BBRI',
     prompt: 'Analisis fundamental dan teknikal saham BBRI hari ini, bagaimana struktur bandarmologi dan support resistance-nya?',
     icon: 'trending-up',
-    badge: 'Stock Tool',
+    badge: 'Saham BEI',
   },
   {
     title: 'Deposito Syariah vs Obligasi',
     prompt: 'Simulasikan investasi Rp 50.000.000: bandingkan imbal hasil Deposito Syariah Mudharabah (nisbah 55%) vs Obligasi FR0101 (kupon 6.8%) tenor 1 tahun setelah pajak.',
     icon: 'banknote',
-    badge: 'Calculator Tool',
+    badge: 'Kalkulator',
   },
   {
     title: 'Harga Emas & Buyback Antam',
     prompt: 'Berapa harga emas fisik Antam dan UBS hari ini? Hitung potensi buyback jika saya menjual 25 gram emas Antam yang dibeli di harga 1.300.000 per gram.',
     icon: 'coins',
-    badge: 'Gold Tool',
+    badge: 'Emas Fisik',
   },
   {
     title: 'Analisa On-Chain Kripto (BTC)',
     prompt: 'Bagaimana analisa on-chain, sentimen RSI, dan indikator teknikal Bitcoin (BTC) saat ini? Apakah aman untuk DCA?',
     icon: 'zap',
-    badge: 'Crypto Tool',
+    badge: 'Crypto 24/7',
   },
 ];
 
@@ -81,8 +83,9 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [loadingSessions, setLoadingSessions] = useState<boolean>(true);
   const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
+  const [sessionSearch, setSessionSearch] = useState<string>('');
 
-  // Model & Provider State
+  // Model & Provider State (Diatas Chat)
   const [selectedProvider, setSelectedProvider] = useState<string>('openrouter');
   const [models, setModels] = useState<ChatModelItem[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.0-flash-exp:free');
@@ -131,7 +134,8 @@ export default function ChatPage() {
       if (res?.sessions) {
         setSessions(res.sessions);
         if (res.sessions.length > 0 && !activeSessionId) {
-          setActiveSessionId(res.sessions[0].id);
+          const firstSid = res.sessions[0].session_id || res.sessions[0].id;
+          setActiveSessionId(firstSid);
         }
       }
     } catch (err) {
@@ -140,11 +144,6 @@ export default function ChatPage() {
       setLoadingSessions(false);
     }
   };
-
-  useEffect(() => {
-    fetchSessions();
-    fetchTools();
-  }, []);
 
   // Fetch Tools catalog
   const fetchTools = async () => {
@@ -158,6 +157,11 @@ export default function ChatPage() {
     }
   };
 
+  useEffect(() => {
+    fetchSessions();
+    fetchTools();
+  }, []);
+
   // Fetch Models when provider or freeOnly changes
   const fetchModels = async (refresh: boolean = false) => {
     try {
@@ -167,8 +171,8 @@ export default function ChatPage() {
       if (res?.models) {
         setModels(res.models);
         if (refresh) {
-          setModelsNotice(`✅ Berhasil import & perbarui ${res.models.length} model dari ${selectedProvider.toUpperCase()}`);
-          setTimeout(() => setModelsNotice(''), 4000);
+          setModelsNotice(`✅ ${res.models.length} model berhasil diimpor & diperbarui`);
+          setTimeout(() => setModelsNotice(''), 3500);
         }
         // Set default model if not matching
         const exists = res.models.some((m: ChatModelItem) => m.id === selectedModel);
@@ -198,13 +202,13 @@ export default function ChatPage() {
       try {
         setLoadingMessages(true);
         const res = await api.getChatSession(activeSessionId);
-        if (res?.session) {
-          if (res.session.provider) setSelectedProvider(res.session.provider);
-          if (res.session.model) setSelectedModel(res.session.model);
+        const sess = res?.session || res;
+        if (sess) {
+          if (sess.provider) setSelectedProvider(sess.provider);
+          if (sess.model) setSelectedModel(sess.model);
         }
-        if (res?.messages) {
-          setMessages(res.messages);
-        }
+        const msgs = res?.messages || sess?.messages || [];
+        setMessages(msgs);
       } catch (err) {
         console.error('Failed to load session messages:', err);
       } finally {
@@ -236,7 +240,7 @@ export default function ChatPage() {
   const getActiveApiKey = () => {
     if (selectedProvider === 'openrouter') return openrouterApiKey;
     if (selectedProvider === '9router') return nineRouterApiKey;
-    if (selectedProvider === 'gemini') return geminiApiKey;
+    if (selectedProvider === 'google' || selectedProvider === 'gemini') return geminiApiKey;
     return '';
   };
 
@@ -248,9 +252,11 @@ export default function ChatPage() {
         provider: selectedProvider,
         model: selectedModel,
       });
-      if (res?.session) {
-        setSessions([res.session, ...sessions]);
-        setActiveSessionId(res.session.id);
+      const newSid = res?.session?.session_id || res?.session?.id || res?.session_id || res?.id;
+      if (res?.session || res?.id) {
+        const item = res.session || res;
+        setSessions([item, ...sessions]);
+        setActiveSessionId(newSid);
         setMessages([]);
         if (inputRef.current) inputRef.current.focus();
       }
@@ -265,11 +271,12 @@ export default function ChatPage() {
     if (!confirm('Hapus sesi chat ini beserta seluruh riwayatnya?')) return;
     try {
       await api.deleteChatSession(sessionId);
-      const remaining = sessions.filter((s) => s.id !== sessionId);
+      const remaining = sessions.filter((s) => (s.session_id || s.id) !== sessionId);
       setSessions(remaining);
       if (activeSessionId === sessionId) {
         if (remaining.length > 0) {
-          setActiveSessionId(remaining[0].id);
+          const nextSid = remaining[0].session_id || remaining[0].id;
+          setActiveSessionId(nextSid);
         } else {
           setActiveSessionId('');
           setMessages([]);
@@ -289,7 +296,7 @@ export default function ChatPage() {
     try {
       await api.updateChatSession(sessionId, { title: editingTitle.trim() });
       setSessions(
-        sessions.map((s) => (s.id === sessionId ? { ...s, title: editingTitle.trim() } : s))
+        sessions.map((s) => ((s.session_id || s.id) === sessionId ? { ...s, title: editingTitle.trim() } : s))
       );
     } catch (err) {
       console.error('Failed to update title:', err);
@@ -331,19 +338,31 @@ export default function ChatPage() {
 
       const res = await api.sendChatMessage(payload);
 
-      if (res?.session_id && res.session_id !== activeSessionId) {
-        setActiveSessionId(res.session_id);
+      const resolvedSid = res?.session_id;
+      if (resolvedSid && resolvedSid !== activeSessionId) {
+        setActiveSessionId(resolvedSid);
         fetchSessions();
       }
 
-      if (res?.message) {
+      const reply = res?.assistant_message || res?.message;
+      if (reply) {
         const assistantMsg: ChatMessageItem = {
-          id: res.message.id || `ai-${Date.now()}`,
+          id: String(reply.id || `ai-${Date.now()}`),
           role: 'assistant',
-          content: res.message.content || '',
-          tool_calls: res.message.tool_calls || null,
-          tool_results: res.message.tool_results || null,
-          created_at: res.message.created_at || new Date().toISOString(),
+          content: reply.content || '',
+          tool_calls: reply.tool_calls || res?.tool_calls || null,
+          tool_results: reply.tool_results || res?.tool_results || null,
+          created_at: reply.created_at || new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+      } else if (res?.content) {
+        const assistantMsg: ChatMessageItem = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: res.content,
+          tool_calls: res.tool_calls || null,
+          tool_results: res.tool_results || null,
+          created_at: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, assistantMsg]);
       }
@@ -352,14 +371,17 @@ export default function ChatPage() {
       const errorMsg: ChatMessageItem = {
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ **Terjadi Kesalahan Komunikasi dengan AI**\n\n${
-          err?.message || 'Tidak dapat terhubung ke model AI. Pastikan API key Anda valid atau gunakan model gratis.'
+        content: `⚠️ **Terjadi Kendala Komunikasi AI**\n\n${
+          err?.message || 'Tidak dapat terhubung ke model AI. Pastikan jaringan stabil atau ganti model lain di bar atas chat.'
         }`,
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsSending(false);
+      setTimeout(() => {
+        if (inputRef.current) inputRef.current.focus();
+      }, 50);
     }
   };
 
@@ -376,186 +398,76 @@ export default function ChatPage() {
     m.id.toLowerCase().includes(searchModelQuery.toLowerCase())
   );
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const filteredSessions = sessions.filter((s) =>
+    s.title.toLowerCase().includes(sessionSearch.toLowerCase())
+  );
+
+  const activeSession = sessions.find((s) => (s.session_id || s.id) === activeSessionId);
   const currentModelObj = models.find((m) => m.id === selectedModel);
 
   return (
     <>
       <Head>
-        <title>AI Chat & Research Assistant | SOFIA Trading System</title>
+        <title>AI Chat &amp; Research Assistant | SOFIA Trading System</title>
       </Head>
 
-      <div className="flex flex-col h-[calc(100vh-4.5rem)] min-h-[600px] -m-4 md:-m-6 overflow-hidden">
-        {/* TOP STATUS BAR */}
-        <div className="bg-obsidian-900 border-b border-obsidian-750 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
-              <LucideIcon name="sparkles" className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-sm text-slate-100 truncate">
-                  {activeSession ? activeSession.title : 'SOFIA AI Financial Analyst'}
-                </h1>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 uppercase shrink-0">
-                  {selectedProvider}
-                </span>
-                {currentModelObj?.is_free && (
-                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                    FREE TIER
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-400 truncate">
-                Model: <span className="font-mono text-slate-300">{selectedModel}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* View Available Tools Button */}
-            <button
-              type="button"
-              onClick={() => setToolsModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-white text-xs font-medium transition"
-              title="Daftar tools internal SOFIA yang dapat dibaca dan dieksekusi AI"
-            >
-              <LucideIcon name="wrench" className="w-3.5 h-3.5 text-amber-400" />
-              <span>Tools Aktif ({tools.length || 7})</span>
-            </button>
-
-            {/* API Keys Configuration Button */}
-            <button
-              type="button"
-              onClick={() => setApiKeyModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:text-white text-xs font-medium transition"
-              title="Konfigurasi API Key kustom untuk OpenRouter, 9Router, atau Gemini"
-            >
-              <LucideIcon name="key" className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden sm:inline">Kunci API</span>
-            </button>
-          </div>
-        </div>
-
+      <div className="flex flex-col h-[calc(100vh-4.5rem)] min-h-[600px] -m-4 md:-m-6 overflow-hidden bg-obsidian-950">
         {/* DUAL PANE WORKSPACE */}
         <div className="flex-1 flex overflow-hidden">
-          {/* LEFT SIDEBAR: SESSIONS & MODEL CONTROLS */}
-          <aside className="w-72 sm:w-80 border-r border-obsidian-750 bg-obsidian-950/60 flex flex-col shrink-0">
-            {/* Session Actions */}
+          {/* LEFT SIDEBAR: DEDICATED SESSIONS MANAGEMENT */}
+          <aside className="w-64 sm:w-72 lg:w-80 border-r border-obsidian-750 bg-obsidian-950/80 flex flex-col shrink-0">
+            {/* New Chat Button & Search */}
             <div className="p-3 border-b border-obsidian-750 space-y-2.5">
               <button
                 type="button"
                 onClick={handleCreateNewSession}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-md transition"
+                className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-md transition"
               >
                 <LucideIcon name="plus" className="w-4 h-4" />
                 <span>+ Chat Baru (Sesi Baru)</span>
               </button>
 
-              {/* Provider Selector Tabs */}
-              <div className="grid grid-cols-3 gap-1 p-1 bg-obsidian-900 rounded-lg border border-obsidian-750 text-center">
-                {PROVIDERS.map((p) => {
-                  const active = selectedProvider === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setSelectedProvider(p.id)}
-                      className={`px-1.5 py-1 rounded text-[11px] font-medium transition ${
-                        active
-                          ? 'bg-obsidian-800 text-white font-bold shadow-xs'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Model Selector & Free Filter */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-medium">Pilih Model:</span>
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={freeOnly}
-                      onChange={(e) => setFreeOnly(e.target.checked)}
-                      className="rounded accent-emerald-500 w-3.5 h-3.5"
-                    />
-                    <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded border border-emerald-500/20">
-                      Hanya Free
-                    </span>
-                  </label>
-                </div>
-
-                {/* Model dropdown */}
-                <div className="relative">
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full text-xs font-mono bg-obsidian-900 border border-obsidian-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500 truncate"
-                  >
-                    {filteredModels.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.is_free ? '🟢 [FREE] ' : ''}
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Import / Refresh Model Button */}
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    type="button"
-                    onClick={() => fetchModels(true)}
-                    disabled={importingModels}
-                    className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 font-medium disabled:opacity-50"
-                  >
-                    <LucideIcon
-                      name="refresh-cw"
-                      className={`w-3 h-3 ${importingModels ? 'animate-spin' : ''}`}
-                    />
-                    <span>Import Model Otomatis</span>
-                  </button>
-                  <span className="text-[10px] text-slate-500 font-mono">
-                    {models.length} model
-                  </span>
-                </div>
-
-                {modelsNotice && (
-                  <p className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded p-1 text-center font-mono animate-fade-in">
-                    {modelsNotice}
-                  </p>
-                )}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={sessionSearch}
+                  onChange={(e) => setSessionSearch(e.target.value)}
+                  placeholder="Cari riwayat chat..."
+                  className="w-full px-2.5 py-1.5 pl-8 rounded-lg bg-obsidian-900 border border-obsidian-750 text-slate-200 placeholder-slate-500 text-[11px] focus:outline-none focus:border-cyan-500"
+                />
+                <LucideIcon name="search" className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" />
               </div>
             </div>
 
             {/* Sessions History List */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Riwayat Sesi Chat ({sessions.length})
+              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                <span>Riwayat Sesi ({sessions.length})</span>
+                <span className="text-[9px] font-mono text-slate-500">Auto-Save</span>
               </div>
 
               {loadingSessions ? (
-                <div className="p-4 text-center text-xs text-slate-500">Memuat riwayat sesi...</div>
-              ) : sessions.length === 0 ? (
+                <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                  <LucideIcon name="refresh-cw" className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                  <span>Memuat sesi...</span>
+                </div>
+              ) : filteredSessions.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-500">
-                  Belum ada sesi chat. Klik tombol <strong>+ Chat Baru</strong> di atas.
+                  Belum ada sesi chat. Klik <strong>+ Chat Baru</strong> untuk memulai.
                 </div>
               ) : (
-                sessions.map((sess) => {
-                  const isActive = sess.id === activeSessionId;
-                  const isEditing = editingSessionId === sess.id;
+                filteredSessions.map((sess) => {
+                  const sid = sess.session_id || sess.id;
+                  const isActive = sid === activeSessionId;
+                  const isEditing = editingSessionId === sid;
+
                   return (
                     <div
-                      key={sess.id}
-                      onClick={() => setActiveSessionId(sess.id)}
+                      key={sid}
+                      onClick={() => setActiveSessionId(sid)}
                       className={`group flex items-center justify-between gap-2 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
                         isActive
-                          ? 'bg-obsidian-850 text-white border-emerald-500/40 shadow-xs'
+                          ? 'bg-obsidian-850 text-white border-emerald-500/50 shadow-xs'
                           : 'bg-obsidian-900/40 hover:bg-obsidian-900 text-slate-400 hover:text-slate-200 border-transparent hover:border-obsidian-750'
                       }`}
                     >
@@ -571,9 +483,9 @@ export default function ChatPage() {
                             type="text"
                             value={editingTitle}
                             onChange={(e) => setEditingTitle(e.target.value)}
-                            onBlur={() => handleSaveTitle(sess.id)}
+                            onBlur={() => handleSaveTitle(sid)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveTitle(sess.id);
+                              if (e.key === 'Enter') handleSaveTitle(sid);
                               if (e.key === 'Escape') setEditingSessionId(null);
                             }}
                             autoFocus
@@ -596,7 +508,7 @@ export default function ChatPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setEditingSessionId(sess.id);
+                            setEditingSessionId(sid);
                             setEditingTitle(sess.title);
                           }}
                           className="p-1 hover:text-white text-slate-400 rounded"
@@ -606,7 +518,7 @@ export default function ChatPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={(e) => handleDeleteSession(sess.id, e)}
+                          onClick={(e) => handleDeleteSession(sid, e)}
                           className="p-1 hover:text-rose-400 text-slate-400 rounded"
                           title="Hapus sesi"
                         >
@@ -618,10 +530,145 @@ export default function ChatPage() {
                 })
               )}
             </div>
+
+            {/* Sidebar Footer info */}
+            <div className="p-3 border-t border-obsidian-750 bg-obsidian-950/60 space-y-1 text-[11px] text-slate-500">
+              <div className="flex items-center justify-between text-slate-400 font-medium">
+                <span>SOFIA AI Analyst</span>
+                <span className="text-emerald-400 font-mono text-[10px]">7 Tools Aktif</span>
+              </div>
+              <p className="text-[10px] text-slate-500 leading-tight">
+                Membaca saham BEI, koin crypto, emas fisik, dan obligasi secara otomatis.
+              </p>
+            </div>
           </aside>
 
-          {/* RIGHT CHAT ARENA */}
+          {/* RIGHT CHAT ARENA: MODEL SELECTION DIATAS CHAT + FEED */}
           <main className="flex-1 flex flex-col bg-obsidian-950 overflow-hidden">
+            {/* =========================================================================
+                CONTROL BAR PEMILIHAN MODEL (DIATAS CHAT SESUAI INSTRUKSI USER)
+                ========================================================================= */}
+            <div className="bg-obsidian-900 border-b border-obsidian-750 px-4 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-sm z-10">
+              <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+                {/* 1. Provider Selector Segmented Buttons */}
+                <div className="flex items-center p-0.5 bg-obsidian-950 rounded-xl border border-obsidian-750">
+                  {PROVIDERS.map((p) => {
+                    const active = selectedProvider === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setSelectedProvider(p.id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                          active
+                            ? 'bg-obsidian-800 text-white font-bold shadow-xs'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 2. Model Dropdown Selector (Diatas Chat) */}
+                <div className="relative min-w-[200px] sm:min-w-[260px] max-w-sm">
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="w-full text-xs font-mono font-medium bg-obsidian-950 border border-obsidian-700 rounded-xl px-3 py-1.5 text-slate-100 focus:outline-none focus:border-cyan-500 truncate cursor-pointer shadow-inner"
+                    title="Pilih Model AI"
+                  >
+                    {filteredModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.is_free ? '🟢 [FREE] ' : ''}
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Free Tier Filter Toggle Switch */}
+                <label className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-obsidian-950 border border-obsidian-750 cursor-pointer select-none text-xs hover:border-emerald-500/40 transition">
+                  <input
+                    type="checkbox"
+                    checked={freeOnly}
+                    onChange={(e) => setFreeOnly(e.target.checked)}
+                    className="rounded accent-emerald-500 w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <span className="text-[10px] text-emerald-400 font-bold font-mono">
+                    Hanya Model Gratis (Free Tier)
+                  </span>
+                </label>
+
+                {/* 4. Refresh & Import Model Otomatis */}
+                <button
+                  type="button"
+                  onClick={() => fetchModels(true)}
+                  disabled={importingModels}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-obsidian-950 hover:bg-obsidian-850 border border-obsidian-750 hover:border-cyan-500/40 text-cyan-400 text-xs font-mono font-medium transition disabled:opacity-50"
+                  title="Import dan perbarui daftar model dari API provider"
+                >
+                  <LucideIcon
+                    name="refresh-cw"
+                    className={`w-3.5 h-3.5 ${importingModels ? 'animate-spin' : ''}`}
+                  />
+                  <span className="hidden sm:inline">Refresh Model</span>
+                  <span className="text-[10px] text-slate-500">({models.length})</span>
+                </button>
+              </div>
+
+              {/* Action Buttons Right: Tools Modal & Kunci API */}
+              <div className="flex items-center gap-2 shrink-0">
+                {modelsNotice && (
+                  <span className="text-[10px] text-emerald-400 font-mono hidden md:inline animate-fade-in">
+                    {modelsNotice}
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setToolsModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-obsidian-950 hover:bg-obsidian-850 border border-amber-500/30 text-amber-300 text-xs font-medium transition"
+                  title="Lihat 7 Tools Internal SOFIA yang dapat dibaca dan dieksekusi AI"
+                >
+                  <LucideIcon name="wrench" className="w-3.5 h-3.5 text-amber-400" />
+                  <span>7 Tools Aktif</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApiKeyModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-obsidian-950 hover:bg-obsidian-850 border border-cyan-500/30 text-cyan-300 text-xs font-medium transition"
+                  title="Konfigurasi API Key kustom (OpenRouter, 9Router, Gemini)"
+                >
+                  <LucideIcon name="key" className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="hidden sm:inline">Kunci API</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-header Bar: Active Session Title */}
+            <div className="px-5 py-2 bg-obsidian-950/60 border-b border-obsidian-800/80 flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="font-semibold text-slate-200 truncate">
+                  {activeSession ? activeSession.title : 'Percakapan Riset Baru'}
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
+                  • Menggunakan engine {selectedProvider.toUpperCase()} ({selectedModel})
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500 shrink-0">
+                {currentModelObj?.is_free && (
+                  <span className="px-1.5 py-0.2 rounded font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    BEBAS BIAYA (FREE TIER)
+                  </span>
+                )}
+                <span>Konteks: {currentModelObj?.context_length ? `${Math.round(currentModelObj.context_length / 1000)}k` : '128k'}</span>
+              </div>
+            </div>
+
             {/* Messages Feed */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
               {loadingMessages ? (
@@ -631,15 +678,15 @@ export default function ChatPage() {
                 </div>
               ) : messages.length === 0 ? (
                 /* EMPTY STATE / STARTER CARDS */
-                <div className="max-w-3xl mx-auto h-full flex flex-col items-center justify-center text-center py-8">
+                <div className="max-w-3xl mx-auto h-full flex flex-col items-center justify-center text-center py-6">
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500/20 via-cyan-500/20 to-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-xl mb-4">
                     <LucideIcon name="bot" className="w-8 h-8" />
                   </div>
                   <h2 className="text-xl font-bold text-slate-100 mb-2">
-                    SOFIA AI Multi-Tool Financial Assistant
+                    SOFIA AI Multi-Tool Financial Analyst
                   </h2>
                   <p className="text-slate-400 text-xs md:text-sm max-w-lg mb-6 leading-relaxed">
-                    Ajukan pertanyaan seputar saham BEI, koin kripto global, simulasi obligasi &amp; deposito, harga emas, hingga berita finansial. AI ini terintegrasi langsung dengan <strong>7 tools internal</strong> untuk mengambil data real-time.
+                    Ajukan pertanyaan seputar saham BEI, koin kripto global, simulasi obligasi &amp; deposito, harga emas, hingga berita finansial. AI ini membaca dan mengeksekusi langsung <strong>7 tools internal</strong> secara otonom.
                   </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full text-left">
@@ -648,7 +695,7 @@ export default function ChatPage() {
                         key={idx}
                         type="button"
                         onClick={() => handleSendMessage(sp.prompt)}
-                        className="p-3.5 rounded-xl bg-obsidian-900/70 hover:bg-obsidian-900 border border-obsidian-750 hover:border-emerald-500/40 text-left transition group shadow-sm"
+                        className="p-3.5 rounded-xl bg-obsidian-900/70 hover:bg-obsidian-900 border border-obsidian-750 hover:border-emerald-500/40 text-left transition group shadow-sm cursor-pointer"
                       >
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="font-semibold text-xs text-slate-200 group-hover:text-emerald-400 transition flex items-center gap-1.5">
@@ -694,14 +741,14 @@ export default function ChatPage() {
                         >
                           {/* Tool execution indicator card if present */}
                           {hasTools && (
-                            <div className="rounded-lg bg-obsidian-950 border border-obsidian-700 p-2 text-[11px] font-mono space-y-1.5">
+                            <div className="rounded-lg bg-obsidian-950 border border-obsidian-700 p-2.5 text-[11px] font-mono space-y-1.5 shadow-inner">
                               <div
                                 onClick={() => setExpandedToolMsgId(isExpanded ? null : msg.id)}
                                 className="flex items-center justify-between cursor-pointer text-amber-400 hover:text-amber-300 font-bold"
                               >
                                 <span className="flex items-center gap-1.5">
-                                  <LucideIcon name="wrench" className="w-3 h-3 text-amber-400" />
-                                  <span>Tools Internal SOFIA Dijalankan</span>
+                                  <LucideIcon name="wrench" className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Tools SOFIA Berhasil Dijalankan ({msg.tool_calls?.length || 1} Tool)</span>
                                 </span>
                                 <LucideIcon
                                   name={isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -713,7 +760,7 @@ export default function ChatPage() {
                                 <div className="pt-2 border-t border-obsidian-800 space-y-2 text-[10px] text-slate-400">
                                   {msg.tool_calls && msg.tool_calls.length > 0 && (
                                     <div>
-                                      <span className="text-slate-500 block mb-0.5">Panggilan Tool:</span>
+                                      <span className="text-slate-500 block mb-0.5">Parameter Tool:</span>
                                       <pre className="bg-obsidian-900 p-2 rounded border border-obsidian-800 overflow-x-auto text-cyan-300">
                                         {JSON.stringify(msg.tool_calls, null, 2)}
                                       </pre>
@@ -721,7 +768,7 @@ export default function ChatPage() {
                                   )}
                                   {msg.tool_results && msg.tool_results.length > 0 && (
                                     <div>
-                                      <span className="text-slate-500 block mb-0.5">Data Hasil Tool:</span>
+                                      <span className="text-slate-500 block mb-0.5">Data Output Tool:</span>
                                       <pre className="bg-obsidian-900 p-2 rounded border border-obsidian-800 overflow-x-auto text-emerald-300 max-h-48">
                                         {JSON.stringify(msg.tool_results, null, 2)}
                                       </pre>
@@ -747,8 +794,8 @@ export default function ChatPage() {
                         </div>
 
                         {isUser && (
-                          <div className="w-8 h-8 rounded-lg bg-obsidian-850 border border-obsidian-750 text-slate-300 flex items-center justify-center shrink-0 mt-0.5">
-                            <span className="text-xs font-bold font-mono">U</span>
+                          <div className="w-8 h-8 rounded-lg bg-obsidian-850 border border-obsidian-750 text-slate-300 flex items-center justify-center shrink-0 mt-0.5 font-bold font-mono text-xs">
+                            U
                           </div>
                         )}
                       </div>
@@ -761,9 +808,9 @@ export default function ChatPage() {
                       <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 animate-pulse">
                         <LucideIcon name="bot" className="w-4 h-4" />
                       </div>
-                      <div className="bg-obsidian-900 border border-obsidian-750 rounded-2xl rounded-tl-xs p-3 text-xs text-slate-400 flex items-center gap-2 shadow-xs">
-                        <LucideIcon name="refresh-cw" className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-                        <span>SOFIA sedang membaca tools &amp; merumuskan analisa pasar...</span>
+                      <div className="bg-obsidian-900 border border-obsidian-750 rounded-2xl rounded-tl-xs p-3.5 text-xs text-slate-400 flex items-center gap-2.5 shadow-xs">
+                        <LucideIcon name="refresh-cw" className="w-4 h-4 animate-spin text-emerald-400" />
+                        <span>SOFIA sedang membaca tools &amp; menyusun analisa pasar...</span>
                       </div>
                     </div>
                   )}
@@ -790,19 +837,19 @@ export default function ChatPage() {
                     type="button"
                     onClick={() => handleSendMessage()}
                     disabled={!inputMessage.trim() || isSending}
-                    className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white transition shrink-0"
+                    className="p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white transition shrink-0 cursor-pointer"
                     title="Kirim pesan"
                   >
                     <LucideIcon name="send" className="w-4 h-4" />
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 font-mono">
                   <span>
-                    Provider: <strong className="text-slate-400 font-mono">{selectedProvider}</strong> • Model:{' '}
-                    <strong className="text-slate-400 font-mono truncate">{selectedModel}</strong>
+                    Provider: <strong className="text-slate-400">{selectedProvider}</strong> • Model:{' '}
+                    <strong className="text-slate-400 truncate">{selectedModel}</strong>
                   </span>
-                  <span>7 Tools Otomatis Aktif</span>
+                  <span>7 Tools SOFIA Otomatis Aktif</span>
                 </div>
               </div>
             </div>
@@ -819,9 +866,9 @@ export default function ChatPage() {
                     <LucideIcon name="wrench" className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-slate-100">Daftar Tools Internal SOFIA</h3>
+                    <h3 className="font-bold text-sm text-slate-100">Daftar 7 Tools Internal SOFIA</h3>
                     <p className="text-[11px] text-slate-400">
-                      AI dapat memanggil fungsi ini secara otonom untuk menarik data real-time aplikasi
+                      AI dapat memanggil fungsi ini secara otomatis untuk menarik data real-time aplikasi
                     </p>
                   </div>
                 </div>
