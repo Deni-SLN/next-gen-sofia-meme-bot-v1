@@ -17,7 +17,6 @@ import {
 } from '@/lib/web3';
 import { LucideIcon } from '@/components/LucideIcon';
 import { WalletConnectModal } from '@/components/WalletConnectModal';
-import { SettingsDrawer } from '@/components/SettingsDrawer';
 import { LoginPortal } from '@/pages/login';
 
 interface NavItem {
@@ -108,7 +107,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [walletModalOpen, setWalletModalOpen] = useState<boolean>(false);
-  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [isUltrawide, setIsUltrawide] = useState<boolean>(false);
   const [connectedWallet, setConnectedWallet] = useState<ConnectedExtensionWallet | null>(null);
   const [deferredPwaPrompt, setDeferredPwaPrompt] = useState<any>(null);
@@ -482,15 +480,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5" />
             </button>
 
-            {/* Side Menu Setting Button */}
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="flex items-center justify-center w-8 h-8 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-700/80 text-slate-400 hover:text-slate-200 transition"
+            {/* Settings Link to /settings page */}
+            <Link
+              href="/settings"
+              className={`flex items-center justify-center w-8 h-8 rounded-lg border transition ${
+                router.pathname === '/settings'
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
+                  : 'bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-700/80 text-slate-400 hover:text-slate-200'
+              }`}
               title="Buka Pengaturan Sistem (API, Wallet, Tampilan)"
             >
               <LucideIcon name="sliders" className="w-3.5 h-3.5" />
-            </button>
+            </Link>
 
             {/* Theme Toggle */}
             <button
@@ -575,13 +576,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <Link
                           key={item.href}
                           href={item.href}
-                          onClick={(e) => {
-                            if (item.href === '/settings') {
-                              e.preventDefault();
-                              setSettingsOpen(true);
-                              setMobileMenuOpen(false);
-                            }
-                          }}
+                          onClick={() => setMobileMenuOpen(false)}
                           className={
                             active
                               ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-obsidian-800 text-white border border-obsidian-700 font-medium text-xs'
@@ -658,12 +653,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <Link
                         key={item.href}
                         href={item.href}
-                        onClick={(e) => {
-                          if (item.href === '/settings') {
-                            e.preventDefault();
-                            setSettingsOpen(true);
-                          }
-                        }}
                         className={
                           active
                             ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-obsidian-800 text-white border border-obsidian-700 font-medium text-xs transition'
@@ -749,14 +738,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </main>
         {/* END: MainContentArea */}
       </div>
-
-      {/* Side Menu Setting Drawer */}
-      <SettingsDrawer
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        isUltrawide={isUltrawide}
-        onToggleUltrawide={handleToggleUltrawide}
-      />
 
       {/* BEGIN: Mobile Fixed Bottom Tab Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 grid grid-cols-5 py-1.5 px-1 text-[10px]">
