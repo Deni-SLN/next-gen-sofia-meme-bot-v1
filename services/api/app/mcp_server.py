@@ -259,7 +259,7 @@ def search_market_news(query: str = "", category: str = "all", limit: int = 5) -
     :param limit: Jumlah maksimal artikel yang dikembalikan (default 5, maks 10).
     """
     lim = min(10, max(1, int(limit)))
-    data = news_service.get_indonesia_financial_news(
+    data = news_service.fetch_indonesian_news(
         category=category or "all",
         query=query or None,
         refresh=False,

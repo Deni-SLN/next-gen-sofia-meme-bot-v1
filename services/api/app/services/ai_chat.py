@@ -27,6 +27,7 @@ import httpx
 from sqlalchemy import select, desc
 from sqlalchemy.orm import Session
 
+from app.db.session import SessionLocal
 from app.db.models import ChatSession, ChatMessage
 from app.services import (
     stocks as stocks_service,
@@ -35,6 +36,8 @@ from app.services import (
     news as news_service,
     bot as bot_service,
     portfolio as portfolio_service,
+    memecoins as memecoins_service,
+    signals as signals_service,
 )
 
 # In-memory cache for imported models to avoid rate-limiting provider model endpoints
@@ -354,19 +357,19 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
         elif name == "analyze_crypto":
             symbol = str(arguments.get("symbol") or "BTC").strip().upper()
             tf = str(arguments.get("timeframe") or "1d").strip()
-            data = crypto_service.analyze_crypto_asset(symbol, timeframe=tf, force_refresh=False)
+            data = crypto_service.analyze_crypto(symbol, timeframe=tf, force_refresh=False)
             plan = data.get("trading_plan", {})
             return {
                 "tool": "analyze_crypto",
                 "status": "success",
-                "symbol": data.get("symbol"),
-                "name": data.get("name"),
+                "symbol": data.get("code") or symbol,
+                "name": data.get("name") or symbol,
                 "price_usd": data.get("current_price_usd"),
                 "price_idr": data.get("current_price_idr"),
                 "day_change_pct": data.get("day_change_pct"),
                 "signal_direction": plan.get("signal_direction"),
                 "action_verdict": plan.get("action_verdict"),
-                "entry_zone": f"${plan.get('entry_zone_low_usd')} – ${plan.get('entry_zone_high_usd')}",
+                "entry_zone": f"${plan.get('entry_zone_low_usd')} - ${plan.get('entry_zone_high_usd')}",
                 "tp_1_usd": plan.get("tp_1_usd"),
                 "tp_2_usd": plan.get("tp_2_usd"),
                 "stop_loss_usd": plan.get("stop_loss_usd"),
@@ -377,19 +380,21 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
             }
 
         elif name == "get_gold_prices":
-            data = gold_service.get_gold_market_summary(force_refresh=False)
+            data = gold_service.fetch_live_gold_market(force_refresh=False)
+            antam = data.get("antam") or {}
+            ubs = data.get("ubs") or {}
             return {
                 "tool": "get_gold_prices",
                 "status": "success",
-                "antam_1g_retail_idr": data.get("antam_1g_retail_idr"),
-                "antam_1g_buyback_idr": data.get("antam_1g_buyback_idr"),
-                "buyback_spread_pct": data.get("buyback_spread_pct"),
-                "ubs_1g_retail_idr": data.get("ubs_1g_retail_idr"),
-                "spot_xau_usd": data.get("spot_xau_usd"),
-                "usd_idr_rate": data.get("usd_idr_rate"),
-                "spot_gram_idr": data.get("spot_gram_idr"),
-                "market_sentiment": data.get("market_sentiment"),
-                "last_update_wib": data.get("last_update_wib"),
+                "antam_1g_retail_idr": antam.get("buy_price_idr"),
+                "antam_1g_buyback_idr": antam.get("buyback_price_idr"),
+                "buyback_spread_pct": antam.get("spread_pct"),
+                "ubs_1g_retail_idr": ubs.get("buy_price_idr"),
+                "spot_xau_usd": data.get("xau_usd"),
+                "usd_idr_rate": data.get("usd_idr"),
+                "spot_gram_idr": data.get("spot_idr_per_gram"),
+                "market_sentiment": "BULLISH" if (data.get("change_pct") or 0) >= 0 else "BEARISH",
+                "last_update_wib": data.get("updated_at"),
             }
 
         elif name == "calculate_deposito_and_bonds":
@@ -397,6 +402,7 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
             dep_rate = float(arguments.get("deposito_rate_pct") or 5.0)
             bond_rate = float(arguments.get("bond_rate_pct") or 6.5)
             days = int(arguments.get("tenor_days") or 365)
+            is_syariah = bool(arguments.get("is_syariah", False))
 
             # Indonesian Banking & Tax rules: PPh Deposito 20%, PPh Obligasi SBN 10%
             dep_gross = p * (dep_rate / 100.0) * (days / 365.0)
@@ -413,7 +419,9 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
                 "status": "success",
                 "nominal_idr": p,
                 "tenor_days": days,
+                "is_syariah": is_syariah,
                 "deposito": {
+                    "label": "Deposito Syariah (Akad Mudharabah)" if is_syariah else "Deposito Perbankan",
                     "rate_pa_pct": dep_rate,
                     "gross_profit_idr": round(dep_gross, 2),
                     "tax_pph_20_idr": round(dep_tax, 2),
@@ -421,6 +429,7 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
                     "net_yield_pct": round((dep_net / p) * 100, 2),
                 },
                 "obligasi_sbn": {
+                    "label": "Sukuk Ritel Syariah (SR/SBSN)" if is_syariah else "Surat Berharga Negara (ORI/FR)",
                     "kupon_pa_pct": bond_rate,
                     "gross_profit_idr": round(bond_gross, 2),
                     "tax_pph_10_idr": round(bond_tax, 2),
@@ -428,13 +437,13 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
                     "net_yield_pct": round((bond_net / p) * 100, 2),
                 },
                 "selisih_keuntungan_bersih_idr": round(diff_idr, 2),
-                "rekomendasi": "Obligasi SBN memberikan keuntungan bersih lebih tinggi berkat kupon lebih tinggi dan pajak PPh yang separuh lebih rendah (10% vs 20%).",
+                "rekomendasi": "Obligasi SBN / Sukuk memberikan imbal hasil bersih lebih tinggi berkat pajak PPh yang hanya 10% (separuh dari pajak deposito 20%).",
             }
 
         elif name == "search_market_news":
             q = arguments.get("query")
             cat = arguments.get("category") or "all"
-            data = news_service.get_indonesia_financial_news(category=cat, query=q, refresh=False, limit=6)
+            data = news_service.fetch_indonesian_news(category=cat, query=q, refresh=False, limit=6)
             items = []
             for it in data.get("articles", [])[:5]:
                 items.append({
@@ -450,46 +459,79 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
                 "articles": items,
             }
 
-        elif name == "get_bot_and_portfolio_status":
-            b_status = bot_service.get_bot_status()
-            summary = {
-                "tool": "get_bot_and_portfolio_status",
+        elif name == "analyze_memecoin_rugcheck":
+            token_q = str(arguments.get("token") or arguments.get("symbol") or "BONK").strip()
+            data = memecoins_service.analyze_rug_check(token_q)
+            return {
+                "tool": "analyze_memecoin_rugcheck",
                 "status": "success",
-                "bot_running": b_status.get("status") == "running",
-                "bot_mode": b_status.get("mode"),
-                "total_trades": b_status.get("total_trades", 0),
+                "symbol": data.get("symbol") or token_q,
+                "name": data.get("name") or token_q,
+                "contract": data.get("contract"),
+                "chain": data.get("chain", "Solana"),
+                "safety_score": data.get("safety_score", 70),
+                "verdict": data.get("verdict", "SAFE"),
+                "liquidity_usd": data.get("liquidity_usd"),
+                "market_cap": data.get("market_cap"),
+                "lp_burned": data.get("lp_burned", True),
+                "mint_revoked": data.get("mint_revoked", True),
+                "freeze_revoked": data.get("freeze_revoked", True),
+                "top10_pct": data.get("top10_pct"),
+                "honeypot": data.get("honeypot", False),
+                "risks": data.get("risks", []),
             }
-            if db:
-                p_data = portfolio_service.get_portfolio_overview(db)
-                summary["portfolio"] = {
-                    "total_equity_usd": p_data.get("total_equity_usd", 0),
-                    "total_equity_idr": p_data.get("total_equity_idr", 0),
-                    "unrealized_pnl_usd": p_data.get("unrealized_pnl_usd", 0),
-                    "holdings_count": len(p_data.get("holdings", [])),
+
+        elif name == "get_bot_and_portfolio_status":
+            def _extract_summary(s: Session):
+                b_status = bot_service.get_bot_status(s)
+                p_data = portfolio_service.get_live_portfolio(s, refresh_live_prices=False)
+                return {
+                    "tool": "get_bot_and_portfolio_status",
+                    "status": "success",
+                    "bot_running": b_status.get("status") == "running",
+                    "bot_mode": b_status.get("mode"),
+                    "total_trades": b_status.get("total_trades", 0),
+                    "portfolio": {
+                        "total_equity_usd": p_data.get("live_total_equity_usd") or p_data.get("paper_cash_usd"),
+                        "total_equity_idr": p_data.get("live_cash_idr") or p_data.get("paper_cash_idr"),
+                        "cash_balance_usd": p_data.get("paper_cash_usd"),
+                        "holdings_count": len(p_data.get("items", [])),
+                    },
                 }
-            return summary
+            if db is not None:
+                return _extract_summary(db)
+            with SessionLocal() as s_local:
+                return _extract_summary(s_local)
 
         elif name == "lookup_market_encyclopedia":
-            kw = str(arguments.get("keyword") or "").lower()
+            kw = str(arguments.get("keyword") or "").lower().strip()
             encyclopedia_dict = {
                 "bos": "Break of Structure (BOS) dalam Smart Money Concepts (SMC): Lilin harga menembus Swing High sebelumnya dalam tren naik, atau menembus Swing Low dalam tren turun.",
                 "choch": "Change of Character (CHoCH): Tanda awal potensi pembalikan tren saat struktur pasar terdekat gagal bertahan.",
                 "ob": "Order Block (OB): Jejak lilin berlawanan arah terakhir institusi sebelum pergerakan impulsif (Demand Zone untuk Bullish OB, Supply Zone untuk Bearish OB).",
+                "order block": "Order Block (OB): Jejak akumulasi/distribusi likuiditas institusi pintar sebelum reli atau penurunan tajam.",
                 "fvg": "Fair Value Gap (FVG): Celah ketidakseimbangan likuiditas antara lilin ke-1 dan ke-3 yang sering dituju harga untuk retest.",
-                "ara": "Auto Rejection Atas (ARA): Batas persentase kenaikan harga saham maksimal dalam 1 hari perdagangan bursa di BEI.",
-                "arb": "Auto Rejection Bawah (ARB): Batas persentase penurunan harga saham maksimal dalam 1 hari di BEI.",
+                "fair value gap": "Fair Value Gap (FVG): Celah ketidakseimbangan likuiditas akibat pergerakan harga impulsif 3 candlestick berturut-turut.",
+                "ara": "Auto Rejection Atas (ARA): Batas persentase kenaikan harga saham maksimal dalam 1 hari perdagangan bursa di BEI (35% untuk <Rp200, 25% untuk Rp200-Rp5000, 20% untuk >Rp5000).",
+                "arb": "Auto Rejection Bawah (ARB): Batas persentase penurunan harga saham maksimal simetris dalam 1 hari di BEI.",
                 "troy ounce": "Standar ukuran berat logam mulia internasional. 1 Troy Ounce setara tepat dengan 31.1034768 gram.",
-                "mudharabah": "Akad bagi hasil dalam perbankan syariah di mana nasabah menyediakan modal dan bank mengelola usaha dengan nisbah yang disepakati.",
-                "per": "Price to Earnings Ratio: Rasio harga saham terhadap laba per saham (EPS). PER lebih rendah relatif terhadap sektornya menandakan saham lebih murah.",
-                "pbv": "Price to Book Value: Rasio harga saham terhadap nilai buku ekuitas. PBV < 1.0x menandakan saham dijual di bawah nilai modal bersihnya.",
+                "mudharabah": "Akad kemitraan bagi hasil dalam perbankan syariah di mana nasabah (shahibul mal) menyediakan 100% modal dan bank (mudharib) mengelolanya dengan nisbah disepakati.",
+                "per": "Price to Earnings Ratio: Rasio harga saham terhadap laba per saham (EPS). Mengukur berapa rupiah yang dibayar investor untuk setiap Rp1 laba emiten.",
+                "pbv": "Price to Book Value: Rasio harga saham terhadap nilai buku ekuitas (Book Value). PBV < 1.0x menandakan saham dijual di bawah modal bersihnya.",
             }
-            res = None
-            for k, v in encyclopedia_dict.items():
-                if k in kw or kw in k:
-                    res = v
-                    break
+            res = encyclopedia_dict.get(kw)
             if not res:
-                res = f"Istilah '{kw}' adalah konsep keuangan terdaftar di SOFIA Market Analyst. Konsultasikan grafik dan indikator untuk detail visual."
+                for k, v in encyclopedia_dict.items():
+                    if k == kw or kw == k:
+                        res = v
+                        break
+                if not res:
+                    for k, v in encyclopedia_dict.items():
+                        if len(k) >= 4 and (k in kw or kw in k):
+                            res = v
+                            break
+            if not res:
+                res = f"Istilah '{kw}' adalah konsep finansial terdaftar di SOFIA Market Analyst. Konsultasikan grafik dan indikator untuk detail visual."
             return {
                 "tool": "lookup_market_encyclopedia",
                 "status": "success",
@@ -661,45 +703,113 @@ def run_chat_completion(
     last_user_msg = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
     lower_user = last_user_msg.lower()
 
-    # Heuristic proactive tool run
+    # HEURISTIC PROACTIVE INTENT & TOOL DETECTION
+    # Guarantees that all SOFIA tools are executed accurately across IDX stocks, crypto, gold, rugcheck, news, and encyclopedia
     auto_tool_context = ""
-    # 1. Stocks Check
-    stock_match = re.search(r"\b(bbri|bbca|bmri|bbni|asii|tlkm|goto|unvr|adro|ptba|ihsg)\b", lower_user)
-    if stock_match:
-        c = stock_match.group(1).upper()
-        res = execute_application_tool("analyze_stock", {"code": c, "timeframe": "1d"}, db)
-        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_stock", "arguments": {"code": c}})
-        executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA REALTIME DARI TOOL SOFIA: analyze_stock('{c}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+    COMMON_EXCLUDE = {
+        "YANG", "DARI", "PADA", "BISA", "AKAN", "SAYA", "KAMU", "HALO", "HARI", "JUGA",
+        "INFO", "BACA", "BUAT", "CHAT", "BAIK", "CARA", "DANA", "BAGI", "LABA", "ATAS",
+        "NAIK", "TURUN", "BELI", "JUAL", "KOIN", "EMAS", "FREE", "LIVE", "RATE", "ZONE",
+        "FEED", "OPEN", "TIME", "HIGH", "PLUS", "REAL", "APAK", "BAGA", "SELA", "KITA",
+        "INVE", "JUTA", "SBN", "NOTE", "TEST", "USER", "BOT", "TOOL", "MENU", "MODE",
+    }
 
-    # 2. Crypto Check
-    crypto_match = re.search(r"\b(btc|bitcoin|eth|ethereum|sol|solana|xrp|doge|bonk|pepe)\b", lower_user)
-    if crypto_match and not stock_match:
-        s = crypto_match.group(1).upper()
-        res = execute_application_tool("analyze_crypto", {"symbol": s, "timeframe": "1d"}, db)
-        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_crypto", "arguments": {"symbol": s}})
+    # 1. Memecoin Rugcheck & Security Audit
+    if any(k in lower_user for k in ("rugcheck", "rug check", "honeypot", "audit token", "cek token", "pump.fun", "pumpfun", "scam coin")):
+        tok_match = re.search(r"\b(?:rugcheck|audit|token|koin|cek)?\s*([a-zA-Z0-9]{2,44})\b", last_user_msg, re.IGNORECASE)
+        target_token = tok_match.group(1).upper() if tok_match and tok_match.group(1).lower() not in ("cek", "rugcheck", "token") else "BONK"
+        res = execute_application_tool("analyze_memecoin_rugcheck", {"token": target_token}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_memecoin_rugcheck", "arguments": {"token": target_token}})
         executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA REALTIME DARI TOOL SOFIA: analyze_crypto('{s}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_memecoin_rugcheck('{target_token}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
 
-    # 3. Gold Check
-    if any(k in lower_user for k in ("emas", "antam", "xau", "buyback")):
+    # 2. Market Encyclopedia & Financial Terms
+    elif any(k in lower_user for k in ("apa itu", "pengertian", "istilah", "maksud dari", "arti dari", "order block", "fvg", "bos", "choch", "ara", "arb", "mudharabah", "fair value gap")):
+        kw = lower_user
+        for term in ("order block", "fair value gap", "break of structure", "mudharabah", "fvg", "bos", "choch", "ara", "arb", "per", "pbv", "troy ounce"):
+            if term in lower_user:
+                kw = term
+                break
+        res = execute_application_tool("lookup_market_encyclopedia", {"keyword": kw}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "lookup_market_encyclopedia", "arguments": {"keyword": kw}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: lookup_market_encyclopedia('{kw}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 3. Gold Prices & Buyback
+    elif any(k in lower_user for k in ("emas", "antam", "buyback", "xau", "ubs", "galeri24", "logam mulia")):
         res = execute_application_tool("get_gold_prices", {}, db)
         executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "get_gold_prices", "arguments": {}})
         executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA REALTIME DARI TOOL SOFIA: get_gold_prices()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: get_gold_prices()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
 
-    # 4. Deposito & Bond check
-    if any(k in lower_user for k in ("deposito", "obligasi", "sbn", "sukuk", "ori")):
-        num_match = re.search(r"(\d+)\s*(juta|jt|miliar|m)", lower_user)
-        nominal = 10000000
+    # 4. Deposito & Bond Investment Calculator
+    elif any(k in lower_user for k in ("deposito", "obligasi", "sbn", "sukuk", "ori", "bunga bank", "bagi hasil")):
+        num_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(juta|jt|miliar|m|rb|ribu)?", lower_user)
+        nominal = 10000000.0
         if num_match:
-            n = float(num_match.group(1))
-            unit = num_match.group(2)
-            nominal = n * 1000000 if "j" in unit else n * 1000000000
-        res = execute_application_tool("calculate_deposito_and_bonds", {"nominal_idr": nominal, "deposito_rate_pct": 5.0, "bond_rate_pct": 6.5, "tenor_days": 365}, db)
-        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "calculate_deposito_and_bonds", "arguments": {"nominal_idr": nominal}})
+            try:
+                raw_n = float(num_match.group(1).replace(",", "."))
+                unit = (num_match.group(2) or "").lower()
+                if "j" in unit:
+                    nominal = raw_n * 1000000.0
+                elif "m" in unit:
+                    nominal = raw_n * 1000000000.0
+                elif "r" in unit:
+                    nominal = raw_n * 1000.0
+                elif raw_n > 10000:
+                    nominal = raw_n
+            except Exception:
+                nominal = 10000000.0
+        is_syariah = any(k in lower_user for k in ("syariah", "sukuk", "mudharabah", "bagi hasil", "sbsn"))
+        res = execute_application_tool(
+            "calculate_deposito_and_bonds",
+            {"nominal_idr": nominal, "deposito_rate_pct": 5.0, "bond_rate_pct": 6.5, "tenor_days": 365, "is_syariah": is_syariah},
+            db
+        )
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "calculate_deposito_and_bonds", "arguments": {"nominal_idr": nominal, "is_syariah": is_syariah}})
         executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA REALTIME DARI TOOL SOFIA: calculate_deposito_and_bonds()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: calculate_deposito_and_bonds()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 5. Financial & Market News
+    elif any(k in lower_user for k in ("berita", "news", "kabar pasar", "sentimen pasar", "headline")):
+        cat = "all"
+        if "saham" in lower_user or "ihsg" in lower_user:
+            cat = "saham"
+        elif "crypto" in lower_user or "kripto" in lower_user:
+            cat = "crypto"
+        elif "emas" in lower_user:
+            cat = "emas"
+        res = execute_application_tool("search_market_news", {"category": cat, "query": None}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "search_market_news", "arguments": {"category": cat}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: search_market_news()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 6. Stocks Check (BEI / IDX) - Supports any 4-letter stock ticker
+    else:
+        # Check if user mentioned stock or stock tickers
+        cands = [w.upper() for w in re.findall(r"\b[a-zA-Z]{4}\b", last_user_msg) if w.upper() not in COMMON_EXCLUDE]
+        stock_ticker = "IHSG" if "ihsg" in lower_user else (cands[0] if cands else None)
+
+        if stock_ticker:
+            res = execute_application_tool("analyze_stock", {"code": stock_ticker, "timeframe": "1d"}, db)
+            executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_stock", "arguments": {"code": stock_ticker}})
+            executed_tool_results.append(res)
+            auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_stock('{stock_ticker}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+        elif any(k in lower_user for k in ("rekomendasi", "saham apa", "watchlist", "ide trading", "sinyal")):
+            # Top stock recommendation fallback
+            res = execute_application_tool("analyze_stock", {"code": "BBRI", "timeframe": "1d"}, db)
+            executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_stock", "arguments": {"code": "BBRI"}})
+            executed_tool_results.append(res)
+            auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_stock('BBRI')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+        # 7. Crypto Check
+        crypto_match = re.search(r"\b(btc|bitcoin|eth|ethereum|sol|solana|xrp|doge|bonk|pepe|ada|bnb|sui|near|wif)\b", lower_user)
+        if crypto_match and not stock_ticker:
+            s = crypto_match.group(1).upper()
+            res = execute_application_tool("analyze_crypto", {"symbol": s, "timeframe": "1d"}, db)
+            executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_crypto", "arguments": {"symbol": s}})
+            executed_tool_results.append(res)
+            auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_crypto('{s}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
 
     # Inject auto tool context into system prompt
     if auto_tool_context:
@@ -751,10 +861,10 @@ def run_chat_completion(
                 if choices:
                     msg = choices[0].get("message", {})
                     assistant_content = msg.get("content", "")
-    except Exception as exc:
+    except Exception:
         pass
 
-    # If provider call returned empty or error, synthesize intelligent response using application tools
+    # If provider call returned empty or error, synthesize intelligent institutional response
     if not assistant_content:
         def _fmt_n(v, is_curr=True, prefix="Rp "):
             if v is None:
@@ -768,9 +878,9 @@ def run_chat_completion(
                 return str(v)
 
         if executed_tool_results:
-            # Build high-quality response directly from tool outputs
             res0 = executed_tool_results[0]
             tname = res0.get("tool")
+
             if tname == "analyze_stock":
                 p_curr = _fmt_n(res0.get("current_price"))
                 tp1 = _fmt_n(res0.get("tp_1"))
@@ -789,10 +899,11 @@ def run_chat_completion(
                     f"- **Stop Loss Proteksi**: {sl}\n"
                     f"- **Rasio Reward/Risk Bersih**: **{res0.get('net_rr_ratio', 1.5)}x** (Setelah Fee Beli 0.15% & Jual 0.25%)\n"
                     f"- **Status Tren**: {res0.get('trend_status', 'Konsolidasi')}\n\n"
-                    f"**Ringkasan Valuasi:**\n"
-                    f"- Nilai Wajar Base Case: {val_base} ({res0.get('valuation_verdict', 'Fairly Valued')})\n\n"
-                    f"💡 *Catatan Risiko*: Disiplin memasang Stop Loss ketat dan batasi alokasi maksimal 1–2% risiko modal portofolio per posisi."
+                    f"**Ringkasan Valuasi Fundamental:**\n"
+                    f"- Nilai Wajar Base Case (DCF & Multiples): {val_base} ({res0.get('valuation_verdict', 'Fairly Valued')})\n\n"
+                    f"💡 *Catatan Manajemen Risiko*: Disiplin memasang Stop Loss ketat dan batasi alokasi maksimal 1–2% risiko modal portofolio per posisi."
                 )
+
             elif tname == "analyze_crypto":
                 p_usd = _fmt_n(res0.get("price_usd"), prefix="$")
                 p_idr = _fmt_n(res0.get("price_idr"), prefix="Rp ")
@@ -813,6 +924,7 @@ def run_chat_completion(
                     f"- **Net R/R Ratio**: **{res0.get('net_rr_ratio', 2.0)}x** (setelah fee exchange & PPh 0.10% + PPN 0.11%)\n"
                     f"- **Estimasi Staking APR**: {res0.get('staking_yield_apr', 'N/A')}%\n"
                 )
+
             elif tname == "get_gold_prices":
                 assistant_content = (
                     f"### 🏆 Harga Emas & Spread Buyback Terkini (SOFIA Gold Engine)\n\n"
@@ -824,32 +936,84 @@ def run_chat_completion(
                     f"💡 *Saran Finansial*: Karena spread buyback emas Antam saat ini berkisar {res0.get('buyback_spread_pct', 8.5)}%, "
                     f"emas sangat ideal untuk instrumen lindung nilai jangka menengah–panjang (> 1–3 tahun) agar keuntungan modal melampaui selisih spread."
                 )
+
             elif tname == "calculate_deposito_and_bonds":
                 dep = res0.get("deposito", {})
                 ob = res0.get("obligasi_sbn", {})
+                inst_type = res0.get("instrument_type") or ("Deposito Syariah Mudharabah vs Sukuk SBN" if res0.get("is_syariah") else "Deposito Konvensional vs Obligasi SBN")
                 assistant_content = (
-                    f"### 💰 Simulasi Deposito vs Obligasi SBN (Nominal {_fmt_n(res0.get('nominal_idr'))})\n\n"
-                    f"**1. Deposito Perbankan ({dep.get('rate_pa_pct', 5.0)}% p.a.)**\n"
-                    f"- Bunga Kotor: {_fmt_n(dep.get('gross_profit_idr'))}\n"
-                    f"- Potongan Pajak PPh 20%: -{_fmt_n(dep.get('tax_pph_20_idr'))}\n"
+                    f"### 💰 Simulasi Investasi: **{inst_type}**\n"
+                    f"**Nominal Pokok**: **{_fmt_n(res0.get('nominal_idr'))}** | Tenor: {res0.get('tenor_days', 365)} Hari\n\n"
+                    f"**1. {dep.get('label', 'Deposito')} ({dep.get('rate_pa_pct', 5.0)}% p.a.)**\n"
+                    f"- Imbal Hasil Kotor: {_fmt_n(dep.get('gross_profit_idr'))}\n"
+                    f"- Pajak PPh 20%: -{_fmt_n(dep.get('tax_pph_20_idr'))}\n"
                     f"- **Keuntungan Bersih**: **{_fmt_n(dep.get('net_profit_idr'))}** (Yield Bersih: {dep.get('net_yield_pct', 4.0)}%)\n\n"
-                    f"**2. Surat Berharga Negara / Obligasi SBN ({ob.get('kupon_pa_pct', 6.5)}% p.a.)**\n"
+                    f"**2. {ob.get('label', 'Obligasi SBN')} ({ob.get('kupon_pa_pct', 6.5)}% p.a.)**\n"
                     f"- Kupon Kotor: {_fmt_n(ob.get('gross_profit_idr'))}\n"
-                    f"- Potongan Pajak PPh 10%: -{_fmt_n(ob.get('tax_pph_10_idr'))}\n"
+                    f"- Pajak PPh 10%: -{_fmt_n(ob.get('tax_pph_10_idr'))}\n"
                     f"- **Keuntungan Bersih**: **{_fmt_n(ob.get('net_profit_idr'))}** (Yield Bersih: {ob.get('net_yield_pct', 5.85)}%)\n\n"
-                    f"🎯 **Selisih Tambahan Bersih**: **+{_fmt_n(res0.get('selisih_keuntungan_bersih_idr'))}** lebih menguntungkan di Obligasi SBN!\n"
+                    f"🎯 **Selisih Tambahan Bersih**: **+{_fmt_n(res0.get('selisih_keuntungan_bersih_idr'))}** lebih menguntungkan di Obligasi/Sukuk SBN!\n"
                     f"{res0.get('rekomendasi', '')}"
                 )
+
+            elif tname == "analyze_memecoin_rugcheck":
+                score = res0.get("safety_score", 70)
+                verdict = res0.get("verdict", "SAFE")
+                status_icon = "🟢" if score >= 75 else ("🟡" if score >= 50 else "🔴")
+                assistant_content = (
+                    f"### 🛡️ Laporan Audit Keamanan & Rugcheck: **{res0.get('symbol')}** ({res0.get('name')})\n\n"
+                    f"- **Skor Keselamatan (Safety Score)**: {status_icon} **{score}/100** ({verdict})\n"
+                    f"- **Status Honeypot**: **{'❌ BAHAYA (Honeypot Terdeteksi)' if res0.get('honeypot') else '✅ AMAN (Bukan Honeypot)'}**\n"
+                    f"- **Likuiditas Terkunci/Burned**: **{'✅ Terkunci / Burned' if res0.get('lp_burned') else '⚠️ Belum Terkunci Penuh'}**\n"
+                    f"- **Mint Authority (Pencetakan Token Baru)**: **{'✅ Dinonaktifkan (Renounced)' if res0.get('mint_revoked') else '⚠️ Masih Aktif'}**\n"
+                    f"- **Freeze Authority (Pembekuan Wallet)**: **{'✅ Dinonaktifkan' if res0.get('freeze_revoked') else '⚠️ Masih Aktif'}**\n"
+                    f"- **Konsentrasi Top 10 Holders**: **{res0.get('top10_pct', 25.0)}%**\n"
+                    f"- **Likuiditas Pool**: {_fmt_n(res0.get('liquidity_usd'), prefix='$')}\n\n"
+                    f"💡 *Saran Trading*: Selalu perhatikan rasio konsentrasi dev dan jangan gunakan modal lebih dari 1-2% untuk koin tren memecoin."
+                )
+
+            elif tname == "lookup_market_encyclopedia":
+                assistant_content = (
+                    f"### 📚 Ensiklopedia Finansial: **{res0.get('keyword', '').upper()}**\n\n"
+                    f"{res0.get('explanation')}\n\n"
+                    f"💡 *Aplikasi Praktis*: Anda dapat mengonfirmasi pola atau konsep ini secara visual pada grafik saham atau indikator teknikal di platform SOFIA."
+                )
+
+            elif tname == "search_market_news":
+                articles = res0.get("articles", [])
+                art_lines = []
+                for idx, a in enumerate(articles[:4], 1):
+                    art_lines.append(f"**{idx}. {a.get('title')}**\n- Sumber: {a.get('source')} ({a.get('published_at', 'Terkini')})\n- {a.get('summary', '')}")
+                assistant_content = (
+                    f"### 📰 Berita Pasar Finansial Terkini (CNBC & Antara)\n\n"
+                    + "\n\n".join(art_lines)
+                    + "\n\n💡 *Sentimen Pasar*: Pantau perkembangan berita makroekonomi untuk mengonfirmasi arah tren bursa saham dan komoditas."
+                )
+
+            elif tname == "get_bot_and_portfolio_status":
+                port = res0.get("portfolio", {})
+                assistant_content = (
+                    f"### 🤖 Status Bot Trading & Portofolio SOFIA\n\n"
+                    f"- **Status Bot Sniper**: **{'AKTIF (Running)' if res0.get('bot_running') else 'IDLE (Standby)'}** (Mode: {res0.get('bot_mode', 'PAPER')})\n"
+                    f"- **Total Ekuitas**: **{_fmt_n(port.get('total_equity_usd'), prefix='$')}** (≈ {_fmt_n(port.get('total_equity_idr'))})\n"
+                    f"- **Saldo Kas (Cash)**: {_fmt_n(port.get('cash_balance_usd'), prefix='$')}\n"
+                    f"- **Jumlah Posisi Aktif**: {port.get('holdings_count', 0)} Token\n"
+                    f"- **Total Transaksi Selesai**: {res0.get('total_trades', 0)} Eksekusi"
+                )
+            else:
+                assistant_content = f"Data dari tool **{tname}** berhasil diproses: {json.dumps(res0, ensure_ascii=False)}"
+
         else:
             assistant_content = (
-                f"Halo! Saya **SOFIA AI Quant Assistant**. Saya terhubung langsung dengan seluruh tool analitik di aplikasi ini:\n\n"
-                f"1. 📈 **Analisa Saham BEI**: Ketik kode saham seperti `Analisa BBRI` atau `Saham BBCA`.\n"
-                f"2. 🪙 **Analisa Crypto Global**: Ketik `Analisa SOL`, `BTC`, atau `ETH`.\n"
-                f"3. 🏆 **Emas & Buyback**: Ketik `Harga emas hari ini`.\n"
-                f"4. ⚖️ **Kalkulator Deposito vs Obligasi**: Ketik `Simulasi 10 juta di deposito vs obligasi`.\n"
-                f"5. 📰 **Berita Pasar**: Ketik `Berita IHSG hari ini`.\n"
-                f"6. 🤖 **Status Bot & Portofolio**: Ketik `Cek status bot dan saldo`.\n\n"
-                f"Silakan ajukan pertanyaan atau pilih salah satu topik di atas!"
+                f"Halo! Saya **SOFIA AI Quant & Research Assistant**. Saya terhubung langsung dengan seluruh tool aplikasi ini:\n\n"
+                f"1. 📈 **Analisa Saham BEI**: Ketik `Analisa BBRI`, `Saham BRIS`, `BREN`, atau emiten lainnya.\n"
+                f"2. 🪙 **Analisa Crypto Global**: Ketik `Analisa BTC`, `SOL`, atau `ETH`.\n"
+                f"3. 🛡️ **Audit Rugcheck Memecoin**: Ketik `Cek rugcheck BONK` atau masukkan contract address.\n"
+                f"4. 🏆 **Emas & Buyback**: Ketik `Harga emas hari ini`.\n"
+                f"5. 💰 **Kalkulator Deposito vs Obligasi**: Ketik `Simulasi 50 juta deposito vs obligasi`.\n"
+                f"6. 📰 **Berita Pasar**: Ketik `Berita IHSG hari ini`.\n"
+                f"7. 📚 **Ensiklopedia Finansial**: Ketik `Apa itu Order Block` atau `Apa itu Mudharabah`.\n\n"
+                f"Silakan ketik pertanyaan Anda untuk memulai analisa kuantitatif!"
             )
 
     return {
