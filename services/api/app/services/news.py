@@ -487,10 +487,17 @@ def fetch_indonesian_news(
 
                     seen_titles.add(norm_title)
 
-                    if not clean_desc or clean_desc.lower() == clean_title.lower():
+                    clean_desc_clean = clean_desc.strip()
+                    test_desc = re.sub(re.escape(clean_title), "", clean_desc_clean, flags=re.IGNORECASE).strip()
+                    if publisher:
+                        test_desc = re.sub(re.escape(publisher), "", test_desc, flags=re.IGNORECASE).strip()
+                    test_desc = re.sub(r"^[\s\-\:\.\,]+|[\s\-\:\.\,]+$", "", test_desc).strip()
+
+                    if not test_desc or len(test_desc) < 20:
+                        cat_label = NEWS_CATEGORIES.get(resolved_cat, cat_meta)["label"]
                         clean_desc = (
-                            f"Laporan terkini dari {publisher} mengenai perkembangan "
-                            f"{NEWS_CATEGORIES.get(resolved_cat, cat_meta)['label']} di pasar Indonesia."
+                            f"Laporan {publisher} mengulas perkembangan seputar '{clean_title}' "
+                            f"dan implikasinya terhadap tren pasar {cat_label}."
                         )
 
                     # Extract native RSS thumbnail or fallback to topic-matched high-res thumbnail

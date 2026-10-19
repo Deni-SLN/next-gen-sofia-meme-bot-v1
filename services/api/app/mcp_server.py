@@ -261,19 +261,19 @@ def search_market_news(query: str = "", category: str = "all", limit: int = 5) -
     lim = min(10, max(1, int(limit)))
     data = news_service.fetch_indonesian_news(
         category=category or "all",
-        query=query or None,
-        refresh=False,
+        search_query=query or None,
+        force_refresh=False,
         limit=lim,
     )
     articles = []
     for it in data.get("articles", [])[:lim]:
         articles.append({
             "title": it.get("title"),
-            "source": it.get("source"),
+            "publisher": it.get("publisher") or it.get("source") or "Portal Berita",
             "category": it.get("category"),
-            "published_at_wib": it.get("published_at_wib"),
+            "published_at": it.get("relative_time") or it.get("formatted_date") or it.get("published_at_wib") or "Terkini",
             "summary": it.get("summary"),
-            "link": it.get("link"),
+            "url": it.get("url") or it.get("link"),
         })
     return {
         "status": "success",

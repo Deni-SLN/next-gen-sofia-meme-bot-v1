@@ -443,14 +443,16 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
         elif name == "search_market_news":
             q = arguments.get("query")
             cat = arguments.get("category") or "all"
-            data = news_service.fetch_indonesian_news(category=cat, query=q, refresh=False, limit=6)
+            data = news_service.fetch_indonesian_news(category=cat, search_query=q, force_refresh=False, limit=6)
             items = []
             for it in data.get("articles", [])[:5]:
                 items.append({
                     "title": it.get("title"),
-                    "source": it.get("source"),
-                    "published_at": it.get("published_at_wib") or it.get("published_at"),
-                    "summary": it.get("summary"),
+                    "publisher": it.get("publisher") or it.get("source") or "Portal Berita",
+                    "time": it.get("relative_time") or it.get("formatted_date") or "Terkini",
+                    "summary": it.get("summary") or it.get("title"),
+                    "url": it.get("url") or it.get("link"),
+                    "sentiment": it.get("sentiment_label") or it.get("sentiment") or "Netral",
                 })
             return {
                 "tool": "search_market_news",
@@ -1027,14 +1029,35 @@ def run_chat_completion(
 
             elif tname == "search_market_news":
                 articles = res0.get("articles", [])
-                art_lines = []
-                for idx, a in enumerate(articles[:4], 1):
-                    art_lines.append(f"**{idx}. {a.get('title')}**\n- Sumber: {a.get('source')} ({a.get('published_at', 'Terkini')})\n- {a.get('summary', '')}")
-                assistant_content = (
-                    f"### 📰 Berita Pasar Finansial Terkini (CNBC & Antara)\n\n"
-                    + "\n\n".join(art_lines)
-                    + "\n\n💡 *Sentimen Pasar*: Pantau perkembangan berita makroekonomi untuk mengonfirmasi arah tren bursa saham dan komoditas."
-                )
+                if not articles:
+                    assistant_content = (
+                        "### 📰 Berita Pasar Finansial Terkini\n\n"
+                        "Saat ini feed berita pasar finansial sedang diperbarui atau tidak ada artikel yang cocok dengan filter pencarian Anda.\n\n"
+                        "💡 *Saran*: Silakan tanyakan topik spesifik seperti: `Berita saham IHSG`, `Kabar crypto Bitcoin hari ini`, atau `Perkembangan harga emas Antam`."
+                    )
+                else:
+                    art_lines = []
+                    for idx, a in enumerate(articles[:4], 1):
+                        title = a.get("title") or "Kabar Finansial Terkini"
+                        pub = a.get("publisher") or a.get("source") or "Portal Finansial"
+                        time_str = a.get("time") or a.get("published_at") or "Terkini"
+                        summary = (a.get("summary") or "").strip()
+                        if not summary or summary.lower() == title.lower() or len(summary) < 25:
+                            summary_line = f"Laporan {pub} terkait dinamika pergerakan pasar keuangan, sentimen ekonomi, dan tren bursa terkini."
+                        else:
+                            summary_line = summary
+
+                        art_lines.append(
+                            f"**{idx}. {title}**\n"
+                            f"- 🕒 **Waktu**: {time_str} | **Sumber**: {pub}\n"
+                            f"- 📝 **Ringkasan**: {summary_line}"
+                        )
+
+                    assistant_content = (
+                        f"### 📰 Berita Pasar Finansial Terkini ({len(art_lines)} Berita Paling Baru)\n\n"
+                        + "\n\n".join(art_lines)
+                        + "\n\n💡 *Sentimen Pasar*: Pantau perkembangan berita makroekonomi dan sentimen global untuk mengonfirmasi arah tren bursa saham, kripto, dan komoditas."
+                    )
 
             elif tname == "get_bot_and_portfolio_status":
                 port = res0.get("portfolio", {})
