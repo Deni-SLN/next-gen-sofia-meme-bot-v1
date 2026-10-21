@@ -228,12 +228,42 @@ def execute_snipe(db: Session, data: dict) -> dict:
                 "Silakan Connect Wallet Chrome atau tambahkan Wallet Live terlebih dahulu."
             )
         wallet_used_name = live_wallet.name
+
+        # Real On-Chain Swap Broadcast via Jupiter v6 Aggregator on Solana
+        from app.services import solana_trader
+        kp = solana_trader.get_trading_keypair()
+        onchain_tx_res = None
+        if kp and target_chain == "Solana" and resolved_contract and len(resolved_contract) >= 32:
+            try:
+                sol_info = market.get_live_token_info("SOL/USDT")
+                sol_price = float(sol_info["price"]) if (sol_info and float(sol_info.get("price") or 0) > 10) else 145.0
+                spend_sol = round(amount_usd / sol_price, 6)
+                if spend_sol >= 0.0005:
+                    onchain_tx_res = solana_trader.execute_onchain_sol_to_token(
+                        target_token_mint=resolved_contract,
+                        amount_sol=spend_sol,
+                        slippage_pct=user_slippage_pct,
+                    )
+                    if onchain_tx_res and onchain_tx_res.get("tx_hash"):
+                        tx_hash = onchain_tx_res["tx_hash"]
+            except Exception as swap_err:
+                import logging
+                logging.getLogger("sofia.sniper").warning(f"On-chain swap warning: {swap_err}")
+
         remaining_cash_usd = live_engine.deduct_live_wallet_usd(
             db,
             wallet=live_wallet,
             spend_usd=amount_usd + gas_fee_usd,
             usd_idr=usd_idr,
         )
+
+        if onchain_tx_res and onchain_tx_res.get("tx_hash"):
+            try:
+                from app.services import wallets as wallet_svc
+                wallet_svc.sync_wallet_onchain(db, live_wallet.id, apply_onchain_balance=True)
+            except Exception:
+                pass
+
         t_state.total_gas_spent_usd = float(t_state.total_gas_spent_usd or 0.0) + gas_fee_usd
         t_state.total_dex_fees_usd = float(t_state.total_dex_fees_usd or 0.0) + dex_fee_usd
         db.commit()

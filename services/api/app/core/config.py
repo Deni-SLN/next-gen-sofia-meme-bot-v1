@@ -3,8 +3,8 @@ from pathlib import Path
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_ROOT_ENV = Path(__file__).resolve().parents[4] / ".env"
-_API_ENV = Path(__file__).resolve().parents[2] / ".env"
+_ROOT_DIR = Path(__file__).resolve().parents[4]
+_API_DIR = Path(__file__).resolve().parents[2]
 _DEFAULT_NEON_URL = (
     "postgresql+psycopg://neondb_owner:npg_RDIYro7b4CsM@"
     "ep-weathered-forest-aomnfoor-pooler.c-2.ap-southeast-1.aws.neon.tech/"
@@ -36,8 +36,25 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 30
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
+    # Solana On-Chain Trading & Multi-Gate Wallets
+    solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
+    solana_trading_private_key: str = ""
+    solana_trading_address: str = ""
+    solana_main_private_key: str = ""
+    solana_main_address: str = ""
+    solana_reserve_seed: str = ""
+    solana_reserve_address: str = ""
+    live_trading_enabled: bool = True
+
     model_config = SettingsConfigDict(
-        env_file=[str(_ROOT_ENV), str(_API_ENV), ".env"],
+        env_file=[
+            str(_ROOT_DIR / ".env.local"),
+            str(_ROOT_DIR / ".env"),
+            str(_API_DIR / ".env.local"),
+            str(_API_DIR / ".env"),
+            ".env.local",
+            ".env",
+        ],
         env_prefix="SOFIA_",
         extra="ignore",
     )

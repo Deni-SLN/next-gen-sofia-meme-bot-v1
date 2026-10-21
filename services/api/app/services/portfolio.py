@@ -296,9 +296,37 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     if trade_mode == "LIVE":
         live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain, create_if_missing=False)
         net_credit_usd = max(0.0, net_proceeds_usd - gas_fee_usd)
+
+        # Real On-Chain Sell Swap Broadcast via Jupiter v6 Aggregator on Solana
+        from app.services import solana_trader
+        kp = solana_trader.get_trading_keypair()
+        onchain_tx_res = None
+        token_info = market.get_live_token_info(symbol)
+        token_contract = (token_info.get("contract") if token_info else None) or getattr(existing, "contract", None)
+        if kp and target_chain == "Solana" and token_contract and len(token_contract) >= 32:
+            try:
+                raw_token_units = int(round(qty_to_sell * 1e6))
+                if raw_token_units > 0:
+                    onchain_tx_res = solana_trader.execute_onchain_token_to_sol(
+                        token_mint=token_contract,
+                        amount_tokens_raw=raw_token_units,
+                        slippage_pct=exit_slippage_pct,
+                    )
+                    if onchain_tx_res and onchain_tx_res.get("tx_hash"):
+                        tx_hash = onchain_tx_res["tx_hash"]
+            except Exception as swap_err:
+                import logging
+                logging.getLogger("sofia.portfolio").warning(f"On-chain sell swap warning: {swap_err}")
+
         if live_wallet:
             remaining_cash_usd = live_engine.credit_live_wallet_usd(db, live_wallet, net_credit_usd)
             wallet_label = live_wallet.name
+            if onchain_tx_res and onchain_tx_res.get("tx_hash"):
+                try:
+                    from app.services import wallets as wallet_svc
+                    wallet_svc.sync_wallet_onchain(db, live_wallet.id, apply_onchain_balance=True)
+                except Exception:
+                    pass
         else:
             remaining_cash_usd = 0.0
             wallet_label = "Live On-Chain Wallet"
