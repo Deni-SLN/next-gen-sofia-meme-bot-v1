@@ -144,9 +144,10 @@ def credit_live_wallet_usd(db: Session, wallet: Wallet, credit_usd: float) -> fl
 
 
 _LAST_ONCHAIN_SYNC = 0.0
+_SPL_CACHE: dict[str, tuple[float, list[dict]]] = {}
 
 
-def auto_sync_live_wallets(db: Session, max_age_seconds: float = 12.0) -> None:
+def auto_sync_live_wallets(db: Session, max_age_seconds: float = 25.0) -> None:
     """Automatically refresh real on-chain native balances for live wallets if stale."""
     global _LAST_ONCHAIN_SYNC
     now_ts = time.time()
@@ -169,11 +170,19 @@ def auto_sync_live_wallets(db: Session, max_age_seconds: float = 12.0) -> None:
         pass
 
 
-def query_solana_spl_tokens(address: str) -> list[dict]:
-    """Query all SPL token accounts owned by the Solana address (e.g. USDC, meme coins)."""
+def query_solana_spl_tokens(address: str, max_cache_seconds: float = 25.0) -> list[dict]:
+    """Query all SPL token accounts owned by the Solana address (e.g. USDC, meme coins), cached for 25s."""
+    global _SPL_CACHE
     addr = (address or "").strip()
     if not addr or len(addr) < 32:
         return []
+
+    now_ts = time.time()
+    if addr in _SPL_CACHE:
+        cache_time, cached_items = _SPL_CACHE[addr]
+        if now_ts - cache_time < max_cache_seconds:
+            return cached_items
+
     try:
         payload = {
             "jsonrpc": "2.0",
@@ -187,6 +196,8 @@ def query_solana_spl_tokens(address: str) -> list[dict]:
         }
         with httpx.Client(timeout=3.5) as client:
             res = client.post(SOLANA_MAINNET_RPC, json=payload)
+            if res.status_code != 200:
+                return _SPL_CACHE.get(addr, (0, []))[1]
             items = res.json().get("result", {}).get("value", [])
             tokens = []
             for it in items:
@@ -203,9 +214,10 @@ def query_solana_spl_tokens(address: str) -> list[dict]:
                         "amount": amt,
                         "usd_val": round(usd_val, 4),
                     })
+            _SPL_CACHE[addr] = (now_ts, tokens)
             return tokens
     except Exception:
-        return []
+        return _SPL_CACHE.get(addr, (0, []))[1]
 
 
 def get_live_equity_metrics(db: Session, usd_idr: float) -> dict:
