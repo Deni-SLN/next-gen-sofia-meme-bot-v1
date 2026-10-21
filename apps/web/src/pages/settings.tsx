@@ -61,7 +61,7 @@ export default function SettingsPage() {
     setTelegramChatId(localStorage.getItem('sofia_tg_chat_id') || '');
 
     // Wallet & RPC
-    setSolanaAddress(localStorage.getItem('sofia_sol_addr') || '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R');
+    setSolanaAddress(localStorage.getItem('sofia_sol_addr') || 'BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8');
     setEvmAddress(localStorage.getItem('sofia_evm_addr') || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F');
     setSolanaRpc(localStorage.getItem('sofia_sol_rpc') || 'https://api.mainnet-beta.solana.com');
     setBaseRpc(localStorage.getItem('sofia_base_rpc') || 'https://mainnet.base.org');
@@ -80,7 +80,7 @@ export default function SettingsPage() {
     setGmgnEndpoint('https://gmgn.ai/defi/quotation/v1/rank/sol');
     setSolanaRpc('https://api.mainnet-beta.solana.com');
     setBaseRpc('https://mainnet.base.org');
-    if (!solanaAddress) setSolanaAddress('4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R');
+    if (!solanaAddress) setSolanaAddress('BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8');
     if (!evmAddress) setEvmAddress('0x71C7656EC7ab88b098defB751B7401B5f6d8976F');
     setSaveNotice('Semua API Pasar berhasil diisi dengan Free Public Gateway!');
     setTimeout(() => setSaveNotice(''), 3500);
