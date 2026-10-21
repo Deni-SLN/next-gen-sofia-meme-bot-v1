@@ -299,6 +299,8 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 25.0) -> li
                 "amount": amt,
                 "amount_raw": str(info.get("tokenAmount", {}).get("amount", "0")),
                 "decimals": int(info.get("tokenAmount", {}).get("decimals") or 6),
+                "price": price,
+                "liquidity": liq,
                 "usd_val": round(usd_val, 4),
             })
 

@@ -79,28 +79,29 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
     updates their live prices and quantities, and removes any positions whose on-chain balance is 0.
     Excludes stablecoins (USDC) and zero-liquidity/flagged spam tokens (< $50 liq).
     """
-    from app.services import live_engine, market
+    from app.services import live_engine
 
     live_w, _, _ = live_engine.get_live_trading_wallet(db, "Solana")
     if not live_w or not live_w.address or live_w.address.startswith("SIMULATION"):
         return list(db.execute(select(PortfolioHolding)).scalars().all())
 
-    onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=10.0)
+    onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=20.0)
     seen_symbols = set()
     now = datetime.now(timezone.utc)
 
-    # 1. Identify active tradeable on-chain holdings
+    # 1. Filter eligible non-USDC meme tokens with valid data
+    valid_tokens = []
     for tok in onchain_tokens:
         mint = tok.get("mint", "")
         amt = float(tok.get("amount", 0.0))
         if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" or amt <= 0.0001:
             continue
-        tok_info = market.get_live_token_info(mint)
-        liq = float(tok_info.get("liquidity", 0.0) if tok_info else 0.0)
-        if liq < 50.0 and tok_info is not None:
+        liq = float(tok.get("liquidity", 0.0))
+        if liq < 50.0 and tok.get("price", 0.0) <= 0:
             continue
-        sym = (tok_info.get("symbol") if tok_info else None) or tok.get("symbol") or mint[:6]
+        sym = tok.get("symbol") or mint[:6]
         seen_symbols.add(sym.upper())
+        valid_tokens.append(tok)
 
     # 2. Delete any DB holdings that are no longer present on-chain
     existing_all = list(db.execute(select(PortfolioHolding)).scalars().all())
@@ -110,21 +111,13 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
     db.commit()
 
     # 3. Upsert active on-chain holdings into PortfolioHolding
-    for tok in onchain_tokens:
-        mint = tok.get("mint", "")
+    for tok in valid_tokens:
+        sym = tok.get("symbol") or tok.get("mint", "")[:6]
         amt = float(tok.get("amount", 0.0))
-        if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" or amt <= 0.0001:
-            continue
-
-        tok_info = market.get_live_token_info(mint)
-        liq = float(tok_info.get("liquidity", 0.0) if tok_info else 0.0)
-        if liq < 50.0 and tok_info is not None:
-            continue
-
-        sym = (tok_info.get("symbol") if tok_info else None) or tok.get("symbol") or mint[:6]
-        live_price = float(tok_info.get("price", 0.0) if tok_info else 0.0)
+        live_price = float(tok.get("price", 0.0))
         if live_price <= 0 and amt > 0 and tok.get("usd_val", 0.0) > 0:
             live_price = float(tok["usd_val"]) / amt
+        liq = float(tok.get("liquidity", 1800.0))
 
         existing = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == sym)).scalar_one_or_none()
         if existing:
@@ -173,6 +166,7 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
         # In LIVE mode, holdings are the real on-chain SPL tokens from Phantom Trading Wallet
         live_holdings = sync_onchain_holdings_to_portfolio(db)
         holdings = live_holdings
+        refresh_live_prices = False
     else:
         # In PAPER mode, holdings are simulated paper holdings from PortfolioHolding
         holdings = db.execute(select(PortfolioHolding)).scalars().all()
