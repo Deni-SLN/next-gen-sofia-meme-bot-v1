@@ -143,8 +143,74 @@ def credit_live_wallet_usd(db: Session, wallet: Wallet, credit_usd: float) -> fl
     return wallet_balance_to_usd(wallet)
 
 
+_LAST_ONCHAIN_SYNC = 0.0
+
+
+def auto_sync_live_wallets(db: Session, max_age_seconds: float = 12.0) -> None:
+    """Automatically refresh real on-chain native balances for live wallets if stale."""
+    global _LAST_ONCHAIN_SYNC
+    now_ts = time.time()
+    if now_ts - _LAST_ONCHAIN_SYNC < max_age_seconds:
+        return
+
+    _LAST_ONCHAIN_SYNC = now_ts
+    try:
+        live_wallets = list(
+            db.execute(select(Wallet).where(~Wallet.name.contains("Modal Paper"))).scalars().all()
+        )
+        for w in live_wallets:
+            if w.address and w.chain:
+                res = query_onchain_wallet_balance(w.address, w.chain)
+                if res.get("onchain_balance") is not None:
+                    w.balance = float(res["onchain_balance"])
+                    w.updated_at = datetime.now(timezone.utc)
+        db.commit()
+    except Exception:
+        pass
+
+
+def query_solana_spl_tokens(address: str) -> list[dict]:
+    """Query all SPL token accounts owned by the Solana address (e.g. USDC, meme coins)."""
+    addr = (address or "").strip()
+    if not addr or len(addr) < 32:
+        return []
+    try:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getTokenAccountsByOwner",
+            "params": [
+                addr,
+                {"programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
+                {"encoding": "jsonParsed"},
+            ],
+        }
+        with httpx.Client(timeout=3.5) as client:
+            res = client.post(SOLANA_MAINNET_RPC, json=payload)
+            items = res.json().get("result", {}).get("value", [])
+            tokens = []
+            for it in items:
+                info = it.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+                mint = info.get("mint", "")
+                amt = float(info.get("tokenAmount", {}).get("uiAmount") or 0.0)
+                if amt > 0.000001:
+                    is_usdc = mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                    symbol = "USDC" if is_usdc else mint[:6]
+                    usd_val = amt if is_usdc else 0.0
+                    tokens.append({
+                        "mint": mint,
+                        "symbol": symbol,
+                        "amount": amt,
+                        "usd_val": round(usd_val, 4),
+                    })
+            return tokens
+    except Exception:
+        return []
+
+
 def get_live_equity_metrics(db: Session, usd_idr: float) -> dict:
     """Calculate total Live On-Chain Equity and Live Hot Wallet Cash across all non-paper wallets."""
+    auto_sync_live_wallets(db)
     live_wallets = list(
         db.execute(
             select(Wallet).where(~Wallet.name.contains("Modal Paper"))
@@ -156,6 +222,10 @@ def get_live_equity_metrics(db: Session, usd_idr: float) -> dict:
     trading_live_usd = 0.0
     for w in live_wallets:
         w_usd = wallet_balance_to_usd(w)
+        if w.chain == "Solana" and w.address:
+            spl_tokens = query_solana_spl_tokens(w.address)
+            spl_usd = sum(t.get("usd_val", 0.0) for t in spl_tokens)
+            w_usd += spl_usd
         total_live_usd += w_usd
         if w.gate == "trading":
             trading_live_usd += w_usd

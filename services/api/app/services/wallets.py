@@ -6,7 +6,7 @@ from app.services import market, portfolio, treasury
 
 
 def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
-    # Estimate USD value if token is SOL (~$140) or USD/USDT/USDC
+    from app.services import live_engine
     token_upper = (w.token or "USDT").upper()
     if "SOL" in token_upper and "USD" not in token_upper:
         sol_info = market.get_live_token_info("SOL/USDT")
@@ -15,16 +15,22 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
     else:
         usd_val = w.balance
 
+    spl_tokens = []
+    if w.chain == "Solana" and w.address and "Modal Paper" not in (w.name or ""):
+        spl_tokens = live_engine.query_solana_spl_tokens(w.address)
+        usd_val += sum(t.get("usd_val", 0.0) for t in spl_tokens)
+
     return {
         "id": w.id,
         "name": w.name,
         "address": w.address,
         "chain": w.chain,
-        "balance": round(w.balance, 4),
+        "balance": round(w.balance, 6),
         "balance_usd": round(usd_val, 2),
         "balance_idr": round(usd_val * usd_idr, 0),
         "token": w.token,
         "gate": w.gate,
+        "spl_tokens": spl_tokens,
         "updated_at": w.updated_at.isoformat() if w.updated_at else None,
     }
 
@@ -32,6 +38,7 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
 def list_wallets(db: Session) -> dict:
     from app.services import live_engine
 
+    live_engine.auto_sync_live_wallets(db)
     portfolio.get_or_create_paper_wallet(db)
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]

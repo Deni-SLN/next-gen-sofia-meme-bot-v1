@@ -65,8 +65,10 @@ export default function PortfolioPage() {
   const liveCashIdr = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
 
   const d = portfolioQuery.data;
-  const activeEquityUsd = isLive ? liveTotalEquityUsd : (d?.total_equity_usd ?? 0);
-  const activeEquityIdr = isLive ? liveTotalEquityIdr : (d?.total_equity_idr ?? 0);
+  const holdingsValUsd = Number(d?.net_holdings_value_usd || d?.total_value) || 0;
+  const holdingsValIdr = Number(d?.net_holdings_value_idr || d?.total_value_idr) || 0;
+  const activeEquityUsd = isLive ? (liveTotalEquityUsd + holdingsValUsd) : (d?.total_equity_usd ?? 0);
+  const activeEquityIdr = isLive ? (liveTotalEquityIdr + holdingsValIdr) : (d?.total_equity_idr ?? 0);
   const activeCashUsd = isLive ? liveCashUsd : (d?.paper_cash_usd ?? 0);
   const activeCashIdr = isLive ? liveCashIdr : (d?.paper_cash_idr ?? 0);
 

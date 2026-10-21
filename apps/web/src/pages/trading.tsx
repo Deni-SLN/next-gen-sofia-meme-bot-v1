@@ -156,13 +156,46 @@ export default function TradingPage() {
 
   const isRunning = botQuery.data?.status === 'running';
   const isLive = selectedMode === 'LIVE';
-  const usdIdr = portfolioQuery.data?.usd_idr || 16500;
+  const usdIdr = portfolioQuery.data?.usd_idr || 18000;
 
-  const liveTradingWallets = (walletsQuery.data?.wallets || []).filter(
-    (w: any) => !w.name?.includes('Modal Paper') && w.gate === 'trading'
-  );
+  // --- 4 AUTO-SNIPER CARDS METRICS: EKUITAS, SALDO KAS, POSISI, PNL ---
+  const allWallets: any[] = walletsQuery.data?.wallets || [];
+  const liveWallets = allWallets.filter((w: any) => !w.name?.includes('Modal Paper'));
+  const liveTradingWallets = liveWallets.filter((w: any) => w.gate === 'trading');
+
+  // Real on-chain equity across all live Phantom wallets
+  const liveWalletsEquityUsd = liveWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_usd) || 0), 0);
+  const liveWalletsEquityIdr = liveWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_idr) || 0), 0);
+
+  // Available cash in Hot Wallet Trading (ready to snipe)
   const liveCashUsd = liveTradingWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_usd) || 0), 0);
   const liveCashIdr = liveTradingWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_idr) || 0), 0);
+
+  const paperCashUsd = Number(portfolioQuery.data?.paper_cash_usd) || (150000 / usdIdr);
+  const paperCashIdr = Number(portfolioQuery.data?.paper_cash_idr) || 150000;
+
+  const holdingsList: any[] = portfolioQuery.data?.holdings || [];
+  const holdingsCount = holdingsList.length;
+  const holdingsValUsd = Number(portfolioQuery.data?.net_holdings_value_usd || portfolioQuery.data?.total_value) || 0;
+  const holdingsValIdr = Number(portfolioQuery.data?.net_holdings_value_idr || portfolioQuery.data?.total_value_idr) || 0;
+
+  // Active Total Equity: In LIVE = Real On-Chain Wallets + Holdings; In PAPER = Paper Cash + Holdings
+  const activeEquityUsd = isLive
+    ? (liveWalletsEquityUsd + holdingsValUsd)
+    : (Number(portfolioQuery.data?.total_equity_usd) || (paperCashUsd + holdingsValUsd));
+  const activeEquityIdr = isLive
+    ? (liveWalletsEquityIdr + holdingsValIdr)
+    : (Number(portfolioQuery.data?.total_equity_idr) || (paperCashIdr + holdingsValIdr));
+
+  // Active Cash Available
+  const activeCashUsd = isLive ? liveCashUsd : paperCashUsd;
+  const activeCashIdr = isLive ? liveCashIdr : paperCashIdr;
+
+  // PnL metrics
+  const unrealizedPnlUsd = Number(portfolioQuery.data?.unrealized_pnl) || 0;
+  const unrealizedPnlIdr = Number(portfolioQuery.data?.unrealized_pnl_idr) || 0;
+  const unrealizedPnlPct = Number(portfolioQuery.data?.unrealized_pnl_pct) || 0;
+  const pnlIsPositive = unrealizedPnlIdr >= 0;
 
   const handleToggleSwitch = () => {
     const next = selectedMode === 'PAPER' ? 'LIVE' : 'PAPER';
@@ -1020,25 +1053,150 @@ export default function TradingPage() {
           <BotActivityCard botStatus={botQuery.data?.status} />
         );
 
-        return isUltrawide ? (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-            {/* Kolom Kiri: Control Switch, Strategy & Snipe Terminal (7 Col) */}
-            <div className="xl:col-span-7 space-y-4">
-              {terminalControlsBlock}
+        const kpiCardsBlock = (
+          <section
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+            data-purpose="auto-sniper-kpi-grid"
+          >
+            {/* CARD 1: TOTAL EKUITAS */}
+            <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 transition hover:border-obsidian-600 shadow-md">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-400 font-medium">Total Ekuitas</span>
+                <span
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold border ${
+                    isLive
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                  }`}
+                >
+                  {isLive ? 'LIVE ON-CHAIN' : 'PAPER SIMULASI'}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold font-mono tracking-tight text-white">
+                  {formatUsd(activeEquityUsd)}
+                </span>
+                <span className="text-xs text-slate-400 font-mono">≈ {formatIdr(activeEquityIdr)}</span>
+              </div>
+              <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-1.5">
+                <span>{isLive ? `${liveWallets.length} Dompet On-Chain` : 'Modal Awal Rp 150.000'}</span>
+                <span className="font-mono text-cyan-400 text-[10px]">
+                  {isLive ? 'Solana Mainnet' : 'Paper Sandbox'}
+                </span>
+              </div>
             </div>
 
-            {/* Kolom Kanan: Posisi Aktif & Log Stream dipindahkan ke samping! (5 Col) */}
-            <div className="xl:col-span-5 space-y-4">
-              {positionsBlock}
-              {botLogsBlock}
+            {/* CARD 2: SALDO KAS TERSEDIA */}
+            <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 transition hover:border-obsidian-600 shadow-md">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-400 font-medium">Saldo Kas Tersedia</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
+                  SIAP SNIPE
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold font-mono tracking-tight text-white">
+                  {formatUsd(activeCashUsd)}
+                </span>
+                <span className="text-xs text-emerald-400 font-mono">≈ {formatIdr(activeCashIdr)}</span>
+              </div>
+              <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-1.5">
+                <span>{isLive ? 'Hot Wallet Trading' : 'Kas Virtual Bot'}</span>
+                <span className="font-mono text-slate-300 text-[10px]">
+                  {isLive && liveTradingWallets[0] ? `${liveTradingWallets[0].balance} ${liveTradingWallets[0].token}` : 'IDR Liquid'}
+                </span>
+              </div>
             </div>
+
+            {/* CARD 3: POSISI TERBUKA */}
+            <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 transition hover:border-obsidian-600 shadow-md">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-400 font-medium">Posisi Terbuka</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-obsidian-850 text-cyan-300 border border-obsidian-700 font-bold">
+                  {holdingsCount}/5 SLOT
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold font-mono tracking-tight text-cyan-400">
+                  {holdingsCount} <span className="text-xs font-normal text-slate-400">Koin</span>
+                </span>
+                <span className="text-xs text-slate-400 font-mono">
+                  Valuasi: {formatIdr(holdingsValIdr)}
+                </span>
+              </div>
+              <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-1.5">
+                <span>Auto TP +{autoTpPct}% • SL -{autoSlPct}%</span>
+                <span className="font-mono text-slate-300 text-[10px]">
+                  {holdingsValUsd > 0 ? formatUsd(holdingsValUsd) : '$0.00'}
+                </span>
+              </div>
+            </div>
+
+            {/* CARD 4: PNL PORTFOLIO */}
+            <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 transition hover:border-obsidian-600 shadow-md">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-400 font-medium">PnL Posisi</span>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border ${
+                    pnlIsPositive
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  }`}
+                >
+                  {pnlIsPositive ? 'PROFIT' : 'LOSS'}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`text-2xl font-extrabold font-mono tracking-tight ${
+                    pnlIsPositive ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  {pnlIsPositive ? '+' : ''}
+                  {formatIdr(unrealizedPnlIdr)}
+                </span>
+                <span
+                  className={`text-xs font-mono font-bold ${
+                    pnlIsPositive ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  ({pnlIsPositive ? '+' : ''}{unrealizedPnlPct.toFixed(2)}%)
+                </span>
+              </div>
+              <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-1.5">
+                <span>Net Fee &amp; Gas Jaringan</span>
+                <span className="font-mono text-slate-300 text-[10px]">
+                  {pnlIsPositive ? '+' : ''}{formatUsd(unrealizedPnlUsd)}
+                </span>
+              </div>
+            </div>
+          </section>
+        );
+
+        return (
+          <div className="space-y-4">
+            {kpiCardsBlock}
+            {isUltrawide ? (
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+                {/* Kolom Kiri: Control Switch, Strategy & Snipe Terminal (7 Col) */}
+                <div className="xl:col-span-7 space-y-4">
+                  {terminalControlsBlock}
+                </div>
+
+                {/* Kolom Kanan: Posisi Aktif & Log Stream dipindahkan ke samping! (5 Col) */}
+                <div className="xl:col-span-5 space-y-4">
+                  {positionsBlock}
+                  {botLogsBlock}
+                </div>
+              </div>
+            ) : (
+              <>
+                {terminalControlsBlock}
+                {positionsBlock}
+                {botLogsBlock}
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            {terminalControlsBlock}
-            {positionsBlock}
-            {botLogsBlock}
-          </>
         );
       })()}
       </QueryState>

@@ -129,7 +129,8 @@ export const api = {
   startBot: (mode: string, strategy_mode?: string) =>
     request<any>('/bot/start', { method: 'POST', body: JSON.stringify({ mode, strategy_mode }) }),
   stopBot: () => request<any>('/bot/stop', { method: 'POST' }),
-  getPortfolio: () => request<any>('/portfolio/overview'),
+  getPortfolio: (mode?: string) =>
+    request<any>(`/portfolio/overview${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`),
   addHolding: (data: { symbol: string; quantity: number; avg_entry_price: number; current_price?: number }) =>
     request<any>('/portfolio/holdings', { method: 'POST', body: JSON.stringify(data) }),
   sellHolding: (symbol: string, sell_pct: number = 100, mode?: string) =>

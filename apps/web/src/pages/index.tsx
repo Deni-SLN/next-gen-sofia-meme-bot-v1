@@ -218,8 +218,8 @@ export default function DashboardPage() {
   const liveCashUsd = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_usd) || 0), 0);
   const liveCashIdr = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
 
-  const activeEquityUsd = isLive ? liveTotalEquityUsd : totalEquityUsd;
-  const activeEquityIdr = isLive ? liveTotalEquityIdr : totalEquityIdr;
+  const activeEquityUsd = isLive ? (liveTotalEquityUsd + holdingsValUsd) : totalEquityUsd;
+  const activeEquityIdr = isLive ? (liveTotalEquityIdr + holdingsValIdr) : totalEquityIdr;
   const activeCashUsd = isLive ? liveCashUsd : paperCashUsd;
   const activeCashIdr = isLive ? liveCashIdr : paperCashIdr;
   const activePnlPct = isLive

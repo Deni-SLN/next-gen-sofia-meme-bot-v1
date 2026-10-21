@@ -72,7 +72,7 @@ def reset_paper_account(db: Session) -> dict:
     return get_overview(db, refresh_live_prices=False)
 
 
-def get_overview(db: Session, refresh_live_prices: bool = True) -> dict:
+def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None = None) -> dict:
     paper_wallet, usd_idr = get_or_create_paper_wallet(db)
     t_state = treasury.get_or_init_treasury(db, usd_idr)
     holdings = db.execute(select(PortfolioHolding)).scalars().all()
@@ -169,8 +169,21 @@ def get_overview(db: Session, refresh_live_prices: bool = True) -> dict:
     from app.services import live_engine
     live_eq = live_engine.get_live_equity_metrics(db, usd_idr)
 
+    active_mode = (mode or "PAPER").upper()
+    is_live = active_mode == "LIVE"
+    active_total_equity_usd = (live_eq["live_total_equity_usd"] + total_net_value) if is_live else total_equity_usd
+    active_total_equity_idr = round(active_total_equity_usd * usd_idr, 0)
+    active_cash_usd = live_eq["live_cash_usd"] if is_live else paper_cash_usd
+    active_cash_idr = round(active_cash_usd * usd_idr, 0)
+
     return {
         "usd_idr": usd_idr,
+        "active_mode": active_mode,
+        "is_live": is_live,
+        "active_total_equity_usd": round(active_total_equity_usd, 4),
+        "active_total_equity_idr": active_total_equity_idr,
+        "active_cash_usd": round(active_cash_usd, 4),
+        "active_cash_idr": active_cash_idr,
         "paper_initial_idr": PAPER_INITIAL_CAPITAL_IDR,
         "paper_initial_usd": initial_capital_usd,
         "paper_cash_usd": round(paper_cash_usd, 4),
@@ -183,8 +196,8 @@ def get_overview(db: Session, refresh_live_prices: bool = True) -> dict:
         "gas_reserve_idr": round(t_state.gas_reserve_usd * usd_idr, 0),
         "total_gas_spent_idr": round((t_state.total_gas_spent_usd or 0.0) * usd_idr, 0),
         "total_dex_fees_idr": round((t_state.total_dex_fees_usd or 0.0) * usd_idr, 0),
-        "total_equity_usd": round(total_equity_usd, 4),
-        "total_equity_idr": total_equity_idr,
+        "total_equity_usd": round(active_total_equity_usd if is_live else total_equity_usd, 4),
+        "total_equity_idr": active_total_equity_idr if is_live else total_equity_idr,
         "total_value": round(total_value, 4),
         "total_value_idr": round(total_value * usd_idr, 0),
         "net_holdings_value_usd": round(total_net_value, 4),

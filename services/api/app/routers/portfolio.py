@@ -27,8 +27,8 @@ class SellAllRequest(BaseModel):
 
 
 @router.get("/overview")
-def overview(db: Session = Depends(get_db)):
-    return portfolio.get_overview(db)
+def overview(mode: str | None = None, db: Session = Depends(get_db)):
+    return portfolio.get_overview(db, mode=mode)
 
 
 @router.post("/holdings", status_code=201)
