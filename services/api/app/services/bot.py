@@ -355,6 +355,8 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
     else:
         candidates = final_stretch + migrated + new_creations
 
+    if active_mode == "LIVE":
+        portfolio.sync_onchain_holdings_to_portfolio(db)
     holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
 
     if not candidates:
@@ -506,12 +508,22 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             total_live_cash_usd = avail_cash_usd + spl_usd
             avail_cash_idr = total_live_cash_usd * usd_idr
 
-            # Calculate spendable SOL (reserve 0.0025 SOL for Solana ATA rent + gas fee)
+            # Calculate spendable SOL (reserve priority fee + ATA rent + gas reserve for future sell)
+            prio_fee_sol = float(_SNIPER_CONFIG.get("priority_fee_sol", 0.003))
+            needed_gas_reserve_sol = prio_fee_sol + 0.00204 + 0.0025
             sol_bal = float(live_w.balance or 0.0) if live_w else 0.0
             sol_px = live_engine.get_sol_price_usd()
-            spendable_sol = max(0.0, sol_bal - 0.0025)
+            spendable_sol = max(0.0, sol_bal - needed_gas_reserve_sol)
             spendable_sol_idr = spendable_sol * sol_px * usd_idr
+            has_enough_gas = sol_bal >= needed_gas_reserve_sol
         else:
+            treasury.ensure_gas_reserve(db, paper_wallet, usd_idr, needed_gas_usd=0.015)
+            avail_cash_usd = float(paper_wallet.balance)
+            avail_cash_idr = avail_cash_usd * usd_idr
+            spendable_sol_idr = avail_cash_idr
+            has_enough_gas = True
+            needed_gas_reserve_sol = 0.0
+            sol_bal = 0.0
             treasury.ensure_gas_reserve(db, paper_wallet, usd_idr, needed_gas_usd=0.015)
             avail_cash_usd = float(paper_wallet.balance)
             avail_cash_idr = avail_cash_usd * usd_idr
@@ -541,6 +553,8 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
                         )
                     except Exception:
                         pass
+            if active_mode == "LIVE":
+                portfolio.sync_onchain_holdings_to_portfolio(db)
             holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
             if active_mode != "LIVE":
                 db.refresh(paper_wallet)
@@ -605,13 +619,20 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
                     trade_action = sell_res
                     sold_any = True
                     break
-                except Exception:
-                    pass
+                except Exception as sell_err:
+                    _append_log(
+                        "SYSTEM",
+                        "SOL",
+                        h.symbol,
+                        f"⚠️ Gagal/Tunda eksekusi jual {h.symbol}: {sell_err}",
+                        "",
+                        "warn",
+                    )
 
         # 2. Auto-Snipe new token if we have sufficient spendable Cash and open positions < max_positions
         score_threshold = (min_score - 15) if strat_mode == "AGGRESSIVE" else (min_score - 5)
         min_cash_threshold = 2000.0 if active_mode == "LIVE" else 5000.0
-        has_enough_cash = (spendable_sol_idr >= min_cash_threshold) if active_mode == "LIVE" else (avail_cash_idr >= min_cash_threshold)
+        has_enough_cash = (spendable_sol_idr >= min_cash_threshold and has_enough_gas) if active_mode == "LIVE" else (avail_cash_idr >= min_cash_threshold)
 
         can_snipe = (
             not sold_any
@@ -692,14 +713,20 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             if not auto_trade:
                 skip_reason = "Saklar 'Otomatis Eksekusi Swap' nonaktif (mode monitoring saja)"
             elif not has_enough_cash:
-                cash_label = f"SOL Kas Rp {spendable_sol_idr:,.0f}" if active_mode == "LIVE" else f"Kas Rp {avail_cash_idr:,.0f}"
-                skip_reason = f"{cash_label} < batas minimal beli Rp {min_cash_threshold:,.0f}"
+                if active_mode == "LIVE":
+                    if not has_enough_gas:
+                        skip_reason = f"Gas SOL ({sol_bal:.6f} SOL) < batas cadangan aman ({needed_gas_reserve_sol:.4f} SOL). Menahan beli agar gas cukup untuk jual & tidak gantung."
+                    else:
+                        skip_reason = f"SOL Kas Rp {spendable_sol_idr:,.0f} < batas minimal beli Rp {min_cash_threshold:,.0f}"
+                else:
+                    skip_reason = f"Kas Paper Rp {avail_cash_idr:,.0f} < batas minimal beli Rp {min_cash_threshold:,.0f}"
             elif len(holdings) >= max_positions:
                 skip_reason = f"Slot open positions penuh ({len(holdings)}/{max_positions})"
             elif score < score_threshold:
                 skip_reason = f"Skor Keamanan {score:.0f} di bawah batas minimal {score_threshold:.0f} [{strat_mode}] (Anti-Rug Guard aktif)"
 
-            ov = portfolio.get_overview(db, refresh_live_prices=True)
+            ov = portfolio.get_overview(db, refresh_live_prices=True, mode=active_mode)
+            holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
             if holdings:
                 h = holdings[0]
                 net_m = treasury.compute_holding_net_metrics(h, usd_idr)

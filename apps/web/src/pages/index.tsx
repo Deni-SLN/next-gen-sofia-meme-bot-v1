@@ -218,6 +218,19 @@ export default function DashboardPage() {
   const liveCashUsd = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_usd) || 0), 0);
   const liveCashIdr = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
 
+  // Separate USDC (Kas Trading) & Gas Fee (SOL on-chain)
+  const primaryLiveTradingWallet = liveTradingWallets[0];
+  const liveUsdcBal = primaryLiveTradingWallet?.usdc_balance ?? (
+    (primaryLiveTradingWallet?.spl_tokens || []).find((t: { symbol?: string; mint?: string; amount?: number }) => t.symbol === 'USDC' || t.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')?.amount || 0
+  );
+  const liveUsdcUsd = primaryLiveTradingWallet?.usdc_usd ?? liveUsdcBal;
+  const liveUsdcIdr = primaryLiveTradingWallet?.usdc_idr ?? (liveUsdcUsd * usdIdr);
+
+  const liveGasBal = primaryLiveTradingWallet?.gas_fee_balance ?? (Number(primaryLiveTradingWallet?.balance) || 0);
+  const liveGasToken = primaryLiveTradingWallet?.gas_fee_token || primaryLiveTradingWallet?.token || 'SOL';
+  const liveGasUsd = primaryLiveTradingWallet?.gas_fee_usd ?? Math.max(0, (Number(primaryLiveTradingWallet?.balance_usd) || 0) - liveUsdcUsd);
+  const liveGasIdr = primaryLiveTradingWallet?.gas_fee_idr ?? (liveGasUsd * usdIdr);
+
   const activeEquityUsd = isLive ? (liveTotalEquityUsd + holdingsValUsd) : totalEquityUsd;
   const activeEquityIdr = isLive ? (liveTotalEquityIdr + holdingsValIdr) : totalEquityIdr;
   const activeCashUsd = isLive ? liveCashUsd : paperCashUsd;
@@ -339,22 +352,61 @@ export default function DashboardPage() {
               <span className="text-slate-400 font-medium">
                 Saldo Kas Tersedia
               </span>
-              <LucideIcon name="wallet" className="w-3.5 h-3.5 text-slate-400" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-semibold font-mono tracking-tight text-white">
-                {formatUsd(activeCashUsd)}
-              </span>
-              <span className="text-xs text-emerald-400 font-medium">
-                Siap Beli
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border ${
+                isLive ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+              }`}>
+                {isLive ? 'USDC & GAS FEE' : 'Siap Beli'}
               </span>
             </div>
-            <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-2 font-mono">
-              <span>{formatIdr(activeCashIdr)}</span>
-              <span className="text-slate-500 font-sans">
-                {isLive ? 'Multi-Chain DEX' : 'Likuiditas Paper'}
-              </span>
-            </div>
+            {isLive ? (
+              <div className="space-y-2 mt-1">
+                <div>
+                  <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    <span>Kas Belanja (USDC)</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-xl font-bold font-mono text-cyan-300">
+                      {liveUsdcBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDC
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      ≈ {formatIdr(liveUsdcIdr)}
+                    </span>
+                  </div>
+                </div>
+                <div className="border-t border-obsidian-800/80 pt-1.5">
+                  <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    <span>Gas Fee Tersedia ({liveGasToken})</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-sm font-bold font-mono text-amber-300">
+                      {Number(liveGasBal).toFixed(6)} {liveGasToken}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      ≈ {formatUsd(liveGasUsd)} ({formatIdr(liveGasIdr)})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-semibold font-mono tracking-tight text-white">
+                    {formatUsd(activeCashUsd)}
+                  </span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    Siap Beli
+                  </span>
+                </div>
+                <div className="mt-3 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-2 font-mono">
+                  <span>{formatIdr(activeCashIdr)}</span>
+                  <span className="text-slate-500 font-sans">
+                    Likuiditas Paper
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Card 3: Nilai Posisi Aktif */}

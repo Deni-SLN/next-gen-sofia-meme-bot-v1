@@ -56,13 +56,13 @@ const QUICK_SNIPE_PRESETS = [15000, 30000, 50000, 100000];
 
 export default function TradingPage() {
   const isUltrawide = useUltrawide();
+  const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE'>(() => getTradingMode());
   const botQuery = useApiQuery(() => api.getBotStatus(), []);
-  const portfolioQuery = useApiQuery(() => api.getPortfolio(), []);
+  const portfolioQuery = useApiQuery(() => api.getPortfolio(selectedMode), [selectedMode]);
   const walletsQuery = useApiQuery(() => api.getWallets(), []);
   const configQuery = useApiQuery(() => api.getSniperConfig(), []);
   const pulseQuery = useApiQuery(() => api.getPulse(), []);
 
-  const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE'>('PAPER');
   const [strategyMode, setStrategyMode] = useState<'SAFE' | 'DEFAULT' | 'AGGRESSIVE'>('DEFAULT');
   const [actionError, setActionError] = useState<string>('');
   const [actionSuccess, setActionSuccess] = useState<string>('');
@@ -170,6 +170,19 @@ export default function TradingPage() {
   // Available cash in Hot Wallet Trading (ready to snipe)
   const liveCashUsd = liveTradingWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_usd) || 0), 0);
   const liveCashIdr = liveTradingWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_idr) || 0), 0);
+
+  // Separate USDC (Kas Trading) & Gas Fee (SOL on-chain)
+  const primaryLiveTradingWallet = liveTradingWallets[0];
+  const liveUsdcBal = primaryLiveTradingWallet?.usdc_balance ?? (
+    (primaryLiveTradingWallet?.spl_tokens || []).find((t: any) => t.symbol === 'USDC' || t.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')?.amount || 0
+  );
+  const liveUsdcUsd = primaryLiveTradingWallet?.usdc_usd ?? liveUsdcBal;
+  const liveUsdcIdr = primaryLiveTradingWallet?.usdc_idr ?? (liveUsdcUsd * usdIdr);
+
+  const liveGasBal = primaryLiveTradingWallet?.gas_fee_balance ?? (Number(primaryLiveTradingWallet?.balance) || 0);
+  const liveGasToken = primaryLiveTradingWallet?.gas_fee_token || primaryLiveTradingWallet?.token || 'SOL';
+  const liveGasUsd = primaryLiveTradingWallet?.gas_fee_usd ?? Math.max(0, (Number(primaryLiveTradingWallet?.balance_usd) || 0) - liveUsdcUsd);
+  const liveGasIdr = primaryLiveTradingWallet?.gas_fee_idr ?? (liveGasUsd * usdIdr);
 
   const paperCashUsd = Number(portfolioQuery.data?.paper_cash_usd) || (150000 / usdIdr);
   const paperCashIdr = Number(portfolioQuery.data?.paper_cash_idr) || 150000;
@@ -1090,22 +1103,57 @@ export default function TradingPage() {
             <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 transition hover:border-obsidian-600 shadow-md">
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-400 font-medium">Saldo Kas Tersedia</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
-                  SIAP SNIPE
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border ${
+                  isLive ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                }`}>
+                  {isLive ? 'USDC & GAS FEE' : 'SIAP SNIPE'}
                 </span>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-extrabold font-mono tracking-tight text-white">
-                  {formatUsd(activeCashUsd)}
-                </span>
-                <span className="text-xs text-emerald-400 font-mono">≈ {formatIdr(activeCashIdr)}</span>
-              </div>
-              <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-1.5">
-                <span>{isLive ? 'Hot Wallet Trading' : 'Kas Virtual Bot'}</span>
-                <span className="font-mono text-slate-300 text-[10px]">
-                  {isLive && liveTradingWallets[0] ? `${liveTradingWallets[0].balance} ${liveTradingWallets[0].token}` : 'IDR Liquid'}
-                </span>
-              </div>
+              {isLive ? (
+                <div className="space-y-2 mt-1">
+                  <div>
+                    <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                      <span>Kas Belanja (USDC)</span>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-0.5">
+                      <span className="text-xl font-extrabold font-mono text-cyan-300">
+                        {liveUsdcBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDC
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        ≈ {formatIdr(liveUsdcIdr)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="border-t border-obsidian-800/80 pt-1.5">
+                    <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                      <span>Gas Fee Tersedia ({liveGasToken})</span>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-0.5">
+                      <span className="text-sm font-extrabold font-mono text-amber-300">
+                        {Number(liveGasBal).toFixed(6)} {liveGasToken}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        ≈ {formatUsd(liveGasUsd)} ({formatIdr(liveGasIdr)})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-extrabold font-mono tracking-tight text-white">
+                      {formatUsd(activeCashUsd)}
+                    </span>
+                    <span className="text-xs text-emerald-400 font-mono">≈ {formatIdr(activeCashIdr)}</span>
+                  </div>
+                  <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-1.5">
+                    <span>Kas Virtual Bot</span>
+                    <span className="font-mono text-slate-300 text-[10px]">IDR Liquid</span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* CARD 3: POSISI TERBUKA */}

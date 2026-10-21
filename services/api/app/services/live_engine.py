@@ -122,7 +122,12 @@ def deduct_live_wallet_usd(db: Session, wallet: Wallet, spend_usd: float, usd_id
             f"sedangkan total eksekusi + gas membutuhkan Rp {req_idr:,.0f} (${spend_usd:,.2f})."
         )
 
-    if wallet.address and wallet.chain and not wallet.address.startswith("SIMULATION"):
+    if (
+        wallet.address
+        and wallet.chain
+        and not wallet.address.startswith("SIMULATION")
+        and not wallet.address.startswith("11111111111111111111111111111111")
+    ):
         rpc_res = query_onchain_wallet_balance(wallet.address, wallet.chain)
         if rpc_res.get("onchain_balance") is not None:
             wallet.balance = float(rpc_res["onchain_balance"])
@@ -145,7 +150,12 @@ def credit_live_wallet_usd(db: Session, wallet: Wallet, credit_usd: float) -> fl
     For real on-chain wallets, always queries actual balance from blockchain RPC to prevent phantom balances.
     Returns the updated wallet balance in USD.
     """
-    if wallet.address and wallet.chain and not wallet.address.startswith("SIMULATION"):
+    if (
+        wallet.address
+        and wallet.chain
+        and not wallet.address.startswith("SIMULATION")
+        and not wallet.address.startswith("11111111111111111111111111111111")
+    ):
         rpc_res = query_onchain_wallet_balance(wallet.address, wallet.chain)
         if rpc_res.get("onchain_balance") is not None:
             wallet.balance = float(rpc_res["onchain_balance"])
@@ -180,7 +190,12 @@ def auto_sync_live_wallets(db: Session, max_age_seconds: float = 25.0) -> None:
             db.execute(select(Wallet).where(~Wallet.name.contains("Modal Paper"))).scalars().all()
         )
         for w in live_wallets:
-            if w.address and w.chain:
+            if (
+                w.address
+                and w.chain
+                and not w.address.startswith("11111111111111111111111111111111")
+                and not w.address.startswith("SIMULATION")
+            ):
                 res = query_onchain_wallet_balance(w.address, w.chain)
                 if res.get("onchain_balance") is not None:
                     w.balance = float(res["onchain_balance"])
@@ -194,7 +209,7 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 25.0) -> li
     """Query all SPL token accounts owned by the Solana address (e.g. USDC, meme coins), cached for 25s."""
     global _SPL_CACHE
     addr = (address or "").strip()
-    if not addr or len(addr) < 32:
+    if not addr or len(addr) < 32 or addr == "11111111111111111111111111111111" or addr.startswith("SIMULATION"):
         return []
 
     now_ts = time.time()
@@ -204,38 +219,91 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 25.0) -> li
             return cached_items
 
     try:
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getTokenAccountsByOwner",
-            "params": [
-                addr,
-                {"programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
-                {"encoding": "jsonParsed"},
-            ],
-        }
-        with httpx.Client(timeout=3.5) as client:
-            res = client.post(SOLANA_MAINNET_RPC, json=payload)
-            if res.status_code != 200:
-                return _SPL_CACHE.get(addr, (0, []))[1]
-            items = res.json().get("result", {}).get("value", [])
-            tokens = []
-            for it in items:
-                info = it.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
-                mint = info.get("mint", "")
-                amt = float(info.get("tokenAmount", {}).get("uiAmount") or 0.0)
-                if amt > 0.000001:
-                    is_usdc = mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-                    symbol = "USDC" if is_usdc else mint[:6]
-                    usd_val = amt if is_usdc else 0.0
-                    tokens.append({
-                        "mint": mint,
-                        "symbol": symbol,
-                        "amount": amt,
-                        "usd_val": round(usd_val, 4),
-                    })
-            _SPL_CACHE[addr] = (now_ts, tokens)
-            return tokens
+        programs = [
+            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",  # Standard SPL Token Program
+            "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",  # Token-2022 Program (Pump.fun & new memes)
+        ]
+        items = []
+        with httpx.Client(timeout=3.0) as client:
+            for prog in programs:
+                try:
+                    payload = {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "getTokenAccountsByOwner",
+                        "params": [
+                            addr,
+                            {"programId": prog},
+                            {"encoding": "jsonParsed"},
+                        ],
+                    }
+                    res = client.post(SOLANA_MAINNET_RPC, json=payload)
+                    if res.status_code == 200:
+                        items.extend(res.json().get("result", {}).get("value", []))
+                except Exception:
+                    pass
+
+        # Protect against system accounts or whale wallets with hundreds of token accounts
+        items = items[:30]
+
+        # Extract parsed accounts with non-zero balance
+        parsed_entries = []
+        mints_to_fetch = []
+        for it in items:
+            info = it.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+            mint = info.get("mint", "")
+            amt = float(info.get("tokenAmount", {}).get("uiAmount") or 0.0)
+            if amt > 0.000001 and mint:
+                is_usdc = (mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                parsed_entries.append({
+                    "mint": mint,
+                    "amt": amt,
+                    "info": info,
+                    "is_usdc": is_usdc,
+                })
+                if not is_usdc:
+                    mints_to_fetch.append(mint)
+
+        # Batch fetch all token profiles in ONE single DexScreener HTTP call
+        info_map = {}
+        if mints_to_fetch:
+            try:
+                batch_tokens = market.fetch_dexscreener_tokens_by_addresses(mints_to_fetch, usd_idr=16500.0)
+                for bt in batch_tokens:
+                    c = bt.get("contract") or ""
+                    if c:
+                        info_map[c] = bt
+            except Exception:
+                pass
+
+        tokens = []
+        for entry in parsed_entries:
+            mint = entry["mint"]
+            amt = entry["amt"]
+            info = entry["info"]
+            is_usdc = entry["is_usdc"]
+
+            tok_info = None if is_usdc else info_map.get(mint)
+            # If not in batch response, fallback to single cached lookup
+            if not is_usdc and not tok_info:
+                tok_info = market.get_live_token_info(mint)
+
+            symbol = "USDC" if is_usdc else ((tok_info.get("symbol") if tok_info else None) or mint[:6])
+            price = 1.0 if is_usdc else (float(tok_info.get("price", 0.0) or 0.0) if tok_info else 0.0)
+            liq = 999999.0 if is_usdc else (float(tok_info.get("liquidity", 0.0) or 0.0) if tok_info else 0.0)
+            # Ignore spam / zero-liquidity tokens with < $50 liquidity
+            usd_val = amt * price if liq >= 50.0 else 0.0
+            tokens.append({
+                "mint": mint,
+                "symbol": symbol,
+                "amount": amt,
+                "amount_raw": str(info.get("tokenAmount", {}).get("amount", "0")),
+                "decimals": int(info.get("tokenAmount", {}).get("decimals") or 6),
+                "usd_val": round(usd_val, 4),
+            })
+
+        _SPL_CACHE[addr] = (now_ts, tokens)
+        return tokens
     except Exception:
         return _SPL_CACHE.get(addr, (0, []))[1]
 
@@ -251,20 +319,48 @@ def get_live_equity_metrics(db: Session, usd_idr: float) -> dict:
         .all()
     )
     total_live_usd = 0.0
-    trading_live_usd = 0.0
+    trading_cash_usd = 0.0
+    trading_usdc_usd = 0.0
+    trading_gas_sol = 0.0
+    trading_gas_usd = 0.0
+    trading_holdings_usd = 0.0
+
     for w in live_wallets:
-        w_usd = wallet_balance_to_usd(w)
+        native_usd = wallet_balance_to_usd(w)
+        w_usd = native_usd
+        w_usdc_usd = 0.0
+        w_meme_usd = 0.0
         if w.chain == "Solana" and w.address:
             spl_tokens = query_solana_spl_tokens(w.address)
-            spl_usd = sum(t.get("usd_val", 0.0) for t in spl_tokens)
-            w_usd += spl_usd
+            for t in spl_tokens:
+                t_val = float(t.get("usd_val", 0.0))
+                if t.get("symbol") == "USDC" or t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v":
+                    w_usdc_usd += t_val
+                else:
+                    w_meme_usd += t_val
+            w_usd = native_usd + w_usdc_usd + w_meme_usd
+
         total_live_usd += w_usd
+
         if w.gate == "trading":
-            trading_live_usd += w_usd
+            # True liquid cash is native SOL + USDC
+            trading_cash_usd += (native_usd + w_usdc_usd)
+            trading_usdc_usd += w_usdc_usd
+            trading_gas_usd += native_usd
+            trading_holdings_usd += w_meme_usd
+            if "SOL" in (w.token or "").upper():
+                trading_gas_sol += float(w.balance or 0.0)
 
     return {
-        "live_cash_usd": round(trading_live_usd, 2),
-        "live_cash_idr": round(trading_live_usd * usd_idr, 0),
+        "live_cash_usd": round(trading_cash_usd, 2),
+        "live_cash_idr": round(trading_cash_usd * usd_idr, 0),
+        "live_holdings_usd": round(trading_holdings_usd, 2),
+        "live_holdings_idr": round(trading_holdings_usd * usd_idr, 0),
+        "live_usdc_usd": round(trading_usdc_usd, 4),
+        "live_usdc_idr": round(trading_usdc_usd * usd_idr, 0),
+        "live_gas_sol": round(trading_gas_sol, 6),
+        "live_gas_usd": round(trading_gas_usd, 4),
+        "live_gas_idr": round(trading_gas_usd * usd_idr, 0),
         "live_total_equity_usd": round(total_live_usd, 2),
         "live_total_equity_idr": round(total_live_usd * usd_idr, 0),
     }

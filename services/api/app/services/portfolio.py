@@ -69,13 +69,113 @@ def reset_paper_account(db: Session) -> dict:
     db.commit()
     treasury.reset_treasury_for_paper(db, usd_idr)
     bot.clear_bot_logs()
-    return get_overview(db, refresh_live_prices=False)
+    return get_overview(db, refresh_live_prices=False, mode="PAPER")
+
+
+def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
+    """
+    Synchronize actual on-chain SPL tokens from the Live Trading Wallet into PortfolioHolding.
+    Detects genuine meme coin positions held on-chain (e.g. Kimchi, LARRY, zonki),
+    updates their live prices and quantities, and removes any positions whose on-chain balance is 0.
+    Excludes stablecoins (USDC) and zero-liquidity/flagged spam tokens (< $50 liq).
+    """
+    from app.services import live_engine, market
+
+    live_w, _, _ = live_engine.get_live_trading_wallet(db, "Solana")
+    if not live_w or not live_w.address or live_w.address.startswith("SIMULATION"):
+        return list(db.execute(select(PortfolioHolding)).scalars().all())
+
+    onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=10.0)
+    seen_symbols = set()
+    now = datetime.now(timezone.utc)
+
+    # 1. Identify active tradeable on-chain holdings
+    for tok in onchain_tokens:
+        mint = tok.get("mint", "")
+        amt = float(tok.get("amount", 0.0))
+        if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" or amt <= 0.0001:
+            continue
+        tok_info = market.get_live_token_info(mint)
+        liq = float(tok_info.get("liquidity", 0.0) if tok_info else 0.0)
+        if liq < 50.0 and tok_info is not None:
+            continue
+        sym = (tok_info.get("symbol") if tok_info else None) or tok.get("symbol") or mint[:6]
+        seen_symbols.add(sym.upper())
+
+    # 2. Delete any DB holdings that are no longer present on-chain
+    existing_all = list(db.execute(select(PortfolioHolding)).scalars().all())
+    for h in existing_all:
+        if h.symbol.upper() not in seen_symbols:
+            db.delete(h)
+    db.commit()
+
+    # 3. Upsert active on-chain holdings into PortfolioHolding
+    for tok in onchain_tokens:
+        mint = tok.get("mint", "")
+        amt = float(tok.get("amount", 0.0))
+        if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" or amt <= 0.0001:
+            continue
+
+        tok_info = market.get_live_token_info(mint)
+        liq = float(tok_info.get("liquidity", 0.0) if tok_info else 0.0)
+        if liq < 50.0 and tok_info is not None:
+            continue
+
+        sym = (tok_info.get("symbol") if tok_info else None) or tok.get("symbol") or mint[:6]
+        live_price = float(tok_info.get("price", 0.0) if tok_info else 0.0)
+        if live_price <= 0 and amt > 0 and tok.get("usd_val", 0.0) > 0:
+            live_price = float(tok["usd_val"]) / amt
+
+        existing = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == sym)).scalar_one_or_none()
+        if existing:
+            existing.quantity = amt
+            if live_price > 0:
+                existing.current_price = live_price
+            if liq > 0:
+                existing.liquidity_usd = liq
+            existing.updated_at = now
+        else:
+            base_sym = sym.split("/")[0]
+            recent_buy = (
+                db.execute(
+                    select(Trade)
+                    .where(Trade.symbol.ilike(f"%{base_sym}%"), Trade.side == "buy")
+                    .order_by(Trade.id.desc())
+                    .limit(1)
+                )
+                .scalar_one_or_none()
+            )
+            entry_px = float(recent_buy.price) if recent_buy and recent_buy.price > 0 else (live_price or 0.00001)
+
+            new_h = PortfolioHolding(
+                symbol=sym,
+                quantity=amt,
+                avg_entry_price=entry_px,
+                current_price=live_price or entry_px,
+                entry_costs_usd=0.001,
+                liquidity_usd=liq or 1800.0,
+                updated_at=now,
+            )
+            db.add(new_h)
+        db.commit()
+
+    return list(db.execute(select(PortfolioHolding)).scalars().all())
 
 
 def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None = None) -> dict:
     paper_wallet, usd_idr = get_or_create_paper_wallet(db)
     t_state = treasury.get_or_init_treasury(db, usd_idr)
-    holdings = db.execute(select(PortfolioHolding)).scalars().all()
+
+    active_mode = (mode or "PAPER").upper()
+    is_live = active_mode == "LIVE"
+
+    if is_live:
+        # In LIVE mode, holdings are the real on-chain SPL tokens from Phantom Trading Wallet
+        live_holdings = sync_onchain_holdings_to_portfolio(db)
+        holdings = live_holdings
+    else:
+        # In PAPER mode, holdings are simulated paper holdings from PortfolioHolding
+        holdings = db.execute(select(PortfolioHolding)).scalars().all()
     total_value = 0.0
     total_net_value = 0.0
     total_cost = 0.0
@@ -171,7 +271,7 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
 
     active_mode = (mode or "PAPER").upper()
     is_live = active_mode == "LIVE"
-    active_total_equity_usd = (live_eq["live_total_equity_usd"] + total_net_value) if is_live else total_equity_usd
+    active_total_equity_usd = live_eq["live_total_equity_usd"] if is_live else total_equity_usd
     active_total_equity_idr = round(active_total_equity_usd * usd_idr, 0)
     active_cash_usd = live_eq["live_cash_usd"] if is_live else paper_cash_usd
     active_cash_idr = round(active_cash_usd * usd_idr, 0)
@@ -190,8 +290,15 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
         "paper_cash_idr": paper_cash_idr,
         "live_cash_usd": live_eq["live_cash_usd"],
         "live_cash_idr": live_eq["live_cash_idr"],
-        "live_total_equity_usd": round(live_eq["live_total_equity_usd"] + total_net_value, 2),
-        "live_total_equity_idr": round((live_eq["live_total_equity_usd"] + total_net_value) * usd_idr, 0),
+        "live_holdings_usd": live_eq.get("live_holdings_usd", round(total_net_value, 2)),
+        "live_holdings_idr": live_eq.get("live_holdings_idr", round(total_net_value * usd_idr, 0)),
+        "live_usdc_usd": live_eq.get("live_usdc_usd", 0.0),
+        "live_usdc_idr": live_eq.get("live_usdc_idr", 0.0),
+        "live_gas_sol": live_eq.get("live_gas_sol", 0.0),
+        "live_gas_usd": live_eq.get("live_gas_usd", 0.0),
+        "live_gas_idr": live_eq.get("live_gas_idr", 0.0),
+        "live_total_equity_usd": round(live_eq["live_total_equity_usd"], 2),
+        "live_total_equity_idr": round(live_eq["live_total_equity_usd"] * usd_idr, 0),
         "gas_reserve_usd": round(t_state.gas_reserve_usd, 4),
         "gas_reserve_idr": round(t_state.gas_reserve_usd * usd_idr, 0),
         "total_gas_spent_idr": round((t_state.total_gas_spent_usd or 0.0) * usd_idr, 0),
@@ -313,41 +420,78 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
 
     if trade_mode == "LIVE":
         live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain, create_if_missing=False)
-        net_credit_usd = max(0.0, net_proceeds_usd - gas_fee_usd)
+        if not live_wallet:
+            raise ValueError("LIVE_WALLET_NOT_FOUND: Wallet trading live tidak ditemukan.")
 
-        # Real On-Chain Sell Swap Broadcast via Jupiter v6 Aggregator on Solana
-        from app.services import solana_trader
-        kp = solana_trader.get_trading_keypair()
-        onchain_tx_res = None
+        # Pre-Flight Gas Check for Sell: Pastikan wallet memiliki sedikit SOL untuk biaya gas transaksi jual
+        current_sol_bal = float(live_wallet.balance or 0.0)
+        if current_sol_bal < 0.0005:
+            raise ValueError(
+                f"GAS_SOL_HABIS: Saldo SOL wallet ({current_sol_bal:.6f} SOL) tidak cukup untuk membayar gas fee transaksi jual di Solana. "
+                f"Minimal butuh 0.001 SOL agar transaksi jual tidak gantung."
+            )
+
         token_info = market.get_live_token_info(symbol)
         token_contract = (token_info.get("contract") if token_info else None) or getattr(existing, "contract", None)
-        if kp and target_chain == "Solana" and token_contract and len(token_contract) >= 32:
-            try:
-                raw_token_units = int(round(qty_to_sell * 1e6))
-                if raw_token_units > 0:
-                    onchain_tx_res = solana_trader.execute_onchain_token_to_sol(
-                        token_mint=token_contract,
-                        amount_tokens_raw=raw_token_units,
-                        slippage_pct=exit_slippage_pct,
-                    )
-                    if onchain_tx_res and onchain_tx_res.get("tx_hash"):
-                        tx_hash = onchain_tx_res["tx_hash"]
-            except Exception as swap_err:
-                import logging
-                logging.getLogger("sofia.portfolio").warning(f"On-chain sell swap warning: {swap_err}")
 
-        if live_wallet:
-            remaining_cash_usd = live_engine.credit_live_wallet_usd(db, live_wallet, net_credit_usd)
-            wallet_label = live_wallet.name
-            if onchain_tx_res and onchain_tx_res.get("tx_hash"):
-                try:
-                    from app.services import wallets as wallet_svc
-                    wallet_svc.sync_wallet_onchain(db, live_wallet.id, apply_onchain_balance=True)
-                except Exception:
-                    pass
+        from app.services import solana_trader
+        kp = solana_trader.get_trading_keypair()
+        kp_pubkey = str(kp.pubkey()) if kp else ""
+        is_real_onchain = (
+            bool(kp)
+            and bool(live_wallet.address)
+            and live_wallet.address == kp_pubkey
+            and not live_wallet.address.startswith("11111111111111111111111111111111")
+        )
+
+        if is_real_onchain:
+            # Pre-Flight Token Existence Check: Pastikan token benar-benar ada di wallet on-chain
+            spl_tokens = live_engine.query_solana_spl_tokens(live_wallet.address, max_cache_seconds=3.0)
+            token_entry = next((t for t in spl_tokens if t.get("mint") == token_contract), None) if token_contract else None
+
+            if not token_entry or float(token_entry.get("amount") or 0.0) <= 0:
+                # Posisi orphan/hantu (misal dari kegagalan transaksi lama): Bersihkan agar tidak gantung selamanya
+                db.delete(existing)
+                if open_buy and open_buy.status == "open":
+                    open_buy.status = "closed"
+                    open_buy.result = "ORPHAN_CLEARED"
+                    open_buy.closed_at = datetime.now(timezone.utc)
+                    open_buy.notes = f"Posisi {symbol} dibersihkan karena token tidak ditemukan di wallet on-chain."
+                db.commit()
+                return {
+                    "symbol": symbol,
+                    "status": "cleared",
+                    "message": f"Posisi {symbol} dibersihkan dari daftar aktif karena saldo on-chain 0. Tidak ada transaksi yang gantung.",
+                    "sell_price_usd": market_price,
+                    "realized_pnl_usd": 0.0,
+                    "realized_pnl_idr": 0.0,
+                    "slippage_pct": 0.0,
+                    "dex_fee_idr": 0.0,
+                    "gas_fee_idr": 0.0,
+                    "cash_remaining_idr": round(float(live_wallet.balance or 0.0) * live_engine.get_sol_price_usd() * usd_idr),
+                }
+
+            total_raw = int(token_entry.get("amount_raw") or round(qty_to_sell * (10 ** int(token_entry.get("decimals", 6)))))
+            raw_units = max(1, int(round(total_raw * pct)))
+            onchain_tx_res = solana_trader.execute_onchain_token_to_sol(
+                token_mint=token_contract,
+                amount_tokens_raw=raw_units,
+                slippage_pct=exit_slippage_pct,
+            )
+            if not onchain_tx_res or not onchain_tx_res.get("tx_hash"):
+                raise RuntimeError("Transaksi jual on-chain gagal: tidak menerima signature transaksi yang valid.")
+            tx_hash = onchain_tx_res["tx_hash"]
         else:
-            remaining_cash_usd = 0.0
-            wallet_label = "Live On-Chain Wallet"
+            tx_hash = live_engine.generate_tx_hash(target_chain)
+
+        net_credit_usd = max(0.0, net_proceeds_usd - gas_fee_usd)
+        remaining_cash_usd = live_engine.credit_live_wallet_usd(db, live_wallet, net_credit_usd)
+        wallet_label = live_wallet.name
+        try:
+            from app.services import wallets as wallet_svc
+            wallet_svc.sync_wallet_onchain(db, live_wallet.id, apply_onchain_balance=True)
+        except Exception:
+            pass
         t_state.total_gas_spent_usd = float(t_state.total_gas_spent_usd or 0.0) + gas_fee_usd
         t_state.total_dex_fees_usd = float(t_state.total_dex_fees_usd or 0.0) + dex_fee_usd
     else:

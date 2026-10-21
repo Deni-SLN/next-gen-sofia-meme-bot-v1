@@ -11,14 +11,22 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
     if "SOL" in token_upper and "USD" not in token_upper:
         sol_info = market.get_live_token_info("SOL/USDT")
         sol_price = float(sol_info["price"]) if (sol_info and sol_info.get("price", 0) > 10) else 145.0
-        usd_val = w.balance * sol_price
+        native_usd = w.balance * sol_price
     else:
-        usd_val = w.balance
+        native_usd = w.balance
 
     spl_tokens = []
+    usdc_bal = 0.0
+    usdc_usd = 0.0
     if w.chain == "Solana" and w.address and "Modal Paper" not in (w.name or ""):
         spl_tokens = live_engine.query_solana_spl_tokens(w.address)
-        usd_val += sum(t.get("usd_val", 0.0) for t in spl_tokens)
+        for t in spl_tokens:
+            if t.get("symbol") == "USDC" or t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v":
+                usdc_bal += float(t.get("amount") or 0.0)
+                usdc_usd += float(t.get("usd_val") or 0.0)
+
+    cash_usd = native_usd + usdc_usd
+    total_val = native_usd + sum(t.get("usd_val", 0.0) for t in spl_tokens)
 
     return {
         "id": w.id,
@@ -26,10 +34,18 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
         "address": w.address,
         "chain": w.chain,
         "balance": round(w.balance, 6),
-        "balance_usd": round(usd_val, 2),
-        "balance_idr": round(usd_val * usd_idr, 0),
+        "balance_usd": round(cash_usd, 2),
+        "balance_idr": round(cash_usd * usd_idr, 0),
+        "total_equity_usd": round(total_val, 2),
         "token": w.token,
         "gate": w.gate,
+        "usdc_balance": round(usdc_bal, 4),
+        "usdc_usd": round(usdc_usd, 4),
+        "usdc_idr": round(usdc_usd * usd_idr, 0),
+        "gas_fee_balance": round(w.balance, 6),
+        "gas_fee_token": w.token,
+        "gas_fee_usd": round(native_usd, 4),
+        "gas_fee_idr": round(native_usd * usd_idr, 0),
         "spl_tokens": spl_tokens,
         "updated_at": w.updated_at.isoformat() if w.updated_at else None,
     }
@@ -61,7 +77,12 @@ def sync_wallet_onchain(db: Session, wallet_id: int, apply_onchain_balance: bool
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
     rpc_res = live_engine.query_onchain_wallet_balance(w.address, w.chain)
-    if apply_onchain_balance and rpc_res.get("onchain_balance") is not None:
+    if (
+        apply_onchain_balance
+        and rpc_res.get("onchain_balance") is not None
+        and not (w.address or "").startswith("11111111111111111111111111111111")
+        and not (w.address or "").startswith("SIMULATION")
+    ):
         w.balance = float(rpc_res["onchain_balance"])
         w.updated_at = datetime.now(timezone.utc)
         db.commit()

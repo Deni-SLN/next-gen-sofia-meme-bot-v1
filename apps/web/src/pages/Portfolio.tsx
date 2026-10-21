@@ -64,6 +64,17 @@ export default function PortfolioPage() {
   const liveCashUsd = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_usd) || 0), 0);
   const liveCashIdr = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
 
+  const primaryLiveTradingWallet = liveTradingWallets[0];
+  const liveUsdcBal = primaryLiveTradingWallet?.usdc_balance ?? (
+    (primaryLiveTradingWallet?.spl_tokens || []).find((t: { symbol?: string; mint?: string; amount?: number }) => t.symbol === 'USDC' || t.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')?.amount || 0
+  );
+  const liveUsdcUsd = primaryLiveTradingWallet?.usdc_usd ?? liveUsdcBal;
+  const liveUsdcIdr = primaryLiveTradingWallet?.usdc_idr ?? (liveUsdcUsd * usdIdr);
+
+  const liveGasBal = primaryLiveTradingWallet?.gas_fee_balance ?? (Number(primaryLiveTradingWallet?.balance) || 0);
+  const liveGasToken = primaryLiveTradingWallet?.gas_fee_token || primaryLiveTradingWallet?.token || 'SOL';
+  const liveGasUsd = primaryLiveTradingWallet?.gas_fee_usd ?? Math.max(0, (Number(primaryLiveTradingWallet?.balance_usd) || 0) - liveUsdcUsd);
+  const liveGasIdr = primaryLiveTradingWallet?.gas_fee_idr ?? (liveGasUsd * usdIdr);
   const d = portfolioQuery.data;
   const holdingsValUsd = Number(d?.net_holdings_value_usd || d?.total_value) || 0;
   const holdingsValIdr = Number(d?.net_holdings_value_idr || d?.total_value_idr) || 0;
@@ -241,16 +252,55 @@ export default function PortfolioPage() {
           </div>
 
           <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80">
-            <div className="text-xs font-mono text-slate-400 uppercase">
-              {isLive ? 'Sisa Kas Live (Hot Wallets)' : 'Sisa Kas Simulasi (Paper)'}
+            <div className="text-xs font-mono text-slate-400 uppercase flex items-center justify-between">
+              <span>{isLive ? 'Sisa Kas Live (Hot Wallets)' : 'Sisa Kas Simulasi (Paper)'}</span>
+              {isLive && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                  USDC &amp; GAS
+                </span>
+              )}
             </div>
-            <div className="text-2xl font-extrabold font-mono text-cyan-400 mt-1">
-              {formatUsd(activeCashUsd)}
-            </div>
-            <div className="text-xs font-mono text-slate-300 mt-0.5">
-              ≈ {formatIdr(activeCashIdr)}
-              {isLive && <span className="text-slate-500 ml-1">(Solana &amp; Base)</span>}
-            </div>
+            {isLive ? (
+              <div className="space-y-1.5 mt-2">
+                <div>
+                  <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    <span>Kas Belanja (USDC)</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-lg font-bold font-mono text-cyan-300">
+                      {liveUsdcBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDC
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      ≈ {formatIdr(liveUsdcIdr)}
+                    </span>
+                  </div>
+                </div>
+                <div className="border-t border-obsidian-800/80 pt-1.5">
+                  <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    <span>Gas Fee Tersedia ({liveGasToken})</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-sm font-bold font-mono text-amber-300">
+                      {Number(liveGasBal).toFixed(6)} {liveGasToken}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      ≈ {formatUsd(liveGasUsd)} ({formatIdr(liveGasIdr)})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-extrabold font-mono text-cyan-400 mt-1">
+                  {formatUsd(activeCashUsd)}
+                </div>
+                <div className="text-xs font-mono text-slate-300 mt-0.5">
+                  ≈ {formatIdr(activeCashIdr)}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80">
