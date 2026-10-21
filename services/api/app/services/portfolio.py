@@ -276,7 +276,12 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
 
     # Fetch 100% real live price from DexScreener
     live_tok = market.get_live_token_info(symbol)
-    market_price = float(live_tok["price"]) if (live_tok and live_tok.get("price", 0) > 0) else float(existing.current_price)
+    resolved_price = float(live_tok["price"]) if (live_tok and live_tok.get("price", 0) > 0) else float(existing.current_price)
+    # Sanity guard: if resolved_price is over 50x higher than entry price due to cross-chain ticker collision, protect from inflated price
+    if existing.avg_entry_price > 0 and resolved_price > (existing.avg_entry_price * 50.0):
+        if existing.current_price > 0 and existing.current_price < (existing.avg_entry_price * 5.0):
+            resolved_price = float(existing.current_price)
+    market_price = resolved_price
     liq_usd = float(live_tok["liquidity"]) if (live_tok and live_tok.get("liquidity", 0) > 0) else float(existing.liquidity_usd or 25000.0)
     target_chain = "Base" if "USDC" in symbol.upper() else "Solana"
 

@@ -480,8 +480,8 @@ def run_daily_settlement(
         paper_wallet.updated_at = datetime.now(timezone.utc)
 
         main_addr = main_w.address if (main_w and main_w.address) else "PAPER-MAIN-VAULT"
-        # Credit 40% to Main Wallet (if configured) and Paper Main Vault
-        if main_w is not None:
+        # Credit 40% to Paper Main Vault and Simulation Main Wallet (real live wallets are funded on-chain)
+        if main_w is not None and (main_w.address or "").startswith("SIMULATION"):
             main_w.balance = round(float(main_w.balance) + to_main_usd, 6)
             main_w.updated_at = datetime.now(timezone.utc)
         t.paper_main_vault_usd = round((t.paper_main_vault_usd or 0.0) + to_main_usd, 6)

@@ -110,6 +110,7 @@ def get_live_trading_wallet(
 def deduct_live_wallet_usd(db: Session, wallet: Wallet, spend_usd: float, usd_idr: float) -> float:
     """
     Deduct `spend_usd` from the given Live Trading Hot Wallet in its native token.
+    For real on-chain wallets, always syncs actual balance from blockchain RPC.
     Returns the remaining wallet balance in USD.
     """
     avail_usd = wallet_balance_to_usd(wallet)
@@ -120,6 +121,15 @@ def deduct_live_wallet_usd(db: Session, wallet: Wallet, spend_usd: float, usd_id
             f"SALDO_LIVE_TIDAK_CUKUP: Saldo Hot Wallet '{wallet.name}' tersisa Rp {avail_idr:,.0f} (${avail_usd:,.2f}), "
             f"sedangkan total eksekusi + gas membutuhkan Rp {req_idr:,.0f} (${spend_usd:,.2f})."
         )
+
+    if wallet.address and wallet.chain and not wallet.address.startswith("SIMULATION"):
+        rpc_res = query_onchain_wallet_balance(wallet.address, wallet.chain)
+        if rpc_res.get("onchain_balance") is not None:
+            wallet.balance = float(rpc_res["onchain_balance"])
+            wallet.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(wallet)
+            return wallet_balance_to_usd(wallet)
 
     token_deduction = usd_to_wallet_token(wallet, spend_usd)
     wallet.balance = max(0.0, round(float(wallet.balance or 0.0) - token_deduction, 6))
@@ -132,8 +142,18 @@ def deduct_live_wallet_usd(db: Session, wallet: Wallet, spend_usd: float, usd_id
 def credit_live_wallet_usd(db: Session, wallet: Wallet, credit_usd: float) -> float:
     """
     Credit `credit_usd` (net sale proceeds) into the Live Trading Hot Wallet in its native token.
+    For real on-chain wallets, always queries actual balance from blockchain RPC to prevent phantom balances.
     Returns the updated wallet balance in USD.
     """
+    if wallet.address and wallet.chain and not wallet.address.startswith("SIMULATION"):
+        rpc_res = query_onchain_wallet_balance(wallet.address, wallet.chain)
+        if rpc_res.get("onchain_balance") is not None:
+            wallet.balance = float(rpc_res["onchain_balance"])
+            wallet.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(wallet)
+            return wallet_balance_to_usd(wallet)
+
     if credit_usd > 0:
         token_addition = usd_to_wallet_token(wallet, credit_usd)
         wallet.balance = round(float(wallet.balance or 0.0) + token_addition, 6)
