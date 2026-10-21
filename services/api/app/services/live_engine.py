@@ -177,7 +177,7 @@ _LAST_ONCHAIN_SYNC = 0.0
 _SPL_CACHE: dict[str, tuple[float, list[dict]]] = {}
 
 
-def auto_sync_live_wallets(db: Session, max_age_seconds: float = 25.0) -> None:
+def auto_sync_live_wallets(db: Session, max_age_seconds: float = 15.0) -> None:
     """Automatically refresh real on-chain native balances for live wallets if stale."""
     global _LAST_ONCHAIN_SYNC
     now_ts = time.time()
@@ -187,15 +187,28 @@ def auto_sync_live_wallets(db: Session, max_age_seconds: float = 25.0) -> None:
     _LAST_ONCHAIN_SYNC = now_ts
     try:
         live_wallets = list(
-            db.execute(select(Wallet).where(~Wallet.name.contains("Modal Paper"))).scalars().all()
+            db.execute(
+                select(Wallet)
+                .where(~Wallet.name.contains("Modal Paper"))
+                .order_by(Wallet.gate == "trading", Wallet.id.asc())
+            )
+            .scalars()
+            .all()
         )
-        for w in live_wallets:
+        # Prioritize active trading wallet first so its RPC quota is never consumed by passive reserve wallets
+        live_wallets.sort(key=lambda x: 0 if x.gate == "trading" else 1)
+        for idx, w in enumerate(live_wallets):
             if (
                 w.address
                 and w.chain
                 and not w.address.startswith("11111111111111111111111111111111")
                 and not w.address.startswith("SIMULATION")
             ):
+                # Sync passive main/reserve wallets less frequently (every 60s) to conserve RPC rate limits
+                if w.gate != "trading" and w.updated_at:
+                    upd = w.updated_at if w.updated_at.tzinfo else w.updated_at.replace(tzinfo=timezone.utc)
+                    if (datetime.now(timezone.utc) - upd).total_seconds() < 60.0:
+                        continue
                 res = query_onchain_wallet_balance(w.address, w.chain)
                 if res.get("onchain_balance") is not None:
                     w.balance = float(res["onchain_balance"])
@@ -205,43 +218,83 @@ def auto_sync_live_wallets(db: Session, max_age_seconds: float = 25.0) -> None:
         pass
 
 
-def query_solana_spl_tokens(address: str, max_cache_seconds: float = 25.0) -> list[dict]:
-    """Query all SPL token accounts owned by the Solana address (e.g. USDC, meme coins), cached for 25s."""
+def invalidate_spl_cache(address: str | None = None) -> None:
+    """Force immediate refresh on next SPL query while preserving last known good tokens against 429 errors."""
+    global _SPL_CACHE, _LAST_ONCHAIN_SYNC
+    _LAST_ONCHAIN_SYNC = 0.0
+    if address:
+        addr = address.strip()
+        if addr in _SPL_CACHE:
+            _SPL_CACHE[addr] = (0.0, _SPL_CACHE[addr][1])
+    else:
+        for k in list(_SPL_CACHE.keys()):
+            _SPL_CACHE[k] = (0.0, _SPL_CACHE[k][1])
+
+
+def query_solana_spl_tokens(address: str, max_cache_seconds: float = 15.0) -> list[dict]:
+    """
+    Query all SPL & Token-2022 accounts owned by the Solana address (e.g. USDC, SI, ANSEM), cached for 15s.
+    Protects against HTTP 429 rate-limits on public Solana RPC by retaining the last known good token list
+    if either program call fails or gets throttled.
+    """
     global _SPL_CACHE
     addr = (address or "").strip()
     if not addr or len(addr) < 32 or addr == "11111111111111111111111111111111" or addr.startswith("SIMULATION"):
         return []
 
     now_ts = time.time()
-    if addr in _SPL_CACHE:
-        cache_time, cached_items = _SPL_CACHE[addr]
-        if now_ts - cache_time < max_cache_seconds:
+    cached_entry = _SPL_CACHE.get(addr)
+    if cached_entry:
+        cache_time, cached_items = cached_entry
+        if now_ts - cache_time < max_cache_seconds and cached_items:
             return cached_items
 
     try:
         programs = [
-            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",  # Standard SPL Token Program
-            "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",  # Token-2022 Program (Pump.fun & new memes)
+            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",  # Standard SPL Token Program (USDC, etc.)
+            "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",  # Token-2022 Program (Pump.fun & new memes: SI, ANSEM)
         ]
         items = []
-        with httpx.Client(timeout=3.0) as client:
+        any_rate_limited = False
+        success_prog_count = 0
+
+        with httpx.Client(timeout=4.0) as client:
             for prog in programs:
-                try:
-                    payload = {
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "getTokenAccountsByOwner",
-                        "params": [
-                            addr,
-                            {"programId": prog},
-                            {"encoding": "jsonParsed"},
-                        ],
-                    }
-                    res = client.post(SOLANA_MAINNET_RPC, json=payload)
-                    if res.status_code == 200:
-                        items.extend(res.json().get("result", {}).get("value", []))
-                except Exception:
-                    pass
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getTokenAccountsByOwner",
+                    "params": [
+                        addr,
+                        {"programId": prog},
+                        {"encoding": "jsonParsed"},
+                    ],
+                }
+                prog_ok = False
+                for attempt in range(2):
+                    try:
+                        res = client.post(SOLANA_MAINNET_RPC, json=payload)
+                        if res.status_code == 200:
+                            data = res.json()
+                            if "result" in data:
+                                items.extend(data.get("result", {}).get("value", []))
+                                prog_ok = True
+                                success_prog_count += 1
+                                break
+                        elif res.status_code == 429:
+                            any_rate_limited = True
+                            time.sleep(0.35 * (attempt + 1))
+                    except Exception:
+                        time.sleep(0.2)
+                if not prog_ok:
+                    any_rate_limited = True
+
+        # CRITICAL GUARD: If Solana RPC throttled (429) either SPL or Token-2022 program and we have cached tokens,
+        # NEVER overwrite cache with an incomplete/empty list (which would wipe out active holdings in DB)!
+        if any_rate_limited and cached_entry and cached_entry[1]:
+            # Extend cache timestamp slightly (5s) so we don't hammer the rate-limited RPC on the very next ms
+            _SPL_CACHE[addr] = (now_ts - max_cache_seconds + 5.0, cached_entry[1])
+            return cached_entry[1]
 
         # Protect against system accounts or whale wallets with hundreds of token accounts
         items = items[:30]
@@ -291,8 +344,10 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 25.0) -> li
             symbol = "USDC" if is_usdc else ((tok_info.get("symbol") if tok_info else None) or mint[:6])
             price = 1.0 if is_usdc else (float(tok_info.get("price", 0.0) or 0.0) if tok_info else 0.0)
             liq = 999999.0 if is_usdc else (float(tok_info.get("liquidity", 0.0) or 0.0) if tok_info else 0.0)
-            # Ignore spam / zero-liquidity tokens with < $50 liquidity
-            usd_val = amt * price if liq >= 50.0 else 0.0
+            # Ignore rugged / dead spam tokens with < $50 liquidity (e.g. solpump, rugsfun, PHP) so wallet & terminal match Phantom's active tokens
+            if not is_usdc and liq < 50.0:
+                continue
+            usd_val = amt * price
             tokens.append({
                 "mint": mint,
                 "symbol": symbol,
@@ -304,7 +359,8 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 25.0) -> li
                 "usd_val": round(usd_val, 4),
             })
 
-        _SPL_CACHE[addr] = (now_ts, tokens)
+        if success_prog_count == len(programs) or tokens:
+            _SPL_CACHE[addr] = (now_ts, tokens)
         return tokens
     except Exception:
         return _SPL_CACHE.get(addr, (0, []))[1]
@@ -333,7 +389,8 @@ def get_live_equity_metrics(db: Session, usd_idr: float) -> dict:
         w_usdc_usd = 0.0
         w_meme_usd = 0.0
         if w.chain == "Solana" and w.address:
-            spl_tokens = query_solana_spl_tokens(w.address)
+            cache_ttl = 12.0 if w.gate == "trading" else 120.0
+            spl_tokens = query_solana_spl_tokens(w.address, max_cache_seconds=cache_ttl)
             for t in spl_tokens:
                 t_val = float(t.get("usd_val", 0.0))
                 if t.get("symbol") == "USDC" or t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v":

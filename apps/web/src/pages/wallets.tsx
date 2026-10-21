@@ -451,6 +451,20 @@ export default function WalletsPage() {
                         <div className="text-[10px] text-emerald-400">
                           ≈ {formatIdr(w.balance_idr ?? w.balance * usdIdr)}
                         </div>
+                        {Array.isArray(w.spl_tokens) && w.spl_tokens.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {w.spl_tokens.map((spl: any) => (
+                              <span
+                                key={spl.mint}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-obsidian-950 border border-obsidian-700 text-[10px] font-mono text-cyan-300"
+                              >
+                                <span className="font-bold">{spl.symbol}:</span>
+                                <span>{Number(spl.amount).toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+                                <span className="text-slate-400">({formatUsd(spl.usd_val)})</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3.5">
                         <span className="px-2 py-0.5 rounded bg-obsidian-850 border border-obsidian-700 uppercase text-[10px] font-bold text-cyan-400">

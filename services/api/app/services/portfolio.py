@@ -85,11 +85,15 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
     if not live_w or not live_w.address or live_w.address.startswith("SIMULATION"):
         return list(db.execute(select(PortfolioHolding)).scalars().all())
 
-    onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=20.0)
+    onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=12.0)
+    # Safety Guard: If RPC was temporarily rate-limited (429) and returned empty list,
+    # retain existing DB holdings rather than wiping them out!
+    if not onchain_tokens:
+        return list(db.execute(select(PortfolioHolding)).scalars().all())
     seen_symbols = set()
     now = datetime.now(timezone.utc)
 
-    # 1. Filter eligible non-USDC meme tokens with valid data
+    # 1. Filter eligible non-USDC meme tokens with real tradable liquidity (>= $50.0)
     valid_tokens = []
     for tok in onchain_tokens:
         mint = tok.get("mint", "")
@@ -97,7 +101,9 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
         if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" or amt <= 0.0001:
             continue
         liq = float(tok.get("liquidity", 0.0))
-        if liq < 50.0 and tok.get("price", 0.0) <= 0:
+        usd_val = float(tok.get("usd_val", 0.0))
+        # Skip dead / rugged tokens with < $50 liquidity or $0 value so terminal matches wallet 100%
+        if liq < 50.0 or usd_val <= 0.0001:
             continue
         sym = tok.get("symbol") or mint[:6]
         seen_symbols.add(sym.upper())
@@ -390,12 +396,20 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     qty_to_sell = existing.quantity * pct
     gross_proceeds_usd = qty_to_sell * market_price
 
+    try:
+        from app.services import bot as bot_svc
+        cfg_slip = float(bot_svc._SNIPER_CONFIG.get("slippage_pct", 1.2))
+        cfg_prio = float(bot_svc._SNIPER_CONFIG.get("priority_fee_sol", 0.0008))
+    except Exception:
+        cfg_slip = 1.2
+        cfg_prio = 0.0008
+
     # Calculate exit slippage, DEX fee, and gas fee
     exec_costs = treasury.compute_execution_costs(
         notional_usd=gross_proceeds_usd,
         liquidity_usd=liq_usd,
-        user_slippage_pct=1.0,
-        priority_fee_sol=0.005,
+        user_slippage_pct=cfg_slip,
+        priority_fee_sol=cfg_prio,
     )
     exit_slippage_pct = exec_costs["effective_slippage_pct"]
     sell_fill_price = market_price * (1.0 - exit_slippage_pct / 100.0)
@@ -410,7 +424,7 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     realized_pnl_usd = net_proceeds_usd - cost_basis_usd - prop_entry_gas_usd - gas_fee_usd
 
     t_state = treasury.get_or_init_treasury(db, usd_idr)
-    tx_hash = live_engine.generate_tx_hash(target_chain)
+    tx_hash = ""
 
     if trade_mode == "LIVE":
         live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain, create_if_missing=False)
@@ -438,45 +452,50 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
             and not live_wallet.address.startswith("11111111111111111111111111111111")
         )
 
-        if is_real_onchain:
-            # Pre-Flight Token Existence Check: Pastikan token benar-benar ada di wallet on-chain
-            spl_tokens = live_engine.query_solana_spl_tokens(live_wallet.address, max_cache_seconds=3.0)
-            token_entry = next((t for t in spl_tokens if t.get("mint") == token_contract), None) if token_contract else None
-
-            if not token_entry or float(token_entry.get("amount") or 0.0) <= 0:
-                # Posisi orphan/hantu (misal dari kegagalan transaksi lama): Bersihkan agar tidak gantung selamanya
-                db.delete(existing)
-                if open_buy and open_buy.status == "open":
-                    open_buy.status = "closed"
-                    open_buy.result = "ORPHAN_CLEARED"
-                    open_buy.closed_at = datetime.now(timezone.utc)
-                    open_buy.notes = f"Posisi {symbol} dibersihkan karena token tidak ditemukan di wallet on-chain."
-                db.commit()
-                return {
-                    "symbol": symbol,
-                    "status": "cleared",
-                    "message": f"Posisi {symbol} dibersihkan dari daftar aktif karena saldo on-chain 0. Tidak ada transaksi yang gantung.",
-                    "sell_price_usd": market_price,
-                    "realized_pnl_usd": 0.0,
-                    "realized_pnl_idr": 0.0,
-                    "slippage_pct": 0.0,
-                    "dex_fee_idr": 0.0,
-                    "gas_fee_idr": 0.0,
-                    "cash_remaining_idr": round(float(live_wallet.balance or 0.0) * live_engine.get_sol_price_usd() * usd_idr),
-                }
-
-            total_raw = int(token_entry.get("amount_raw") or round(qty_to_sell * (10 ** int(token_entry.get("decimals", 6)))))
-            raw_units = max(1, int(round(total_raw * pct)))
-            onchain_tx_res = solana_trader.execute_onchain_token_to_sol(
-                token_mint=token_contract,
-                amount_tokens_raw=raw_units,
-                slippage_pct=exit_slippage_pct,
+        if not is_real_onchain:
+            raise ValueError(
+                "KEYPAIR_LIVE_TIDAK_COCOK: Private Key wallet trading tidak cocok dengan alamat wallet live yang aktif. "
+                "Eksekusi dummy dinonaktifkan (100% Real On-Chain Mode)."
             )
-            if not onchain_tx_res or not onchain_tx_res.get("tx_hash"):
-                raise RuntimeError("Transaksi jual on-chain gagal: tidak menerima signature transaksi yang valid.")
-            tx_hash = onchain_tx_res["tx_hash"]
-        else:
-            tx_hash = live_engine.generate_tx_hash(target_chain)
+
+        # Pre-Flight Token Existence Check: Pastikan token benar-benar ada di wallet on-chain
+        spl_tokens = live_engine.query_solana_spl_tokens(live_wallet.address, max_cache_seconds=0.0)
+        token_entry = next((t for t in spl_tokens if t.get("mint") == token_contract), None) if token_contract else None
+
+        if not token_entry or float(token_entry.get("amount") or 0.0) <= 0:
+            # Posisi orphan/hantu (misal dari kegagalan transaksi lama atau sudah terjual di Phantom): Bersihkan agar tidak gantung selamanya
+            db.delete(existing)
+            if open_buy and open_buy.status == "open":
+                open_buy.status = "closed"
+                open_buy.result = "ORPHAN_CLEARED"
+                open_buy.closed_at = datetime.now(timezone.utc)
+                open_buy.notes = f"Posisi {symbol} dibersihkan karena token tidak ditemukan di wallet on-chain."
+            db.commit()
+            live_engine.invalidate_spl_cache(live_wallet.address)
+            return {
+                "symbol": symbol,
+                "status": "cleared",
+                "message": f"Posisi {symbol} dibersihkan dari daftar aktif karena saldo on-chain 0. Tidak ada transaksi yang gantung.",
+                "sell_price_usd": market_price,
+                "realized_pnl_usd": 0.0,
+                "realized_pnl_idr": 0.0,
+                "slippage_pct": 0.0,
+                "dex_fee_idr": 0.0,
+                "gas_fee_idr": 0.0,
+                "cash_remaining_idr": round(float(live_wallet.balance or 0.0) * live_engine.get_sol_price_usd() * usd_idr),
+            }
+
+        total_raw = int(token_entry.get("amount_raw") or round(qty_to_sell * (10 ** int(token_entry.get("decimals", 6)))))
+        raw_units = max(1, int(round(total_raw * pct)))
+        onchain_tx_res = solana_trader.execute_onchain_token_to_sol(
+            token_mint=token_contract,
+            amount_tokens_raw=raw_units,
+            slippage_pct=max(exit_slippage_pct, cfg_slip),
+        )
+        if not onchain_tx_res or not onchain_tx_res.get("tx_hash"):
+            raise RuntimeError("Transaksi jual on-chain gagal: tidak menerima signature transaksi yang valid.")
+        tx_hash = onchain_tx_res["tx_hash"]
+        live_engine.invalidate_spl_cache(live_wallet.address)
 
         net_credit_usd = max(0.0, net_proceeds_usd - gas_fee_usd)
         remaining_cash_usd = live_engine.credit_live_wallet_usd(db, live_wallet, net_credit_usd)
@@ -489,6 +508,7 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
         t_state.total_gas_spent_usd = float(t_state.total_gas_spent_usd or 0.0) + gas_fee_usd
         t_state.total_dex_fees_usd = float(t_state.total_dex_fees_usd or 0.0) + dex_fee_usd
     else:
+        tx_hash = live_engine.generate_tx_hash(target_chain)
         # Charge gas fee from Gas Reserve (auto-topping up if reserve < Rp 3.000)
         t_state = treasury.charge_gas_and_dex_fee(
             db,

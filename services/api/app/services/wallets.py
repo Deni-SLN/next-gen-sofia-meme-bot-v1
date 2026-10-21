@@ -19,7 +19,8 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
     usdc_bal = 0.0
     usdc_usd = 0.0
     if w.chain == "Solana" and w.address and "Modal Paper" not in (w.name or ""):
-        spl_tokens = live_engine.query_solana_spl_tokens(w.address)
+        cache_ttl = 12.0 if w.gate == "trading" else 120.0
+        spl_tokens = live_engine.query_solana_spl_tokens(w.address, max_cache_seconds=cache_ttl)
         for t in spl_tokens:
             if t.get("symbol") == "USDC" or t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v":
                 usdc_bal += float(t.get("amount") or 0.0)

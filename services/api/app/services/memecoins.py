@@ -235,61 +235,83 @@ def execute_snipe(db: Session, data: dict) -> dict:
         sol_price = float(sol_info["price"]) if (sol_info and float(sol_info.get("price") or 0) > 10) else 145.0
         spend_sol = round(amount_usd / sol_price, 6)
 
-        needed_gas_sol = priority_fee_sol + 0.00204 + 0.0025  # Priority fee + ATA sewa akun + cadangan gas jual
+        # Refresh on-chain balance before pre-flight check
+        if live_wallet.address and not live_wallet.address.startswith("SIMULATION"):
+            rpc_check = live_engine.query_onchain_wallet_balance(live_wallet.address, live_wallet.chain or "Solana")
+            if rpc_check.get("onchain_balance") is not None:
+                live_wallet.balance = float(rpc_check["onchain_balance"])
+                db.commit()
+
+        # Check USDC balance for potential USDC -> SOL auto-unwrap or direct USDC -> Token swap
+        spl_tokens = live_engine.query_solana_spl_tokens(live_wallet.address, max_cache_seconds=0.0) if live_wallet.address else []
+        usdc_entry = next((t for t in spl_tokens if t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" or t.get("symbol") == "USDC"), None)
+        usdc_bal = float(usdc_entry.get("amount") or 0.0) if usdc_entry else 0.0
+
+        needed_gas_sol = priority_fee_sol + 0.00204 + 0.0020  # Priority fee + ATA sewa akun + cadangan gas jual
         total_sol_needed = spend_sol + needed_gas_sol
         current_sol_bal = float(live_wallet.balance or 0.0)
 
-        if current_sol_bal < total_sol_needed:
-            needed_idr = total_sol_needed * sol_price * usd_idr
-            have_idr = current_sol_bal * sol_price * usd_idr
-            raise ValueError(
-                f"KAS_GAS_SOL_KURANG: Dibutuhkan minimal {total_sol_needed:.6f} SOL (≈ Rp {needed_idr:,.0f}: {spend_sol:.6f} swap + {needed_gas_sol:.4f} gas/reserve jual). "
-                f"Saldo wallet Anda saat ini {current_sol_bal:.6f} SOL (≈ Rp {have_idr:,.0f}). "
-                f"Order dibatalkan secara aman agar transaksi tidak gagal atau gantung."
-            )
-
-        # Real On-Chain Swap Broadcast via Jupiter v6 Aggregator on Solana
         from app.services import solana_trader
         kp = solana_trader.get_trading_keypair()
         kp_pubkey = str(kp.pubkey()) if kp else ""
-
-        # Only broadcast real on-chain transaction if active wallet matches the loaded Phantom keypair
-        if (
-            kp
-            and live_wallet.address
+        is_real_onchain = (
+            bool(kp)
+            and bool(live_wallet.address)
             and live_wallet.address == kp_pubkey
             and not live_wallet.address.startswith("11111111111111111111111111111111")
-        ):
-            if not resolved_contract or len(resolved_contract) < 32:
-                raise ValueError(f"KONTRAK_TIDAK_VALID: Alamat kontrak meme coin '{symbol}' tidak valid ({resolved_contract}).")
+        )
+        if not is_real_onchain:
+            raise ValueError(
+                "KEYPAIR_LIVE_TIDAK_COCOK: Private Key wallet trading tidak cocok dengan alamat wallet live yang aktif. "
+                "Eksekusi dummy dinonaktifkan (100% Real On-Chain Mode)."
+            )
 
-            # Execute real on-chain transaction without fake fallback
-            try:
+        if not resolved_contract or len(resolved_contract) < 32:
+            raise ValueError(f"KONTRAK_TIDAK_VALID: Alamat kontrak meme coin '{symbol}' tidak valid ({resolved_contract}).")
+
+        swap_via_usdc = False
+        if current_sol_bal < total_sol_needed:
+            # Check if we have enough gas SOL (>= needed_gas_sol) and enough USDC to pay for the buy!
+            if current_sol_bal >= needed_gas_sol and usdc_bal >= max(0.10, amount_usd * 0.95):
+                swap_via_usdc = True
+                amount_usd = min(amount_usd, usdc_bal)
+                amount_idr = round(amount_usd * usd_idr, 0)
+            else:
+                needed_idr = total_sol_needed * sol_price * usd_idr
+                have_idr = (current_sol_bal * sol_price + usdc_bal) * usd_idr
+                raise ValueError(
+                    f"KAS_GAS_SOL_KURANG: Dibutuhkan minimal {total_sol_needed:.6f} SOL (≈ Rp {needed_idr:,.0f}: {spend_sol:.6f} swap + {needed_gas_sol:.4f} gas/reserve jual). "
+                    f"Saldo SOL saat ini {current_sol_bal:.6f} SOL + {usdc_bal:.2f} USDC (≈ Rp {have_idr:,.0f}). "
+                    f"Order dibatalkan secara aman agar transaksi tidak gagal atau gantung."
+                )
+
+        # Execute real on-chain transaction without fake fallback
+        try:
+            if swap_via_usdc:
+                onchain_tx_res = solana_trader.execute_onchain_usdc_to_token(
+                    target_token_mint=resolved_contract,
+                    amount_usdc=amount_usd,
+                    slippage_pct=user_slippage_pct,
+                )
+            else:
                 onchain_tx_res = solana_trader.execute_onchain_sol_to_token(
                     target_token_mint=resolved_contract,
                     amount_sol=spend_sol,
                     slippage_pct=user_slippage_pct,
                 )
-                if not onchain_tx_res or not onchain_tx_res.get("tx_hash"):
-                    raise RuntimeError("Transaksi swap on-chain tidak menghasilkan tx hash yang valid.")
-                tx_hash = onchain_tx_res["tx_hash"]
-            except Exception as swap_err:
-                raise RuntimeError(f"EKSEKUSI_SWAP_ONCHAIN_GAGAL: {swap_err}") from swap_err
-        else:
-            tx_hash = live_engine.generate_tx_hash(target_chain)
-
-        remaining_cash_usd = live_engine.deduct_live_wallet_usd(
-            db,
-            wallet=live_wallet,
-            spend_usd=amount_usd + gas_fee_usd,
-            usd_idr=usd_idr,
-        )
+            if not onchain_tx_res or not onchain_tx_res.get("tx_hash"):
+                raise RuntimeError("Transaksi swap on-chain tidak menghasilkan tx hash yang valid.")
+            tx_hash = onchain_tx_res["tx_hash"]
+            live_engine.invalidate_spl_cache(live_wallet.address)
+        except Exception as swap_err:
+            raise RuntimeError(f"EKSEKUSI_SWAP_ONCHAIN_GAGAL: {swap_err}") from swap_err
 
         try:
             from app.services import wallets as wallet_svc
-            wallet_svc.sync_wallet_onchain(db, live_wallet.id, apply_onchain_balance=True)
+            sync_res = wallet_svc.sync_wallet_onchain(db, live_wallet.id, apply_onchain_balance=True)
+            remaining_cash_usd = float(sync_res.get("wallet", {}).get("balance_usd", 0.0))
         except Exception:
-            pass
+            remaining_cash_usd = live_engine.wallet_balance_to_usd(live_wallet)
 
         t_state.total_gas_spent_usd = float(t_state.total_gas_spent_usd or 0.0) + gas_fee_usd
         t_state.total_dex_fees_usd = float(t_state.total_dex_fees_usd or 0.0) + dex_fee_usd

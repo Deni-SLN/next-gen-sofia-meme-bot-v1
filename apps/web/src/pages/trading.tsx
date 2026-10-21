@@ -146,7 +146,15 @@ export default function TradingPage() {
     window.addEventListener('sofia-bot-status-change', botHandler);
     window.addEventListener('sofia-paper-reset', resetHandler);
     window.addEventListener('sofia-bot-trade-executed', tradeHandler);
+
+    // Real-time auto-refresh every 8 seconds so Wallet & Terminal Positions stay 100% synced without hitting Solana RPC 429 rate-limits
+    const rtInterval = setInterval(() => {
+      portfolioQuery.refetch();
+      walletsQuery.refetch();
+    }, 8000);
+
     return () => {
+      clearInterval(rtInterval);
       window.removeEventListener('sofia-mode-change', handler);
       window.removeEventListener('sofia-bot-status-change', botHandler);
       window.removeEventListener('sofia-paper-reset', resetHandler);

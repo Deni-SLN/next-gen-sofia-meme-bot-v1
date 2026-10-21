@@ -223,6 +223,54 @@ def execute_onchain_sol_to_token(
     }
 
 
+def execute_onchain_usdc_to_token(
+    target_token_mint: str,
+    amount_usdc: float,
+    slippage_pct: float = 1.5,
+) -> dict:
+    """
+    Execute REAL On-Chain Swap from USDC -> Target Token Mint on Solana Mainnet!
+    Returns on-chain signature, solscan link, amounts, and confirmation status.
+    """
+    kp = get_trading_keypair()
+    if not kp:
+        raise ValueError("SOFIA_SOLANA_TRADING_PRIVATE_KEY belum disetel di .env.local")
+
+    # USDC on Solana has 6 decimals
+    amount_raw = int(round(amount_usdc * 1e6))
+    if amount_raw <= 10000:
+        raise ValueError("Nominal swap USDC terlalu kecil (minimal > $0.05 USDC)")
+
+    slippage_bps = int(round(slippage_pct * 100))
+
+    logger.info(f"Mengambil Jupiter quote: USDC -> {target_token_mint} ({amount_usdc:.4f} USDC)...")
+    quote = get_jupiter_quote(
+        input_mint=USDC_MINT,
+        output_mint=target_token_mint,
+        amount_raw=amount_raw,
+        slippage_bps=slippage_bps,
+    )
+
+    logger.info("Menandatangani transaksi swap USDC -> Token dengan Keypair Phantom...")
+    signed_tx, expected_sig = build_and_sign_swap_tx(quote, kp)
+
+    logger.info(f"Menyiarkan transaksi USDC swap ke Solana Mainnet (Tx: {expected_sig})...")
+    actual_sig = broadcast_transaction(signed_tx)
+
+    logger.info(f"Menunggu konfirmasi on-chain (Tx: {actual_sig})...")
+    conf = wait_for_confirmation(actual_sig)
+
+    return {
+        "success": conf.get("confirmed", True),
+        "tx_hash": actual_sig,
+        "solscan_url": f"https://solscan.io/tx/{actual_sig}",
+        "in_amount_usdc": amount_usdc,
+        "out_amount_raw": quote.get("outAmount"),
+        "price_impact_pct": quote.get("priceImpactPct"),
+        "confirmation": conf,
+    }
+
+
 def execute_onchain_token_to_sol(
     token_mint: str,
     amount_tokens_raw: int,

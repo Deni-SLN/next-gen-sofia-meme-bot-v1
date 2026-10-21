@@ -103,7 +103,7 @@ def compute_execution_costs(
     notional_usd: float,
     liquidity_usd: float = 25000.0,
     user_slippage_pct: float = 1.0,
-    priority_fee_sol: float = 0.005,
+    priority_fee_sol: float = 0.0008,
 ) -> dict:
     """
     Calculate realistic DEX execution costs:
@@ -119,7 +119,7 @@ def compute_execution_costs(
 
     slippage_usd = round(notional_usd * (effective_slippage_pct / 100.0), 6)
     dex_fee_usd = round(notional_usd * (DEX_LP_FEE_PCT / 100.0), 6)
-    gas_fee_usd = round(min(0.03, max(0.009, float(priority_fee_sol or 0.005) * 2.5)), 6)
+    gas_fee_usd = round(min(0.03, max(0.002, float(priority_fee_sol or 0.0008) * 2.5)), 6)
 
     return {
         "effective_slippage_pct": effective_slippage_pct,
@@ -237,11 +237,17 @@ def compute_holding_net_metrics(h: PortfolioHolding, usd_idr: float) -> dict:
     cost_usd = float(h.quantity) * float(h.avg_entry_price)  # includes entry slippage & entry DEX fee
     entry_extra_costs_usd = float(h.entry_costs_usd or 0.0)  # entry gas fee
 
+    try:
+        from app.services import bot as bot_svc
+        cfg_prio = float(bot_svc._SNIPER_CONFIG.get("priority_fee_sol", 0.0008))
+    except Exception:
+        cfg_prio = 0.0008
+
     exit_costs = compute_execution_costs(
         notional_usd=gross_value_usd,
         liquidity_usd=float(h.liquidity_usd or 25000.0),
         user_slippage_pct=1.0,
-        priority_fee_sol=0.005,
+        priority_fee_sol=cfg_prio,
     )
     est_exit_cost_usd = exit_costs["total_cost_usd"]
     net_value_usd = max(0.0, gross_value_usd - est_exit_cost_usd)

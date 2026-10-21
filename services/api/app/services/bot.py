@@ -50,8 +50,8 @@ STRATEGY_PRESETS: dict[str, dict] = {
         "strategy_desc": "Hanya membeli token yang sudah Migrated (Raydium/PumpSwap) dengan likuiditas > $20K & Safety Score ≥ 82.",
         "relay_mode": "JITO_0SLOT",
         "slippage_pct": 0.8,
-        "priority_fee_sol": 0.003,
-        "jito_bribe_sol": 0.003,
+        "priority_fee_sol": 0.0005,
+        "jito_bribe_sol": 0.0005,
         "buy_amount_idr": 15000.0,
         "min_safety_score": 82,
         "min_liquidity_usd": 20000.0,
@@ -62,10 +62,10 @@ STRATEGY_PRESETS: dict[str, dict] = {
         "max_market_cap_usd": 999999999.0,
         "min_5m_buys": 8,
         "discovery_sources": ["DexScreener Migrated Pools", "Raydium / PumpSwap Verified"],
-        "auto_tp_pct": 15.0,
-        "auto_sl_pct": 6.0,
+        "auto_tp_pct": 20.0,
+        "auto_sl_pct": 8.0,
         "trailing_stop_enabled": True,
-        "trailing_stop_pct": 4.0,
+        "trailing_stop_pct": 5.0,
         "time_stop_minutes": 45,
         "max_open_positions": 3,
         "tick_interval_ms": 4000,
@@ -76,8 +76,8 @@ STRATEGY_PRESETS: dict[str, dict] = {
         "strategy_desc": "Seimbang antara keamanan kontrak (Score ≥ 70) dan momentum orderflow pada pool Final Stretch & Migrated.",
         "relay_mode": "JITO_0SLOT",
         "slippage_pct": 1.2,
-        "priority_fee_sol": 0.005,
-        "jito_bribe_sol": 0.005,
+        "priority_fee_sol": 0.0008,
+        "jito_bribe_sol": 0.0008,
         "buy_amount_idr": 20000.0,
         "min_safety_score": 70,
         "min_liquidity_usd": 5000.0,
@@ -88,10 +88,10 @@ STRATEGY_PRESETS: dict[str, dict] = {
         "max_market_cap_usd": 50000000.0,
         "min_5m_buys": 5,
         "discovery_sources": ["DexScreener Final Stretch", "GMGN.ai Momentum"],
-        "auto_tp_pct": 25.0,
-        "auto_sl_pct": 8.0,
+        "auto_tp_pct": 30.0,
+        "auto_sl_pct": 10.0,
         "trailing_stop_enabled": True,
-        "trailing_stop_pct": 5.0,
+        "trailing_stop_pct": 6.0,
         "time_stop_minutes": 30,
         "max_open_positions": 5,
         "tick_interval_ms": 3000,
@@ -101,30 +101,30 @@ STRATEGY_PRESETS: dict[str, dict] = {
         "strategy_label": "🔥 AGRESIF (DexScreener + GMGN.ai New Meme Sniper • Koin Baru & Cepat)",
         "strategy_desc": "Khusus menyergap meme coin BARU MUNCUL (New Creations < 3 Jam, MCap < $500K) via DexScreener Token Profiles v1 & GMGN.ai Trench Radar. Memblokir 100% koin lama seperti BONK/PEPE/WIF.",
         "relay_mode": "JITO_0SLOT",
-        "slippage_pct": 2.5,
-        "priority_fee_sol": 0.008,
-        "jito_bribe_sol": 0.008,
-        "buy_amount_idr": 25000.0,
-        "min_safety_score": 55,
-        "min_liquidity_usd": 1500.0,
-        "min_bonding_curve_pct": 10.0,
-        "max_dev_holding_pct": 18.0,
+        "slippage_pct": 2.0,
+        "priority_fee_sol": 0.0010,
+        "jito_bribe_sol": 0.0010,
+        "buy_amount_idr": 20000.0,
+        "min_safety_score": 60,
+        "min_liquidity_usd": 2000.0,
+        "min_bonding_curve_pct": 15.0,
+        "max_dev_holding_pct": 15.0,
         "only_new_creations": True,
         "max_token_age_minutes": 180,
         "max_market_cap_usd": 500000.0,
-        "min_5m_buys": 2,
+        "min_5m_buys": 4,
         "discovery_sources": [
             "DexScreener Token Profiles v1",
             "DexScreener Boosts v1",
             "GMGN.ai Sol Trench Radar",
         ],
-        "auto_tp_pct": 8.0,
-        "auto_sl_pct": 5.0,
+        "auto_tp_pct": 35.0,
+        "auto_sl_pct": 12.0,
         "trailing_stop_enabled": True,
-        "trailing_stop_pct": 3.0,
-        "time_stop_minutes": 10,
-        "max_open_positions": 8,
-        "tick_interval_ms": 1200,
+        "trailing_stop_pct": 6.0,
+        "time_stop_minutes": 20,
+        "max_open_positions": 5,
+        "tick_interval_ms": 2000,
     },
 }
 
@@ -133,16 +133,16 @@ _SNIPER_CONFIG: dict = {
     "strategy_label": STRATEGY_PRESETS["DEFAULT"]["strategy_label"],
     "strategy_desc": STRATEGY_PRESETS["DEFAULT"]["strategy_desc"],
     "relay_mode": "JITO_0SLOT",  # JITO_0SLOT | HELIUS_STAKED | BLOXROUTE | MAINNET_STD
-    "slippage_pct": 1.0,
-    "priority_fee_sol": 0.005,
-    "jito_bribe_sol": 0.005,
+    "slippage_pct": 1.2,
+    "priority_fee_sol": 0.0008,
+    "jito_bribe_sol": 0.0008,
     "anti_mev": True,
-    "buy_amount_idr": 15000.0,
+    "buy_amount_idr": 20000.0,
     "min_safety_score": 70,
     "min_liquidity_usd": 5000.0,
-    "min_bonding_curve_pct": 15.0,
+    "min_bonding_curve_pct": 20.0,
     "max_bonding_curve_pct": 98.0,
-    "max_dev_holding_pct": 15.0,
+    "max_dev_holding_pct": 12.0,
     "max_top10_holding_pct": 35.0,
     "only_new_creations": False,
     "max_token_age_minutes": 2880,
@@ -152,11 +152,11 @@ _SNIPER_CONFIG: dict = {
     "require_mint_revoked": True,
     "require_freeze_revoked": True,
     "require_lp_burned": True,
-    "auto_tp_pct": 12.0,
+    "auto_tp_pct": 30.0,
     "auto_tp_sell_pct": 100.0,
-    "auto_sl_pct": 8.0,
+    "auto_sl_pct": 10.0,
     "trailing_stop_enabled": True,
-    "trailing_stop_pct": 5.0,
+    "trailing_stop_pct": 6.0,
     "time_stop_minutes": 30,
     "multi_wallet_rotation": True,
     "max_open_positions": 5,
@@ -504,17 +504,22 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
         if active_mode == "LIVE":
             live_w, avail_cash_usd, _ = live_engine.get_live_trading_wallet(db, "Solana")
             spl_tokens = live_engine.query_solana_spl_tokens(live_w.address) if (live_w and live_w.chain == "Solana" and live_w.address) else []
+            usdc_usd = sum(
+                float(t.get("usd_val", 0.0))
+                for t in spl_tokens
+                if t.get("symbol") == "USDC" or t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+            )
             spl_usd = sum(t.get("usd_val", 0.0) for t in spl_tokens)
             total_live_cash_usd = avail_cash_usd + spl_usd
             avail_cash_idr = total_live_cash_usd * usd_idr
 
-            # Calculate spendable SOL (reserve priority fee + ATA rent + gas reserve for future sell)
-            prio_fee_sol = float(_SNIPER_CONFIG.get("priority_fee_sol", 0.003))
-            needed_gas_reserve_sol = prio_fee_sol + 0.00204 + 0.0025
+            # Calculate spendable SOL + USDC (reserve priority fee + ATA rent + gas reserve for future sell)
+            prio_fee_sol = float(_SNIPER_CONFIG.get("priority_fee_sol", 0.0008))
+            needed_gas_reserve_sol = prio_fee_sol + 0.00204 + 0.0020
             sol_bal = float(live_w.balance or 0.0) if live_w else 0.0
             sol_px = live_engine.get_sol_price_usd()
             spendable_sol = max(0.0, sol_bal - needed_gas_reserve_sol)
-            spendable_sol_idr = spendable_sol * sol_px * usd_idr
+            spendable_sol_idr = (spendable_sol * sol_px + usdc_usd) * usd_idr
             has_enough_gas = sol_bal >= needed_gas_reserve_sol
         else:
             treasury.ensure_gas_reserve(db, paper_wallet, usd_idr, needed_gas_usd=0.015)
@@ -576,8 +581,8 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             net_pnl_pct = net_m["net_pnl_pct"]
             gross_pnl_pct = net_m["gross_pnl_pct"]
 
-            # In AGGRESSIVE mode, also trigger Quick Scalp Profit if net_pnl_pct >= 2.5% or rotate oldest position when slots are full
-            fast_scalp_hit = (strat_mode == "AGGRESSIVE") and (net_pnl_pct >= 2.5 or len(holdings) >= max_positions)
+            # In AGGRESSIVE mode, only trigger Quick Scalp Profit when net_pnl_pct >= 12.0% (never dump at a loss just to rotate slots)
+            fast_scalp_hit = (strat_mode == "AGGRESSIVE") and (net_pnl_pct >= 12.0)
             should_exit = auto_trade and (net_pnl_pct >= tp_target or net_pnl_pct <= sl_target or fast_scalp_hit)
 
             if should_exit:
