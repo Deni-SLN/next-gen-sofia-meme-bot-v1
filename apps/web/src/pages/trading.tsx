@@ -1106,37 +1106,55 @@ export default function TradingPage() {
                 <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold border ${
                   isLive ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                 }`}>
-                  {isLive ? 'USDC & GAS FEE' : 'SIAP SNIPE'}
+                  {isLive ? 'TOTAL WALLET TRADING' : 'SIAP SNIPE'}
                 </span>
               </div>
               {isLive ? (
                 <div className="space-y-2 mt-1">
+                  {/* Total Kas Riil di Wallet Trading */}
                   <div>
-                    <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                      <span>Kas Belanja (USDC)</span>
+                    <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span className="text-slate-300 font-semibold">Total di Wallet Trading</span>
+                      </span>
+                      <span className="text-[9px] text-slate-500 font-mono">SOL + USDC</span>
                     </div>
                     <div className="flex items-baseline gap-2 mt-0.5">
-                      <span className="text-xl font-extrabold font-mono text-cyan-300">
-                        {liveUsdcBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDC
+                      <span className="text-xl font-extrabold font-mono text-emerald-400">
+                        {formatUsd(liveCashUsd)}
                       </span>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        ≈ {formatIdr(liveUsdcIdr)}
+                      <span className="text-xs text-slate-300 font-mono font-medium">
+                        ≈ {formatIdr(liveCashIdr)}
                       </span>
                     </div>
                   </div>
-                  <div className="border-t border-obsidian-800/80 pt-1.5">
-                    <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                      <span>Gas Fee Tersedia ({liveGasToken})</span>
+
+                  {/* Rincian: Kas Belanja (USDC) & Gas Fee (SOL) */}
+                  <div className="border-t border-obsidian-800/80 pt-1.5 grid grid-cols-2 gap-2 text-[10px] font-mono">
+                    <div className="bg-obsidian-950/60 p-1.5 rounded border border-obsidian-800/50">
+                      <div className="text-slate-400 flex items-center gap-1 mb-0.5">
+                        <span className="w-1 h-1 rounded-full bg-cyan-400"></span>
+                        <span>Kas USDC</span>
+                      </div>
+                      <div className="font-bold text-cyan-300 truncate">
+                        {liveUsdcBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
+                      </div>
+                      <div className="text-[9px] text-slate-500 truncate">
+                        ≈ {formatIdr(liveUsdcIdr)}
+                      </div>
                     </div>
-                    <div className="flex items-baseline gap-2 mt-0.5">
-                      <span className="text-sm font-extrabold font-mono text-amber-300">
-                        {Number(liveGasBal).toFixed(6)} {liveGasToken}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        ≈ {formatUsd(liveGasUsd)} ({formatIdr(liveGasIdr)})
-                      </span>
+                    <div className="bg-obsidian-950/60 p-1.5 rounded border border-obsidian-800/50">
+                      <div className="text-slate-400 flex items-center gap-1 mb-0.5">
+                        <span className="w-1 h-1 rounded-full bg-amber-400"></span>
+                        <span>Gas ({liveGasToken})</span>
+                      </div>
+                      <div className="font-bold text-amber-300 truncate">
+                        {Number(liveGasBal).toFixed(4)} SOL
+                      </div>
+                      <div className="text-[9px] text-slate-500 truncate">
+                        ≈ {formatIdr(liveGasIdr)}
+                      </div>
                     </div>
                   </div>
                 </div>
