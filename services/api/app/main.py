@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.db.session import init_db, SessionLocal
 from app.routers import auth, bot, portfolio, signals, ai, risk, performance, wallets, memecoins, journal, news, stocks, gold, crypto, chat, mcp as mcp_router
 from app.mcp_server import mcp
-from app.services import treasury
+from app.services import treasury, bot as bot_service
 
 
 async def _daily_0500_wib_settlement_worker() -> None:
@@ -20,16 +20,42 @@ async def _daily_0500_wib_settlement_worker() -> None:
         await asyncio.sleep(30)
 
 
+def _execute_background_bot_tick() -> float:
+    """Run one synchronous bot scan/trade tick if bot status is 'running', returning next sleep interval."""
+    with SessionLocal() as db:
+        state = bot_service.get_bot_status(db)
+        cfg = bot_service.get_sniper_config()
+        interval_sec = max(1.5, float(cfg.get("tick_interval_ms", 3000)) / 1000.0)
+        if state.status == "running":
+            bot_service.run_bot_scan_tick(db, auto_trade=True, force_trade=False)
+        return interval_sec
+
+
+async def _autonomous_bot_engine_worker() -> None:
+    """Autonomous background engine so the bot keeps scanning and trading across menu changes or closed tabs until explicitly stopped."""
+    while True:
+        sleep_sec = 2.5
+        try:
+            sleep_sec = await asyncio.to_thread(_execute_background_bot_tick)
+        except Exception:
+            sleep_sec = 3.0
+        await asyncio.sleep(sleep_sec)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    task = asyncio.create_task(_daily_0500_wib_settlement_worker())
+    settlement_task = asyncio.create_task(_daily_0500_wib_settlement_worker())
+    bot_engine_task = asyncio.create_task(_autonomous_bot_engine_worker())
     try:
         yield
     finally:
-        task.cancel()
+        settlement_task.cancel()
+        bot_engine_task.cancel()
         with suppress(asyncio.CancelledError):
-            await task
+            await settlement_task
+        with suppress(asyncio.CancelledError):
+            await bot_engine_task
 
 
 app = FastAPI(

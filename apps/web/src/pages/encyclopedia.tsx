@@ -990,23 +990,6 @@ export default function EncyclopediaPage() {
                 Panduan komprehensif mengenai seluruh <strong>fitur menu aplikasi</strong>, mekanisme pasar <strong>Crypto &amp; Web3</strong>, perdagangan <strong>Saham BEI &amp; Valuasi</strong>, investasi <strong>Emas Batangan &amp; Logam Mulia</strong>, serta indikator <strong>Analisis Teknikal Kuantitatif</strong>.
               </p>
             </div>
-
-            {/* Quick Actions & Ultrawide Toggle */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => toggleUltrawide(!isUltrawide)}
-                className={`px-3 py-2 rounded-xl text-xs font-mono font-bold border transition flex items-center gap-1.5 ${
-                  isUltrawide
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                }`}
-                title="Mode Layar Lebar: Menampilkan kartu ensiklopedia 3 kolom horizontal ke samping"
-              >
-                <LucideIcon name={isUltrawide ? 'Minimize2' : 'Maximize2'} className="w-3.5 h-3.5" />
-                <span>{isUltrawide ? 'Layar Biasa' : 'Mode Layar Lebar'}</span>
-              </button>
-            </div>
           </div>
 
           {/* SEARCH BAR & CATEGORY TABS */}

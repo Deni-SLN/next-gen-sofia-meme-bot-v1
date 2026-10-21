@@ -260,19 +260,6 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => toggleUltrawide(!isUltrawide)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border font-mono text-[11px] font-bold transition ${
-              isUltrawide
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
-                : 'bg-obsidian-900 hover:bg-obsidian-850 text-slate-300 border-obsidian-700/80 hover:text-white'
-            }`}
-            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
-          >
-            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
-          </button>
           <span className="px-2.5 py-1 rounded-lg bg-obsidian-900 border border-obsidian-700/80 text-slate-300 font-mono text-[11px]">
             Target: <strong className="text-white">{activeTarget}</strong>
           </span>

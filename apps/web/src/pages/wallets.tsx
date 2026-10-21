@@ -171,19 +171,6 @@ export default function WalletsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => toggleUltrawide(!isUltrawide)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono text-[11px] font-bold transition ${
-              isUltrawide
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
-                : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border-obsidian-800 hover:text-white'
-            }`}
-            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
-          >
-            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
-          </button>
-          <button
-            type="button"
             onClick={() => setShowConnectModal(true)}
             className="px-3.5 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-extrabold text-xs font-mono transition flex items-center gap-1.5"
           >

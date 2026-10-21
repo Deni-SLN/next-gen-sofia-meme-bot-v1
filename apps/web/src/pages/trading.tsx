@@ -6,6 +6,8 @@ import {
   formatUsd,
   getTradingMode,
   setTradingMode,
+  getStrategyMode,
+  setStrategyModeStorage,
 } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { BotActivityCard } from '@/components/BotActivityCard';
@@ -25,8 +27,10 @@ const BOT_STRATEGY_MODES = [
     badge: '🛡️ SAFE MODE',
     title: 'Safe (Konservatif)',
     subtitle: 'Token Lulus (Migrated) & Likuiditas Tinggi',
-    desc: 'Hanya membeli koin yang sudah lulus ke Raydium/PumpSwap dengan Likuiditas > $20K & Safety Score ≥ 82. Risiko rendah.',
-    stats: 'Min Score: 82 • TP: +15% / SL: -6% • Speed: 4.0s',
+    desc: 'Hanya membeli koin Solana yang sudah lulus ke Raydium/PumpSwap dengan Likuiditas > $20K & Safety Score ≥ 82. Risiko rendah.',
+    stats: 'Min Score: 82 • TP: +20% / SL: -8% • Speed: 4.0s',
+    winrateBarClass: 'bg-emerald-400',
+    winrateBadgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
     activeClass: 'border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-glow-emerald',
     badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
   },
@@ -35,8 +39,10 @@ const BOT_STRATEGY_MODES = [
     badge: '⚖️ DEFAULT MODE',
     title: 'Default (Seimbang)',
     subtitle: 'Final Stretch & Migrated Pool',
-    desc: 'Seimbang antara keamanan kontrak (Score ≥ 70) dan momentum orderflow 5m pada pool Final Stretch & Migrated.',
-    stats: 'Min Score: 70 • TP: +25% / SL: -8% • Speed: 3.0s',
+    desc: 'Seimbang antara keamanan kontrak (Score ≥ 70) dan momentum orderflow 5m pada pool Final Stretch & Migrated Solana.',
+    stats: 'Min Score: 70 • TP: +30% / SL: -10% • Speed: 3.0s',
+    winrateBarClass: 'bg-cyan-400',
+    winrateBadgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
     activeClass: 'border-cyan-500 bg-cyan-500/15 text-cyan-300',
     badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
   },
@@ -46,7 +52,9 @@ const BOT_STRATEGY_MODES = [
     title: 'Agresif (Khusus Koin Baru & Cepat)',
     subtitle: 'DexScreener Latest Profiles v1 + GMGN.ai Trench Radar',
     desc: 'Khusus menyergap meme coin BARU MUNCUL (Umur < 3 Jam, MCap < $500K) via DexScreener & GMGN.ai. Memblokir 100% koin lama (BONK, PEPE, WIF, POPCAT).',
-    stats: 'Max Umur: 180m • Max MCap: $500K • Quick TP: +8% / SL: -5% • 1.2s',
+    stats: 'Max Umur: 180m • Max MCap: $500K • Quick Scalp: +12% (TP +35% / SL -12%) • 2.0s',
+    winrateBarClass: 'bg-amber-400',
+    winrateBadgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     activeClass: 'border-amber-500 bg-amber-500/15 text-amber-300',
     badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   },
@@ -63,7 +71,7 @@ export default function TradingPage() {
   const configQuery = useApiQuery(() => api.getSniperConfig(), []);
   const pulseQuery = useApiQuery(() => api.getPulse(), []);
 
-  const [strategyMode, setStrategyMode] = useState<'SAFE' | 'DEFAULT' | 'AGGRESSIVE'>('DEFAULT');
+  const [strategyMode, setStrategyMode] = useState<'SAFE' | 'DEFAULT' | 'AGGRESSIVE'>(() => getStrategyMode());
   const [actionError, setActionError] = useState<string>('');
   const [actionSuccess, setActionSuccess] = useState<string>('');
 
@@ -88,6 +96,8 @@ export default function TradingPage() {
   const [terminalContract, setTerminalContract] = useState<string>('');
   const [terminalAmountIdr, setTerminalAmountIdr] = useState<number>(25000);
   const [isSniping, setIsSniping] = useState<boolean>(false);
+  const [sellingKey, setSellingKey] = useState<string | null>(null);
+  const [quickExitNotice, setQuickExitNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const newCreationsList: any[] = pulseQuery.data?.new_creations || [];
 
@@ -100,10 +110,26 @@ export default function TradingPage() {
   }, [newCreationsList, terminalSymbol]);
 
   useEffect(() => {
+    if (botQuery.data?.status === 'running') {
+      const srvMode = botQuery.data?.mode;
+      if ((srvMode === 'LIVE' || srvMode === 'PAPER') && srvMode !== selectedMode) {
+        setSelectedMode(srvMode);
+        setTradingMode(srvMode);
+      }
+      const srvStrat = botQuery.data?.strategy_mode;
+      if (srvStrat && ['SAFE', 'DEFAULT', 'AGGRESSIVE'].includes(srvStrat) && srvStrat !== strategyMode) {
+        setStrategyMode(srvStrat);
+        setStrategyModeStorage(srvStrat);
+      }
+    }
+  }, [botQuery.data]);
+
+  useEffect(() => {
     if (configQuery.data) {
       const c = configQuery.data;
       if (c.strategy_mode && ['SAFE', 'DEFAULT', 'AGGRESSIVE'].includes(c.strategy_mode)) {
         setStrategyMode(c.strategy_mode);
+        setStrategyModeStorage(c.strategy_mode);
       }
       if (c.relay_mode) setRelayMode(c.relay_mode);
       if (c.jito_bribe_sol !== undefined) setJitoTip(Number(c.jito_bribe_sol));
@@ -219,6 +245,12 @@ export default function TradingPage() {
   const pnlIsPositive = unrealizedPnlIdr >= 0;
 
   const handleToggleSwitch = () => {
+    if (isRunning) {
+      setActionError(
+        '🔒 Mode PAPER / LIVE tidak dapat diubah selama Bot sedang berjalan. Silakan klik "⏹ HENTIKAN BOT SEKARANG" terlebih dahulu.'
+      );
+      return;
+    }
     const next = selectedMode === 'PAPER' ? 'LIVE' : 'PAPER';
     setSelectedMode(next);
     setTradingMode(next);
@@ -227,7 +259,14 @@ export default function TradingPage() {
   };
 
   const handleSelectStrategyMode = async (newStrat: 'SAFE' | 'DEFAULT' | 'AGGRESSIVE') => {
+    if (isRunning && newStrat !== strategyMode) {
+      setActionError(
+        `🔒 Mode Strategi (${strategyMode}) terkunci selama Bot sedang berjalan. Silakan klik "⏹ HENTIKAN BOT SEKARANG" terlebih dahulu jika ingin berpindah mode.`
+      );
+      return;
+    }
     setStrategyMode(newStrat);
+    setStrategyModeStorage(newStrat);
     setActionError('');
     setActionSuccess('');
     if (newStrat === 'AGGRESSIVE' && newCreationsList.length > 0) {
@@ -373,42 +412,58 @@ export default function TradingPage() {
   const handleQuickSell = async (symbol: string, pct: number) => {
     setActionError('');
     setActionSuccess('');
+    setQuickExitNotice(null);
+    const key = `${symbol}-${pct}`;
+    setSellingKey(key);
     try {
       const res = await api.sellHolding(symbol, pct, selectedMode);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res }));
       }
-      setActionSuccess(
-        `✅ [${res.mode || selectedMode}] Jual ${pct}% ${res.symbol} berhasil @ ${formatUsd(
-          res.sell_price_usd
-        )} • Realized PnL: ${res.realized_pnl_idr >= 0 ? '+' : ''}${formatIdr(res.realized_pnl_idr)}${
-          res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 14)}...` : ''
-        }`
-      );
-      portfolioQuery.refetch();
-      walletsQuery.refetch();
+      const msg =
+        res.status === 'cleared'
+          ? `✅ Posisi ${symbol} telah dibersihkan (saldo on-chain 0).`
+          : `✅ [${res.mode || selectedMode}] Quick Exit ${pct}% ${res.symbol} berhasil @ ${formatUsd(
+              res.sell_price_usd
+            )} • Realized PnL: ${res.realized_pnl_idr >= 0 ? '+' : ''}${formatIdr(res.realized_pnl_idr)}${
+              res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 14)}...` : ''
+            }`;
+      setActionSuccess(msg);
+      setQuickExitNotice({ type: 'ok', text: msg });
+      await portfolioQuery.refetch();
+      await walletsQuery.refetch();
     } catch (err: any) {
-      setActionError(err?.message || 'Gagal menjual posisi');
+      const errMsg = err?.message || 'Gagal menjual posisi';
+      setActionError(errMsg);
+      setQuickExitNotice({ type: 'err', text: `⚠️ Quick Exit gagal: ${errMsg}` });
+    } finally {
+      setSellingKey(null);
     }
   };
 
   const handlePanicSellAll = async () => {
     setActionError('');
     setActionSuccess('');
+    setQuickExitNotice(null);
+    setSellingKey('PANIC_ALL');
     try {
       const res = await api.panicSellAll(selectedMode);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res }));
       }
-      setActionSuccess(
-        `🚨 [${res.mode || selectedMode}] PANIC SELL ALL selesai! ${res.positions_closed} posisi ditutup • Total Realized PnL: ${
-          res.total_realized_pnl_idr >= 0 ? '+' : ''
-        }${formatIdr(res.total_realized_pnl_idr)} (${formatUsd(res.total_realized_pnl_usd)})`
-      );
-      portfolioQuery.refetch();
-      walletsQuery.refetch();
+      const msg = `🚨 [${res.mode || selectedMode}] PANIC SELL ALL selesai! ${res.positions_closed} posisi ditutup • Total Realized PnL: ${
+        res.total_realized_pnl_idr >= 0 ? '+' : ''
+      }${formatIdr(res.total_realized_pnl_idr)} (${formatUsd(res.total_realized_pnl_usd)})`;
+      setActionSuccess(msg);
+      setQuickExitNotice({ type: 'ok', text: msg });
+      await portfolioQuery.refetch();
+      await walletsQuery.refetch();
     } catch (err: any) {
-      setActionError(err?.message || 'Gagal mengeksekusi Panic Sell All');
+      const errMsg = err?.message || 'Gagal mengeksekusi Panic Sell All';
+      setActionError(errMsg);
+      setQuickExitNotice({ type: 'err', text: `⚠️ Panic Sell gagal: ${errMsg}` });
+    } finally {
+      setSellingKey(null);
     }
   };
 
@@ -431,19 +486,6 @@ export default function TradingPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-[11px] font-mono">
-          <button
-            type="button"
-            onClick={() => toggleUltrawide(!isUltrawide)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border font-mono text-[11px] font-bold transition ${
-              isUltrawide
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
-                : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border-obsidian-800 hover:text-white'
-            }`}
-            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
-          >
-            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
-          </button>
           <span className="px-2.5 py-1 rounded-lg bg-obsidian-950 border border-obsidian-800 text-slate-300">
             Auto TP: <strong className="text-emerald-400">+{autoTpPct}%</strong> • SL:{' '}
             <strong className="text-rose-400">-{autoSlPct}%</strong>
@@ -571,26 +613,44 @@ export default function TradingPage() {
 
           {/* 3 BOT TRADING STRATEGY MODES: SAFE, DEFAULT, AGGRESSIVE */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-[11px] font-mono font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <LucideIcon name="zap" className="w-3.5 h-3.5 text-amber-400" />
                 Pilih Mode Strategi Bot Trading (Safe, Default, Agresif)
               </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                Klik mode di bawah untuk otomatis menyesuaikan target koin &amp; kecepatan trading
-              </span>
+              {isRunning ? (
+                <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  🔒 Mode Terkunci saat Bot Berjalan (Hentikan Bot untuk mengubah mode)
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono text-slate-400">
+                  Klik mode di bawah untuk otomatis menyesuaikan target koin &amp; kecepatan trading
+                </span>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono">
               {BOT_STRATEGY_MODES.map((m) => {
                 const isSelected = strategyMode === m.id;
+                const isLockedOther = isRunning && !isSelected;
+                const srvStat =
+                  configQuery.data?.strategy_stats?.[m.id] ||
+                  botQuery.data?.strategy_stats?.[m.id];
+                const tradesCount = Number(srvStat?.trades_count ?? 0);
+                const winsCount = Number(srvStat?.wins ?? 0);
+                const hasTrades = tradesCount > 0 && srvStat?.winrate_pct !== null && srvStat?.winrate_pct !== undefined;
+                const displayWinrate = hasTrades ? `${srvStat.winrate_pct}%` : '—';
+
                 return (
                   <button
                     key={m.id}
                     type="button"
+                    disabled={isLockedOther}
                     onClick={() => handleSelectStrategyMode(m.id as 'SAFE' | 'DEFAULT' | 'AGGRESSIVE')}
                     className={`text-left p-3.5 rounded-xl border transition flex flex-col justify-between ${
                       isSelected
                         ? m.activeClass
+                        : isLockedOther
+                        ? 'bg-obsidian-950/50 border-obsidian-800/50 text-slate-500 opacity-50 cursor-not-allowed'
                         : 'bg-obsidian-950 border-obsidian-800 hover:border-obsidian-700 text-slate-300'
                     }`}
                   >
@@ -599,15 +659,58 @@ export default function TradingPage() {
                         <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${m.badgeClass}`}>
                           {m.badge}
                         </span>
-                        {isSelected && (
+                        {isSelected ? (
                           <span className="text-[10px] font-extrabold uppercase text-white bg-slate-900/80 px-2 py-0.5 rounded">
-                            ✓ AKTIF
+                            {isRunning ? '🔒 AKTIF & TERKUNCI' : '✓ AKTIF'}
                           </span>
-                        )}
+                        ) : isLockedOther ? (
+                          <span className="text-[9px] font-mono text-slate-500">🔒 Terkunci</span>
+                        ) : null}
                       </div>
-                      <div className="text-sm font-extrabold text-white mt-1">{m.title}</div>
-                      <div className="text-[11px] font-bold text-cyan-300">{m.subtitle}</div>
+                      <div className="flex items-baseline justify-between gap-2 mt-1">
+                        <div className="text-sm font-extrabold text-white">{m.title}</div>
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-extrabold border ${m.winrateBadgeClass}`}>
+                          🎯 Winrate: {displayWinrate}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-bold text-cyan-300 mt-0.5">{m.subtitle}</div>
                       <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed font-sans">{m.desc}</p>
+
+                      {/* Winrate Progress Bar & Metrics - Strictly Real Data */}
+                      {hasTrades ? (
+                        <div className="mt-2.5 p-2 rounded-lg bg-obsidian-900/80 border border-obsidian-800/90 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400 font-semibold">
+                              Winrate Real (Riwayat Trade)
+                            </span>
+                            <span className="font-extrabold text-white">
+                              {displayWinrate} • {winsCount}W / {tradesCount - winsCount}L
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-obsidian-950 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${m.winrateBarClass}`}
+                              style={{ width: `${Math.min(100, Math.max(0, Number(srvStat?.winrate_pct ?? 0)))}%` }}
+                            />
+                          </div>
+                          <div className="text-[9px] text-slate-400 flex items-center justify-between pt-0.5">
+                            <span>Rekor Mode {m.id}:</span>
+                            <span className="text-emerald-300 font-bold">
+                              {tradesCount} Trade Selesai
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2.5 p-2 rounded-lg bg-obsidian-900/80 border border-obsidian-800/90 space-y-1">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400 font-semibold">Winrate Mode:</span>
+                            <span className="text-slate-400 font-medium">Belum ada trade</span>
+                          </div>
+                          <p className="text-[9px] text-slate-500 font-sans">
+                            Winrate dihitung otomatis 100% real saat posisi closed trade tercatat.
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[10px] font-bold text-slate-200">
                       {m.stats}
@@ -999,14 +1102,34 @@ export default function TradingPage() {
               {holdings.length > 0 && (
                 <button
                   type="button"
+                  disabled={!!sellingKey}
                   onClick={handlePanicSellAll}
-                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-mono font-extrabold text-[11px] shadow-glow-rose transition"
+                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white font-mono font-extrabold text-[11px] shadow-glow-rose transition"
                 >
-                  🚨 PANIC SELL ALL (100% LIKUIDASI)
+                  {sellingKey === 'PANIC_ALL' ? '⏳ MELIKUIDASI SEMUA...' : '🚨 PANIC SELL ALL (100% LIKUIDASI)'}
                 </button>
               )}
             </div>
           </div>
+
+          {quickExitNotice && (
+            <div
+              className={`px-3.5 py-2 rounded-lg text-xs font-mono flex items-center justify-between border ${
+                quickExitNotice.type === 'ok'
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+              }`}
+            >
+              <span>{quickExitNotice.text}</span>
+              <button
+                type="button"
+                onClick={() => setQuickExitNotice(null)}
+                className="ml-2 text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {holdings.length === 0 ? (
             <div className="py-4 text-center text-xs font-mono text-slate-400">
@@ -1045,20 +1168,24 @@ export default function TradingPage() {
                       </td>
                       <td className="p-2.5 text-right">
                         <div className="inline-flex gap-1">
-                          {[25, 50, 100].map((pct) => (
-                            <button
-                              key={pct}
-                              type="button"
-                              onClick={() => handleQuickSell(h.symbol, pct)}
-                              className={`px-2 py-1 rounded font-bold text-[10px] transition ${
-                                pct === 100
-                                  ? 'bg-rose-600 hover:bg-rose-500 text-white'
-                                  : 'bg-obsidian-800 hover:bg-obsidian-700 text-rose-300 border border-rose-500/30'
-                              }`}
-                            >
-                              Jual {pct}%
-                            </button>
-                          ))}
+                          {[25, 50, 100].map((pct) => {
+                            const isThisSelling = sellingKey === `${h.symbol}-${pct}`;
+                            return (
+                              <button
+                                key={pct}
+                                type="button"
+                                disabled={!!sellingKey}
+                                onClick={() => handleQuickSell(h.symbol, pct)}
+                                className={`px-2 py-1 rounded font-bold text-[10px] transition disabled:opacity-60 ${
+                                  pct === 100
+                                    ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                                    : 'bg-obsidian-800 hover:bg-obsidian-700 text-rose-300 border border-rose-500/30'
+                                }`}
+                              >
+                                {isThisSelling ? '⏳ Proses...' : `Jual ${pct}%`}
+                              </button>
+                            );
+                          })}
                         </div>
                       </td>
                     </tr>
@@ -1243,6 +1370,42 @@ export default function TradingPage() {
                   {pnlIsPositive ? '+' : ''}{formatUsd(unrealizedPnlUsd)}
                 </span>
               </div>
+
+              {/* All-Time Winrate (closed trades in active mode) */}
+              {(() => {
+                const wr = Number(portfolioQuery.data?.alltime_winrate_pct ?? 0);
+                const wins = Number(portfolioQuery.data?.alltime_wins ?? 0);
+                const losses = Number(portfolioQuery.data?.alltime_losses ?? 0);
+                const total = Number(portfolioQuery.data?.alltime_trades ?? 0);
+                const realizedIdr = Number(portfolioQuery.data?.alltime_realized_pnl_idr ?? 0);
+                const wrColor = wr >= 60 ? 'text-emerald-400' : wr >= 45 ? 'text-amber-400' : 'text-rose-400';
+                const barColor = wr >= 60 ? 'bg-emerald-400' : wr >= 45 ? 'bg-amber-400' : 'bg-rose-400';
+                return (
+                  <div className="mt-2 pt-1.5 border-t border-obsidian-800/80 space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">🎯 Winrate All-Time ({selectedMode})</span>
+                      <span className={`font-mono font-extrabold ${wrColor}`}>
+                        {total > 0 ? `${wr.toFixed(1)}%` : '—'}
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-obsidian-950 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                        style={{ width: `${total > 0 ? Math.min(100, Math.max(3, wr)) : 0}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                      <span>
+                        <span className="text-emerald-400 font-bold">{wins}W</span> /{' '}
+                        <span className="text-rose-400 font-bold">{losses}L</span> ({total} trade)
+                      </span>
+                      <span className={realizedIdr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        Realized {realizedIdr >= 0 ? '+' : ''}{formatIdr(realizedIdr)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </section>
         );

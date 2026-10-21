@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 30
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-    # Solana On-Chain Trading & Multi-Gate Wallets
-    solana_rpc_url: str = "https://api.mainnet-beta.solana.com"
+    # Solana On-Chain Trading & Multi-Gate Wallets (Updated for Solana Mainnet & Alpenglow v4.3+)
+    solana_rpc_url: str = "https://api.mainnet.solana.com"
     solana_trading_private_key: str = ""
     solana_trading_address: str = ""
     solana_main_private_key: str = ""

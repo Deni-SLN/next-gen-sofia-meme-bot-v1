@@ -47,7 +47,7 @@ def create_holding(body: AddHoldingRequest, db: Session = Depends(get_db)):
 def sell_position(body: SellHoldingRequest, db: Session = Depends(get_db)):
     try:
         return portfolio.sell_holding(db, body.symbol, body.sell_pct, mode=body.mode)
-    except ValueError as e:
+    except Exception as e:
         return JSONResponse(
             status_code=400,
             content={"error": {"code": "SELL_FAILED", "message": str(e)}},
@@ -58,7 +58,7 @@ def sell_position(body: SellHoldingRequest, db: Session = Depends(get_db)):
 def panic_sell_all(body: SellAllRequest = SellAllRequest(), db: Session = Depends(get_db)):
     try:
         return portfolio.sell_all_holdings(db, mode=body.mode)
-    except ValueError as e:
+    except Exception as e:
         return JSONResponse(
             status_code=400,
             content={"error": {"code": "SELL_ALL_FAILED", "message": str(e)}},

@@ -234,19 +234,6 @@ export default function PulsePage() {
         <div className="flex items-center gap-3 bg-[#0b0f17] border border-slate-800 px-4 py-2 rounded-xl text-xs font-mono">
           <button
             type="button"
-            onClick={() => toggleUltrawide(!isUltrawide)}
-            className={`px-2.5 py-1 rounded-lg border transition flex items-center gap-1.5 ${
-              isUltrawide
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                : 'bg-slate-900 text-slate-400 border-slate-700/60 hover:text-slate-200'
-            }`}
-            title="Mode Layar Lebar: Menampilkan card koin bersebelahan multi-kolom horizontal"
-          >
-            <LucideIcon name={isUltrawide ? 'Minimize2' : 'Maximize2'} className="w-3.5 h-3.5" />
-            <span>{isUltrawide ? 'Layar Biasa' : 'Layar Lebar'}</span>
-          </button>
-          <button
-            type="button"
             onClick={() => pulseQuery.refetch()}
             className="px-2.5 py-1 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/30 hover:bg-sky-500/30"
           >

@@ -7,12 +7,13 @@ import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 export default function PortfolioPage() {
   const isUltrawide = useUltrawide();
-  const portfolioQuery = useApiQuery(() => api.getPortfolio(), []);
+  const [mode, setMode] = useState<'PAPER' | 'LIVE'>(() => getTradingMode());
+  const portfolioQuery = useApiQuery(() => api.getPortfolio(mode), [mode]);
   const perfQuery = useApiQuery(() => api.getPerformance(), []);
   const walletsQuery = useApiQuery(() => api.getWallets(), []);
-  const [mode, setMode] = useState<'PAPER' | 'LIVE'>('PAPER');
   const [actionMsg, setActionMsg] = useState<string>('');
   const [actionErr, setActionErr] = useState<string>('');
+  const [sellingKey, setSellingKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -86,31 +87,37 @@ export default function PortfolioPage() {
   const handleSell = async (symbol: string, pct: number) => {
     setActionMsg('');
     setActionErr('');
+    setSellingKey(`${symbol}-${pct}`);
     try {
       const res = await api.sellHolding(symbol, pct, mode);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res }));
       }
       setActionMsg(
-        `✅ [${res.mode || mode}] Berhasil jual ${pct}% (${res.qty_sold} ${res.symbol}) di harga market asli ${formatUsd(
-          res.sell_price_usd
-        )} (${formatIdr(res.sell_price_idr)}). Hasil Bersih: ${formatIdr(res.proceeds_idr)} (${formatUsd(
-          res.proceeds_usd
-        )}) | Realized PnL: ${res.realized_pnl_idr >= 0 ? '+' : ''}${formatIdr(res.realized_pnl_idr)}${
-          res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 14)}...` : ''
-        }`
+        res.status === 'cleared'
+          ? `✅ Posisi ${symbol} telah dibersihkan (saldo on-chain 0).`
+          : `✅ [${res.mode || mode}] Berhasil jual ${pct}% (${res.qty_sold} ${res.symbol}) di harga market asli ${formatUsd(
+              res.sell_price_usd
+            )} (${formatIdr(res.sell_price_idr)}). Hasil Bersih: ${formatIdr(res.proceeds_idr)} (${formatUsd(
+              res.proceeds_usd
+            )}) | Realized PnL: ${res.realized_pnl_idr >= 0 ? '+' : ''}${formatIdr(res.realized_pnl_idr)}${
+              res.tx_hash ? ` • Tx: ${String(res.tx_hash).slice(0, 14)}...` : ''
+            }`
       );
-      portfolioQuery.refetch();
-      perfQuery.refetch();
-      walletsQuery.refetch();
+      await portfolioQuery.refetch();
+      await perfQuery.refetch();
+      await walletsQuery.refetch();
     } catch (err: any) {
       setActionErr(err?.message || 'Gagal menjual posisi');
+    } finally {
+      setSellingKey(null);
     }
   };
 
   const handlePanicSellAll = async () => {
     setActionMsg('');
     setActionErr('');
+    setSellingKey('PANIC_ALL');
     try {
       const res = await api.panicSellAll(mode);
       if (typeof window !== 'undefined') {
@@ -121,11 +128,13 @@ export default function PortfolioPage() {
           res.total_realized_pnl_idr >= 0 ? '+' : ''
         }${formatIdr(res.total_realized_pnl_idr)} (${formatUsd(res.total_realized_pnl_usd)})`
       );
-      portfolioQuery.refetch();
-      perfQuery.refetch();
-      walletsQuery.refetch();
+      await portfolioQuery.refetch();
+      await perfQuery.refetch();
+      await walletsQuery.refetch();
     } catch (err: any) {
       setActionErr(err?.message || 'Gagal menjalankan Panic Sell All');
+    } finally {
+      setSellingKey(null);
     }
   };
 
@@ -167,19 +176,6 @@ export default function PortfolioPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-          <button
-            type="button"
-            onClick={() => toggleUltrawide(!isUltrawide)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono text-[11px] font-bold transition ${
-              isUltrawide
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
-                : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border-obsidian-800 hover:text-white'
-            }`}
-            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
-          >
-            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
-          </button>
           <button
             type="button"
             onClick={() => {
@@ -366,10 +362,11 @@ export default function PortfolioPage() {
               {(d?.holdings || []).length > 0 && (
                 <button
                   type="button"
+                  disabled={!!sellingKey}
                   onClick={handlePanicSellAll}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-mono font-extrabold text-[11px] shadow-glow-rose transition"
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white font-mono font-extrabold text-[11px] shadow-glow-rose transition"
                 >
-                  🚨 Panic Sell All (100%)
+                  {sellingKey === 'PANIC_ALL' ? '⏳ Melikuidasi...' : '🚨 Panic Sell All (100%)'}
                 </button>
               )}
             </div>
@@ -436,20 +433,24 @@ export default function PortfolioPage() {
                       </td>
                       <td className="p-3 text-right">
                         <div className="inline-flex gap-1.5">
-                          {[25, 50, 100].map((pct) => (
-                            <button
-                              key={pct}
-                              type="button"
-                              onClick={() => handleSell(h.symbol, pct)}
-                              className={`px-2.5 py-1 rounded font-bold text-[10px] transition ${
-                                pct === 100
-                                  ? 'bg-rose-600 hover:bg-rose-500 text-white'
-                                  : 'bg-obsidian-800 hover:bg-obsidian-700 text-rose-300 border border-rose-500/30'
-                              }`}
-                            >
-                              Jual {pct}%
-                            </button>
-                          ))}
+                          {[25, 50, 100].map((pct) => {
+                            const isThisSelling = sellingKey === `${h.symbol}-${pct}`;
+                            return (
+                              <button
+                                key={pct}
+                                type="button"
+                                disabled={!!sellingKey}
+                                onClick={() => handleSell(h.symbol, pct)}
+                                className={`px-2.5 py-1 rounded font-bold text-[10px] transition disabled:opacity-60 ${
+                                  pct === 100
+                                    ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                                    : 'bg-obsidian-800 hover:bg-obsidian-700 text-rose-300 border border-rose-500/30'
+                                }`}
+                              >
+                                {isThisSelling ? '⏳ Proses...' : `Jual ${pct}%`}
+                              </button>
+                            );
+                          })}
                         </div>
                       </td>
                     </tr>

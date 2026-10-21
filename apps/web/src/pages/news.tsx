@@ -250,20 +250,6 @@ export default function NewsPage() {
 
             {/* Search & Refresh Controls */}
             <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => toggleUltrawide(!isUltrawide)}
-                className={`px-3 py-2 rounded-xl border text-xs font-mono font-bold transition flex items-center gap-1.5 ${
-                  isUltrawide
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                }`}
-                title="Mode Layar Lebar: Menampilkan berita dalam 4-5 kolom ke samping"
-              >
-                <LucideIcon name={isUltrawide ? 'Minimize2' : 'Maximize2'} className="w-3.5 h-3.5" />
-                <span>{isUltrawide ? 'Layar Biasa' : 'Layar Lebar'}</span>
-              </button>
-
               <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 flex-1 sm:flex-initial">
                 <input
                   type="text"

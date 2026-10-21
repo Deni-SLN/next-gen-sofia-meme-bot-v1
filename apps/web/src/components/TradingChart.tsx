@@ -547,7 +547,7 @@ export function TradingChart({
                     <text
                       x={startX + 6}
                       y={Math.min(y1, y2) + 11}
-                      fill={isBull ? '#22d3ee' : '#f472b6'}
+                      fill={isBull ? (isLight ? '#0369a1' : '#22d3ee') : (isLight ? '#be185d' : '#f472b6')}
                       fontSize="8.5"
                       fontFamily="monospace"
                       fontWeight="bold"
@@ -579,7 +579,7 @@ export function TradingChart({
                     <text
                       x={padding.left + chartWidth * 0.57}
                       y={Math.min(y1, y2) + 9}
-                      fill="#fde047"
+                      fill={isLight ? '#b45309' : '#fde047'}
                       fontSize="8"
                       fontFamily="monospace"
                       fontWeight="bold"
@@ -692,7 +692,7 @@ export function TradingChart({
                   <text
                     x={padding.left + 8}
                     y={getY(fiboData.levels.golden_pocket_max) + 12}
-                    fill="#fef08a"
+                    fill={isLight ? '#92400e' : '#fef08a'}
                     fontSize="9"
                     fontFamily="monospace"
                     fontWeight="bold"
@@ -728,7 +728,7 @@ export function TradingChart({
                     <text
                       x={padding.left + chartWidth - 6}
                       y={getY(f.val) - 3}
-                      fill={f.highlight ? '#fde047' : '#7dd3fc'}
+                      fill={f.highlight ? (isLight ? '#b45309' : '#fde047') : (isLight ? '#0369a1' : '#7dd3fc')}
                       fontSize="8.5"
                       fontFamily="monospace"
                       fontWeight="bold"

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, getStrategyMode } from '@/lib/api';
 import { LucideIcon } from '@/components/LucideIcon';
 
 const PIPELINE_STEPS = [
@@ -114,7 +114,7 @@ export function BotActivityCard({
   const stage = activity?.current_stage || {};
   const activeIdx = isRunning ? stage.stage_index || 2 : 0;
   const logs: any[] = activity?.logs || [];
-  const activeStrat = activity?.strategy_mode || activity?.sniper_config?.strategy_mode || 'DEFAULT';
+  const activeStrat = activity?.strategy_mode || activity?.sniper_config?.strategy_mode || getStrategyMode();
 
   return (
     <section

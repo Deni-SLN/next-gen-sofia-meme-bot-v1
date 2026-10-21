@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_, func
 from sqlalchemy.orm import Session
 from app.db.models import PortfolioHolding, Wallet, Trade, EquitySnapshot
 from app.services import market, treasury
@@ -85,13 +85,14 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
     if not live_w or not live_w.address or live_w.address.startswith("SIMULATION"):
         return list(db.execute(select(PortfolioHolding)).scalars().all())
 
-    onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=12.0)
+    onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=20.0)
     # Safety Guard: If RPC was temporarily rate-limited (429) and returned empty list,
     # retain existing DB holdings rather than wiping them out!
     if not onchain_tokens:
         return list(db.execute(select(PortfolioHolding)).scalars().all())
     seen_symbols = set()
     now = datetime.now(timezone.utc)
+    is_fresh_rpc = live_engine.is_spl_cache_fresh(live_w.address)
 
     # 1. Filter eligible non-USDC meme tokens with real tradable liquidity (>= $50.0)
     valid_tokens = []
@@ -109,12 +110,17 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
         seen_symbols.add(sym.upper())
         valid_tokens.append(tok)
 
-    # 2. Delete any DB holdings that are no longer present on-chain
-    existing_all = list(db.execute(select(PortfolioHolding)).scalars().all())
-    for h in existing_all:
-        if h.symbol.upper() not in seen_symbols:
-            db.delete(h)
-    db.commit()
+    # 2. Delete any DB holdings that are no longer present on-chain, ONLY when RPC response is 100% fresh
+    # (never delete based on a stale 429 cache fallback, and protect newly bought tokens for 60s against RPC indexing lag)
+    if is_fresh_rpc:
+        existing_all = list(db.execute(select(PortfolioHolding)).scalars().all())
+        for h in existing_all:
+            if h.symbol.upper() not in seen_symbols:
+                upd_dt = h.updated_at if (h.updated_at and h.updated_at.tzinfo) else (h.updated_at.replace(tzinfo=timezone.utc) if h.updated_at else None)
+                if upd_dt and (now - upd_dt).total_seconds() < 60.0:
+                    continue
+                db.delete(h)
+        db.commit()
 
     # 3. Upsert active on-chain holdings into PortfolioHolding
     for tok in valid_tokens:
@@ -276,6 +282,26 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
     active_cash_usd = live_eq["live_cash_usd"] if is_live else paper_cash_usd
     active_cash_idr = round(active_cash_usd * usd_idr, 0)
 
+    # All-time winrate from every closed sell trade in the active mode (PAPER / LIVE)
+    alltime_wins = 0
+    alltime_losses = 0
+    alltime_realized_usd = 0.0
+    try:
+        closed_sells = db.execute(
+            select(Trade).where(Trade.side == "sell", Trade.status == "closed", Trade.mode == active_mode)
+        ).scalars().all()
+        for t in closed_sells:
+            pnl_val = float(t.pnl or 0.0)
+            alltime_realized_usd += pnl_val
+            if pnl_val > 0:
+                alltime_wins += 1
+            else:
+                alltime_losses += 1
+    except Exception:
+        pass
+    alltime_total = alltime_wins + alltime_losses
+    alltime_winrate_pct = round((alltime_wins / alltime_total) * 100.0, 1) if alltime_total > 0 else 0.0
+
     return {
         "usd_idr": usd_idr,
         "active_mode": active_mode,
@@ -314,6 +340,12 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
         "unrealized_pnl": round(unrealized_pnl, 4),
         "unrealized_pnl_idr": round(unrealized_pnl * usd_idr, 0),
         "unrealized_pnl_pct": round(unrealized_pnl_pct, 2),
+        "alltime_winrate_pct": alltime_winrate_pct,
+        "alltime_wins": alltime_wins,
+        "alltime_losses": alltime_losses,
+        "alltime_trades": alltime_total,
+        "alltime_realized_pnl_usd": round(alltime_realized_usd, 4),
+        "alltime_realized_pnl_idr": round(alltime_realized_usd * usd_idr, 0),
         "holdings": items,
     }
 
@@ -367,9 +399,17 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     """
     from app.services import live_engine
 
-    existing = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == symbol)).scalar_one_or_none()
+    clean_sym = str(symbol or "").strip()
+    existing = db.execute(
+        select(PortfolioHolding).where(
+            or_(
+                PortfolioHolding.symbol == clean_sym,
+                func.upper(PortfolioHolding.symbol) == clean_sym.upper(),
+            )
+        )
+    ).scalars().first()
     if not existing or existing.quantity <= 0:
-        raise ValueError(f"Holding {symbol} tidak ditemukan di portofolio.")
+        raise ValueError(f"Holding {clean_sym} tidak ditemukan di portofolio.")
 
     # Check original buy trade mode
     open_buy = db.execute(
@@ -390,7 +430,8 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
             resolved_price = float(existing.current_price)
     market_price = resolved_price
     liq_usd = float(live_tok["liquidity"]) if (live_tok and live_tok.get("liquidity", 0) > 0) else float(existing.liquidity_usd or 25000.0)
-    target_chain = "Base" if "USDC" in symbol.upper() else "Solana"
+    tok_ca = str((live_tok.get("contract") if live_tok else "") or "")
+    target_chain = "Solana" if (trade_mode == "LIVE" or not tok_ca.startswith("0x")) else "Base"
 
     pct = max(1.0, min(100.0, float(sell_pct))) / 100.0
     qty_to_sell = existing.quantity * pct
@@ -400,9 +441,11 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
         from app.services import bot as bot_svc
         cfg_slip = float(bot_svc._SNIPER_CONFIG.get("slippage_pct", 1.2))
         cfg_prio = float(bot_svc._SNIPER_CONFIG.get("priority_fee_sol", 0.0008))
+        active_strat_tag = str(bot_svc._SNIPER_CONFIG.get("strategy_mode", "DEFAULT")).upper()
     except Exception:
         cfg_slip = 1.2
         cfg_prio = 0.0008
+        active_strat_tag = "DEFAULT"
 
     # Calculate exit slippage, DEX fee, and gas fee
     exec_costs = treasury.compute_execution_costs(
@@ -459,23 +502,32 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
             )
 
         # Pre-Flight Token Existence Check: Pastikan token benar-benar ada di wallet on-chain
-        spl_tokens = live_engine.query_solana_spl_tokens(live_wallet.address, max_cache_seconds=0.0)
-        token_entry = next((t for t in spl_tokens if t.get("mint") == token_contract), None) if token_contract else None
+        spl_tokens = live_engine.query_solana_spl_tokens(live_wallet.address, max_cache_seconds=10.0)
+        base_sym_upper = symbol.split("/")[0].upper()
+        token_entry = next(
+            (
+                t for t in spl_tokens
+                if (token_contract and t.get("mint") == token_contract)
+                or (t.get("symbol") or "").upper() == symbol.upper()
+                or (t.get("symbol") or "").split("/")[0].upper() == base_sym_upper
+            ),
+            None,
+        )
 
         if not token_entry or float(token_entry.get("amount") or 0.0) <= 0:
-            # Posisi orphan/hantu (misal dari kegagalan transaksi lama atau sudah terjual di Phantom): Bersihkan agar tidak gantung selamanya
-            db.delete(existing)
-            if open_buy and open_buy.status == "open":
-                open_buy.status = "closed"
-                open_buy.result = "ORPHAN_CLEARED"
-                open_buy.closed_at = datetime.now(timezone.utc)
-                open_buy.notes = f"Posisi {symbol} dibersihkan karena token tidak ditemukan di wallet on-chain."
-            db.commit()
-            live_engine.invalidate_spl_cache(live_wallet.address)
+            # Hanya bersihkan sebagai orphan jika data RPC benar-benar fresh (bukan fallback 429)
+            if live_engine.is_spl_cache_fresh(live_wallet.address):
+                db.delete(existing)
+                if open_buy and open_buy.status == "open":
+                    open_buy.status = "closed"
+                    open_buy.result = "ORPHAN_CLEARED"
+                    open_buy.closed_at = datetime.now(timezone.utc)
+                    open_buy.notes = f"Posisi {symbol} dibersihkan karena token tidak ditemukan di wallet on-chain."
+                db.commit()
             return {
                 "symbol": symbol,
                 "status": "cleared",
-                "message": f"Posisi {symbol} dibersihkan dari daftar aktif karena saldo on-chain 0. Tidak ada transaksi yang gantung.",
+                "message": f"Posisi {symbol} belum ditemukan atau saldo on-chain 0.",
                 "sell_price_usd": market_price,
                 "realized_pnl_usd": 0.0,
                 "realized_pnl_idr": 0.0,
@@ -484,6 +536,17 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
                 "gas_fee_idr": 0.0,
                 "cash_remaining_idr": round(float(live_wallet.balance or 0.0) * live_engine.get_sol_price_usd() * usd_idr),
             }
+
+        # Gunakan kontrak mint asli & harga asli dari token on-chain di wallet (menghindari ticker collision)
+        token_contract = token_entry.get("mint") or token_contract
+        if float(token_entry.get("price") or 0.0) > 0:
+            market_price = float(token_entry["price"])
+            gross_proceeds_usd = qty_to_sell * market_price
+            sell_fill_price = market_price * (1.0 - exit_slippage_pct / 100.0)
+            after_slippage_usd = qty_to_sell * sell_fill_price
+            dex_fee_usd = round(after_slippage_usd * (exec_costs["dex_fee_pct"] / 100.0), 6)
+            net_proceeds_usd = max(0.0, after_slippage_usd - dex_fee_usd)
+            realized_pnl_usd = net_proceeds_usd - cost_basis_usd - prop_entry_gas_usd - gas_fee_usd
 
         total_raw = int(token_entry.get("amount_raw") or round(qty_to_sell * (10 ** int(token_entry.get("decimals", 6)))))
         raw_units = max(1, int(round(total_raw * pct)))
@@ -495,7 +558,12 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
         if not onchain_tx_res or not onchain_tx_res.get("tx_hash"):
             raise RuntimeError("Transaksi jual on-chain gagal: tidak menerima signature transaksi yang valid.")
         tx_hash = onchain_tx_res["tx_hash"]
-        live_engine.invalidate_spl_cache(live_wallet.address)
+        live_engine.remove_spl_cache_token(
+            live_wallet.address,
+            symbol,
+            sell_pct=float(sell_pct),
+            mint=token_contract,
+        )
 
         net_credit_usd = max(0.0, net_proceeds_usd - gas_fee_usd)
         remaining_cash_usd = live_engine.credit_live_wallet_usd(db, live_wallet, net_credit_usd)
@@ -546,7 +614,7 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
         gas_fee_usd=gas_fee_usd,
         chain=target_chain,
         tx_hash=tx_hash,
-        notes=f"{'Live On-Chain Sell' if trade_mode == 'LIVE' else 'Paper Sell'} ({sell_pct:.0f}%) via {wallet_label}",
+        notes=f"[{active_strat_tag}] {'Live On-Chain Sell' if trade_mode == 'LIVE' else 'Paper Sell'} ({sell_pct:.0f}%) via {wallet_label}",
         opened_at=opened_time,
         closed_at=datetime.now(timezone.utc),
     )

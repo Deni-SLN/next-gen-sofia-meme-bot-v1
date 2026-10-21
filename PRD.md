@@ -1,123 +1,120 @@
 # 📋 Product Requirements Document (PRD)
-## **SOFIA Trenches v3.8 PRO — Dual-Engine AI Meme Coin Sniper & On-Chain Trading Platform**
+## **SOFIA Multi-Asset Intelligence & Autonomous Meme Coin Sniper Platform**
 
-- **Versi Dokumen**: 3.8.0-PRO (Production Ready)
-- **Status Sistem**: 100% Aktif & Terverifikasi (Mode PAPER & Mode LIVE On-Chain)
+- **Versi Dokumen**: 4.0.0-PRO (Production Ready)
+- **Status Sistem**: 100% Aktif, Teruji & Terverifikasi (Mode PAPER & Mode LIVE On-Chain)
 - **Database Cloud**: Neon Serverless PostgreSQL (`neondb`, AWS `ap-southeast-1` Singapore)
-- **Platform Target**: Desktop Web, Mobile Responsive Web, & Installable Progressive Web App (PWA)
+- **Platform Target**: Desktop Web (termasuk Ultrawide 21:9), Mobile Responsive Web, & Installable Progressive Web App (PWA)
 - **Integrasi Web3**: Direct Chrome Extension Wallet Connect (`Phantom`, `Solflare`, `Backpack`, `MetaMask`, `Rabby`)
+- **Mesin AI**: Multi-Engine AI Hub (OpenRouter 200+ Models, 9Router, Google Gemini) dengan Application Tool Calling otonom
 
 ---
 
 ## 1. Ringkasan Eksekutif (Executive Summary)
-**SOFIA Trenches v3.8 PRO** adalah platform *command center* dan *sniper terminal* koin meme berkecepatan tinggi yang menggabungkan data pasar *real-time* 100% asli dari **DexScreener Live API**, audit keamanan kontrak pintar (**Rug & Bundle Shield**), manajemen dompet **Multi-Gate**, serta mesin eksekusi ganda (**Dual-Engine**):
-1. **Mode PAPER (Simulasi Real-Market Rp 150.000)**: Menggunakan harga, likuiditas, dan volume asli dari DEX saat ini dengan modal simulasi awal **Rp 150.000** yang dapat di-*reset* kapan saja dalam 1 klik.
-2. **Mode LIVE (On-Chain Hot Wallet & Jurnal Neonbase)**: Mengeksekusi pembelian (*snipe*), penjualan (*partial sell* `25% / 50% / 100%` & *Panic Sell All*), serta *Auto-Bot Take-Profit / Stop-Loss* secara langsung menggunakan saldo **Live Trading Hot Wallet** (`gate = trading`), menghasilkan *Transaction Hash* (`tx_hash`) berformat **Solana Base58** / **EVM `0x`**, dan mencatat seluruh histori secara permanen ke **Neon PostgreSQL Cloud**.
+
+**SOFIA Platform v4.0 PRO** adalah ekosistem komprehensif *trading*, riset pasar finansial, dan *autonomous sniper bot* multi-aset. Platform ini menggabungkan eksekusi *on-chain* berlatensi rendah pada jaringan Solana & Base dengan analisa kuantitatif lintas instrumen:
+1. **Meme Coin Autonomous Sniper**: Mesin sniper terdesentralisasi dengan 3 mode strategi (*Safe*, *Default*, *Agresif*), filter likuiditas instan, relay Jito 0-slot anti-MEV, dan *autonomous background runner* di server yang berjalan 24/7 bahkan saat pengguna telah logout atau menutup browser.
+2. **Integritas Data Matematis Murni (Zero Dummy Policy)**: Seluruh metrik performa, *winrate*, keuntungan/kerugian (PnL), dan rekor transaksi dihitung 100% murni dari *database closed trades* riil. Dilarang keras menggunakan angka karangan, estimasi sintetik, atau pembobotan semu.
+3. **Analisa Pasar Multi-Aset**:
+   - **Saham Bursa Efek Indonesia (BEI / IDX)**: Analisa EOD, teknikal kuantitatif (SNR, SMC, EMA 200, Ichimoku, Fibonacci), valuasi intrinsik DCF 3 skenario, margin of safety (MoS), dividen yield, dan kalkulator risiko dengan fee broker riil BEI.
+   - **Kripto Global 24/7**: Pemindai koin populer (dibatasi 10 koin teratas), analisa on-chain, kalkulator risiko modal, dan simulator *staking yield* APR dalam Rupiah.
+   - **Portofolio Emas Fisik**: Kurs spot dunia XAU/USD, harga per gram resmi Antam CertiEye, UBS, dan Galeri 24, kalkulator buyback, serta pencatatan portofolio emas fisik.
+   - **Kalkulator Deposito & Obligasi SBN**: Simulasi komparasi imbal hasil Deposito Perbankan vs SBN (ORI, SR, FR, Sukuk Ritel) dengan pemotongan pajak riil (PPh Deposito 20% vs Obligasi 10%).
+   - **AI Chat & Research Engine**: Asisten analitis multi-model dengan *tool calling* otomatis dan *fallback synthesizer* untuk riset mendalam.
+   - **Ensiklopedia Pasar**: Kamus referensi institusional SMC, Price Action, VSA, Wyckoff, dan regulasi bursa BEI.
 
 ---
 
-## 2. Arsitektur & Spesifikasi Fitur Utama
+## 2. Arsitektur Sistem & Spesifikasi Fitur Utama
 
-### 2.1. Autentikasi, Halaman Login (`/login`), & Koneksi Ekstensi Chrome (Web3)
-- **Halaman Login Khusus (`/login`)**:
-  - Mendukung autentikasi **Operator Password** (`Bearer JWT`, default: `changeme`) lengkap dengan fitur *Show/Hide Password* dan tombol akses cepat.
-  - Mendukung **1-Click Login + Connect Ekstensi Chrome** untuk langsung masuk dan menyinkronkan dompet Web3 pengguna.
-- **Direct Chrome Extension Wallet Connect (`window.solana` & `window.ethereum`)**:
-  - **Jaringan Solana**: Terhubung langsung ke ekstensi Chrome **Phantom** (`window.phantom.solana`), **Solflare** (`window.solflare`), dan **Backpack** (`window.backpack`).
-  - **Jaringan EVM (Base, Ethereum, BSC)**: Terhubung langsung ke ekstensi Chrome **MetaMask** dan **Rabby / Coinbase Wallet** (`window.ethereum` via `eth_requestAccounts` & `wallet_switchEthereumChain`).
-  - **Auto-Sync ke Neonbase & Mainnet RPC**: Saat dompet ekstensi Chrome terhubung, alamat publik otomatis didaftarkan/diperbarui pada tabel `wallets` di Neonbase dan diverifikasi saldonya melalui node RPC Mainnet (`https://api.mainnet-beta.solana.com` & `https://mainnet.base.org`).
+### 2.1. Autonomous Bot Engine 24/7 (Server-Side Persistence)
+- **Background Worker Otonom (`_autonomous_bot_engine_worker`)**:
+  - Dijalankan langsung pada *lifespan* server FastAPI (`services/api/app/main.py`).
+  - Bot terus memindai token dan mengeksekusi *take-profit / stop-loss / auto-snipe* di latar belakang server secara independen.
+  - **Aturan Logout & Sesi**: Sesi browser ditutup, tab di-refresh, maupun pengguna melakukan logout **TIDAK MENGHENTIKAN BOT**.
+  - **Satu-satunya Cara Menghentikan Bot**: Hanya melalui klik manual tombol **"⏹ HENTIKAN BOT SEKARANG"** (`POST /api/v1/bot/stop`) oleh operator.
 
-### 2.2. Desain Mobile-Responsive & Progressive Web App (PWA)
-- **Installable PWA**:
-  - Dilengkapi `manifest.json`, ikon vektor resolusi tinggi (`icon-192.svg`, `icon-512.svg`), `<meta name="theme-color" content="#10b981">`, dukungan penuh *standalone display* di Android/iOS/Desktop Chrome, serta Service Worker (`sw.js`).
-  - Tersedia tombol **📲 Install PWA** langsung di Sidebar dan Mobile Drawer.
-- **Navigasi & Tata Letak Optimal di Mobile**:
-  - **Slide-Over Mobile Drawer**: Menu hamburger responsif untuk mengakses seluruh 12 modul, memilih jaringan (`Solana`, `Base`, `Ethereum`, `BSC`), melihat **Saldo Real Live**, dan menghubungkan ekstensi dompet.
-  - **Fixed Mobile Bottom Navigation Bar**: Navigasi cepat 5 tab utama di bagian bawah layar HP (`Home`, `Pulse`, `Sniper`, `Portfolio`, `Jurnal`) layaknya aplikasi *native*.
-  - **Full-Width Mobile Viewport**: Area konten utama otomatis menggunakan 100% lebar layar pada perangkat *mobile* dengan tabel yang dapat digeser secara horizontal (*smooth horizontal scroll*).
+### 2.2. 3 Mode Strategi Bot Trading (`/trading`)
+Pengguna dapat memilih salah satu dari 3 mode strategi yang disesuaikan dengan profil risiko:
+1. **🛡️ SAFE (Konservatif • Token Lulus & Likuiditas Tinggi)**:
+   - Target: Hanya membeli token Solana yang sudah lulus migrasi (*Raydium / PumpSwap Verified Pools*).
+   - Parameter: Likuiditas minimum > $20.000, *Safety Score* ≥ 82, Max Dev Holding ≤ 5%, Slippage 0.8%, Target TP +20% / SL -8%, Kecepatan tick 4.0s.
+2. **⚖️ DEFAULT (Seimbang • Final Stretch & Migrated)**:
+   - Target: Token pada fase *Final Stretch* & pool baru migrasi dengan momentum orderflow 5 menit.
+   - Parameter: Likuiditas minimum > $5.000, *Safety Score* ≥ 70, Max Dev Holding ≤ 10%, Slippage 1.2%, Target TP +30% / SL -10%, Kecepatan tick 3.0s.
+3. **🔥 AGRESIF (DexScreener Profiles v1 + GMGN.ai Trench Radar)**:
+   - Target: Khusus menyergap meme coin **BARU MUNCUL** (umur token < 3 jam, *Market Cap* < $500K) langsung dari feed live DexScreener Token Profiles v1 & GMGN Trench Radar.
+   - Proteksi Ketat: **Memblokir 100% koin lama** seperti BONK, PEPE, WIF, POPCAT.
+   - Parameter: Likuiditas minimum > $2.000, *Safety Score* ≥ 60, Max Dev Holding ≤ 15%, Slippage 2.0%, Quick Scalp TP +35% / SL -12%, Kecepatan tick 2.0s.
 
-### 2.3. PumpSniper Pro Terminal (`/trading`)
-Terinspirasi dari *PumpSniper Terminal*, halaman `/trading` menyediakan kontrol eksekusi tingkat institusional:
-- **⚡ 1-Click Terminal Snipe Bar**: Input *Contract Address (CA)* atau ticker koin dengan preset nominal Rupiah (`Rp 15.000`, `Rp 30.000`, `Rp 50.000`, `Rp 100.000`) untuk eksekusi instan baik di Mode `PAPER` maupun `LIVE`.
-- **0-Slot / Anti-MEV Relay Selector**:
-  - `JITO_0SLOT` (*Jito 0-Slot Bundle Anti-MEV*)
-  - `HELIUS_STAKED` (*Helius Staked SwQoS*)
-  - `BLOXROUTE` (*bloXroute Trader API*)
-  - `MAINNET_STD` (*Mainnet Standard RPC*)
-- **Filter Kurva & Distribusi Holder**:
-  - Konfigurasi **Min Bonding Curve (%)** dan **Max Dev Holding (%)** agar bot hanya membeli koin dengan kurva likuiditas sehat dan kepemilikan developer rendah.
-- **Auto Exit Engine (TP / SL / Trailing Stop)**:
-  - Konfigurasi **Auto Take-Profit (`+%`)**, **Auto Stop-Loss (`-%`)**, **Trailing Stop-Loss (`%`)**, dan **Multi-Wallet Anti-Bubble Rotation** yang tersimpan di backend (`/api/v1/bot/config`).
-- **Monitor Posisi Aktif & 🚨 Panic Sell All**:
-  - Tabel posisi terbuka langsung di dalam terminal dengan tombol **Jual 25%**, **Jual 50%**, **Jual 100%**, serta tombol darurat **🚨 PANIC SELL ALL (100% LIKUIDASI)** (`POST /api/v1/portfolio/sell-all`).
+**Kunci Pengaman Mode & Integritas Winrate**:
+- **Lock-in saat Aktif**: Selama bot berstatus `running`, mode strategi terkunci otomatis untuk mencegah *order collision*. Bot harus dihentikan manual terlebih dahulu sebelum berganti mode.
+- **Transparansi Winrate Riil**: Kartu mode menampilkan persentase *winrate* murni yang dihitung dari tabel `Trade` (*closed sell trades* bertag `[SAFE]`, `[DEFAULT]`, atau `[AGGRESSIVE]`). Apabila belum ada closed trade pada mode tersebut, sistem menampilkan `🎯 Winrate: — (Belum ada trade)`. Tidak diperbolehkan menyuntikkan angka estimasi dummy.
 
-### 2.4. Siklus Otomatis Bot 4-Tahap (Autonomous 4-Stage Pipeline)
-Ketika mesin bot berstatus `running` (baik Mode `PAPER` maupun `LIVE`), background engine mengeksekusi siklus otomatis setiap beberapa detik:
-1. **Stage 1 — Mempool & DEX Scanner**: Memindai *pair* baru & lonjakan volume 5 menit di DexScreener Live.
-2. **Stage 2 — Rug & Bundle Shield**: Mengaudit keamanan kontrak (skor minimal `>= 70/100`, cek *Mint/Freeze Authority*, *Top 10 Holders*, dan *LP Lock*).
-3. **Stage 3 — Momentum & Liquidity Trigger**: Memvalidasi rasio *Buy/Sell* dan kedalaman likuiditas pool.
-4. **Stage 4 — Jito / DEX Execution & Auto TP/SL**: Mengeksekusi beli/jual otomatis pada harga pasar asli dan memperbarui portofolio serta Jurnal Trading.
+### 2.3. Eksekusi Cepat, Quick Exit & Panic Sell All
+- **Quick Exit (Jual Sebagian: 25%, 50%, 100%)**:
+  - Tombol aksi cepat pada setiap baris posisi terbuka di terminal.
+  - Pencarian posisi menggunakan pencocokan *case-insensitive* (`func.upper(PortfolioHolding.symbol) == symbol.upper()`).
+  - Eksekusi jual menggunakan *adaptive slippage retry* (3.5% hingga 8.0%) untuk menjamin transaksi on-chain tidak gagal akibat volatilitas mikro koin meme.
+- **🚨 Panic Sell All (100% Likuidasi Sekaligus)**:
+  - Tombol darurat global di header posisi aktif (`POST /api/v1/portfolio/sell-all`) untuk melikuidasi seluruh posisi terbuka sekaligus ke saldo kas dalam 1 klik.
 
-### 2.5. Jurnal Trading Live & Ekspor Excel (`/journal`)
-- **Khusus Mode LIVE & Tersimpan di Neonbase**: Mencatat setiap koin yang diperdagangkan di Mode LIVE beserta jumlah koin, harga eksekusi, biaya gas & DEX swap, *tx hash*, serta keuntungan/kerugian bersih.
-- **4 Kartu Metrik Utama**:
-  1. **Modal Awal (Live Vaults)**
-  2. **Keuntungan Sepanjang Masa (All-Time Profit)**
-  3. **Kerugian Sepanjang Masa (All-Time Loss)**
-  4. **Hasil Bersih (Keuntungan − Kerugian) & ROI %**
-- **Optimasi Performa Database (10 Transaksi Terakhir) + Ekspor Excel Penuh**:
-  - Tabel UI hanya memuat **10 transaksi terakhir** (`limit=10`) dengan ukuran baris yang ringkas (`max-h-[440px]`) agar tidak membebani database dan browser.
-  - Tombol **📥 Download Excel (Semua Jurnal)** (`GET /api/v1/journal/export-excel`) mengunduh seluruh riwayat transaksi dari Neonbase dalam format CSV ber-BOM UTF-8 yang langsung terbuka rapi di Microsoft Excel.
+### 2.4. Analisa Kripto Global (`/crypto`)
+- **Koin Populer (Maksimal 10 Koin)**:
+  - Tombol cepat koin populer dibatasi strictly hanya 10 koin teratas (`popularList.slice(0, 10)`).
+  - Aset kripto lainnya dapat dicari secara fleksibel melalui kolom pencarian di bar atas.
+- **Mode Layar Lebar (Ultrawide Toggle)**:
+  - Tombol *toggle* layar lebar ditempatkan secara ergonomis di bagian atas halaman (header bar), menjaga kerapian antarmuka utama.
+- **Staking Yield & Risk Calculator**:
+  - Simulasi imbal hasil staking APR dalam Rupiah dan kalkulator ukuran posisi (*position sizing*) berdasarkan risiko modal portofolio (1%–5%).
 
-### 2.6. Multi-Gate Wallets, Auto Gas Top-Up, & Bagi Hasil 05:00 WIB (`/wallets`)
-- **Arsitektur 3 Gate**: `main` (Vault Utama), `trading` (Hot Wallet Sniper), dan `reserve` (Cadangan Gas).
-- **Cek Saldo & Latensi Mainnet RPC (`🌐 Cek RPC`)**: Menghubungi langsung RPC Mainnet Solana & Base untuk memverifikasi alamat dan saldo *on-chain*.
-- **Auto Gas Reserve Top-Up**: Otomatis mengisi ulang saldo cadangan gas ke `Rp 5.000` apabila turun di bawah `Rp 3.000`.
-- **Aturan Settlement Otomatis 05:00 Pagi WIB**:
-  - Setiap pukul **05:00 WIB**, sistem mengevaluasi persentase **Keuntungan Bersih (Net Profit)** setelah dikurangi seluruh biaya Gas dan DEX Fee.
-  - Jika **Net Profit > 40%** dari modal acuan: **40% keuntungan bersih** otomatis ditransfer ke **Main Wallet**, sedangkan **60% sisanya** diakumulasikan ke modal trading & cadangan gas.
-  - Jika **Net Profit ≤ 40%**: Status dicatat sebagai `PENDING` dan seluruh profit digulung (*compounded*) ke modal hari berikutnya.
+### 2.5. AI Chat & Research Engine (`/chat`)
+- **Multi-Provider Hub**: Terhubung ke OpenRouter (200+ model AI), 9Router, dan Google Gemini.
+- **Otonom Tool Calling**:
+  - `analyze_stock`: Memanggil data kuantitatif saham BEI.
+  - `analyze_crypto`: Memanggil data teknikal & on-chain koin kripto.
+  - `get_gold_prices`: Memanggil harga emas fisik Antam, UBS, Galeri 24, dan spot XAU/USD.
+  - `calculate_deposito_and_bonds`: Menjalankan simulasi komparasi deposito vs obligasi.
+  - `analyze_memecoin_rugcheck`: Memindai risiko kontrak pintar koin meme.
+  - `get_bot_and_portfolio_status`: Meninjau posisi portofolio dan status bot saat ini.
+  - `lookup_market_encyclopedia`: Mencari definisi konsep SMC, VSA, Price Action, dan bursa BEI.
+- **Offline / Zero-Key Synthesizer**: Tetap mampu memberikan riset pasar mendalam berbasis data internal sistem meskipun provider AI eksternal kehabisan kuota atau tanpa API key.
 
-### 2.7. Kalender PnL Harian (`/calendar`)
-- Menampilkan kalender profit/loss harian dalam **USD ($)** dan **Rupiah (Rp)** untuk bulan berjalan dengan filter **🟢 PAPER**, **🔴 LIVE**, atau **⚡ GABUNGAN (ALL)** yang bersumber langsung dari tabel `trades` di Neonbase.
+### 2.6. Desain Visual & Kenyamanan Pengguna (Dual Theme)
+- **Soft Daylight Workspace (Light Mode)**: Menggunakan standar visual *TradingView / Stockbit Pro Daylight* yang teduh di mata dengan latar lembut, teks kontras tajam, dan kartu netral.
+- **Obsidian Dark Mode**: Menggunakan palet gelap terkalibrasi untuk pemantauan terminal jangka panjang tanpa kelelahan mata.
 
 ---
 
-## 3. Spesifikasi Endpoint API Lengkap (`/api/v1/*`)
+## 3. Matriks Modul & Rute Lengkap
 
-| Modul | Method & Endpoint | Fungsi Utama |
-|---|---|---|
-| **Auth** | `POST /api/v1/auth/login` | Autentikasi operator & pembuatan Bearer token |
-| **Bot & Terminal** | `GET /api/v1/bot/status` | Status mesin bot (`running` / `stopped`) & mode aktif |
-| | `POST /api/v1/bot/start` | Menjalankan bot pada mode `PAPER` atau `LIVE` |
-| | `POST /api/v1/bot/stop` | Menghentikan bot secara *idempotent* (tanpa error `BOT_NOT_RUNNING`) |
-| | `GET /api/v1/bot/activity` | Stream aktivitas 4-stage pipeline & eksekusi siklus bot |
-| | `GET / PUT /api/v1/bot/config` | Membaca & menyimpan konfigurasi PumpSniper Terminal |
-| **Market & Snipe** | `GET /api/v1/memecoins/fx` | Kurs real-time USD/IDR |
-| | `GET /api/v1/memecoins/pulse` | Radar koin meme real-time dari DexScreener Live API |
-| | `GET /api/v1/memecoins/rugcheck` | Audit keamanan kontrak pintar (Rug & Bundle Shield) |
-| | `POST /api/v1/memecoins/snipe` | Eksekusi pembelian koin instan (`PAPER` maupun `LIVE`) |
-| **Portfolio** | `GET /api/v1/portfolio/overview` | Valuasi portofolio, ekuitas Paper & Live, serta daftar posisi aktif |
-| | `POST /api/v1/portfolio/sell` | Jual sebagian/seluruh posisi (`25% / 50% / 100%`) di mode `PAPER` / `LIVE` |
-| | `POST /api/v1/portfolio/sell-all` | **Panic Sell All** — Likuidasi 100% seluruh posisi aktif sekaligus |
-| | `POST /api/v1/portfolio/reset-paper` | Reset akun simulasi Paper kembali utuh ke **Rp 150.000** |
-| **Jurnal Live** | `GET /api/v1/journal` | 4 Kartu ringkasan Live & 10 transaksi terakhir dari Neonbase |
-| | `GET /api/v1/journal/export-excel` | Download seluruh histori Jurnal Trading Live dalam format Excel (`.csv`) |
-| | `POST / DELETE /api/v1/journal/trades` | Tambah / hapus pencatatan transaksi di Jurnal Live |
-| **Performa & Kalender** | `GET /api/v1/performance/summary` | Statistik Win Rate, Total PnL, & grafik kurva ekuitas |
-| | `GET /api/v1/performance/daily-calendar` | Rekapitulasi PnL kalender harian (`PAPER`, `LIVE`, `ALL`) |
-| **Wallets & Treasury** | `GET / POST / PUT / DELETE /api/v1/wallets` | CRUD Multi-Gate Wallets |
-| | `GET /api/v1/wallets/live-status` | Status kesiapan engine Live & saldo Hot Wallet |
-| | `POST /api/v1/wallets/{id}/sync-onchain` | Verifikasi koneksi & saldo asli di Mainnet RPC (Solana / Base) |
-| | `POST /api/v1/wallets/treasury/topup-gas` | Top-up saldo cadangan gas (Gas Reserve) |
-| | `POST /api/v1/wallets/treasury/settle` | Eksekusi aturan bagi hasil 05:00 WIB (40% Main / 60% Modal) |
+| No | Modul | Rute Web | Endpoint Backend Utama | Deskripsi Fungsional |
+|---|---|---|---|---|
+| 1 | **Command Center** | `/` | `GET /api/v1/portfolio/overview` | Dashboard eksekutif ringkasan aset multi-instrumen |
+| 2 | **Trenches & Pulse** | `/pulse` | `GET /api/v1/memecoins/pulse` | Radar koin baru DexScreener & GMGN.ai |
+| 3 | **Auto-Sniper Bot** | `/trading` | `GET/POST /api/v1/bot/*` | Terminal sniper, 3 mode strategi, quick exit, 24/7 worker |
+| 4 | **Rug & Bundle Shield** | `/rugcheck` | `GET /api/v1/memecoins/rugcheck` | Audit mint/freeze authority, LP burned, & holder bubble |
+| 5 | **Smart Money Copy** | `/copytrade` | `GET /api/v1/memecoins/smart-money` | Pelacak dompet whale & sinyal copy trade Solana |
+| 6 | **AI Chat & Research** | `/chat` | `POST /api/v1/chat/completions` | Asisten AI kuantitatif dengan tool calling multi-aset |
+| 7 | **Analisa Saham BEI** | `/stocks` | `GET /api/v1/stocks/analyze` | Chart EOD, SMC/SNR, DCF 3 skenario, watchlist & journal |
+| 8 | **Analisa Crypto** | `/crypto` | `GET /api/v1/crypto/analyze` | 10 koin populer, analisis teknikal, staking IDR simulator |
+| 9 | **Portofolio Emas** | `/gold` | `GET /api/v1/gold` | Harga Antam/UBS/Galeri 24, kalkulator buyback, aset fisik |
+| 10 | **Kalkulator Investasi** | `/calculator` | N/A (Client Math + AI Tool) | Komparasi Deposito vs SBN Obligasi dengan pajak riil |
+| 11 | **News & Riset** | `/news` | `GET /api/v1/news` | Agregasi berita ekonomi & pasar finansial terkurasi |
+| 12 | **Alpha Signals** | `/signals` | `GET /api/v1/signals` | Feed sinyal beli/jual kuantitatif lintas instrumen |
+| 13 | **Ensiklopedia Pasar** | `/encyclopedia` | `GET /api/v1/chat/tools` | Kamus SMC, Wyckoff, VSA, Indikator, dan Regulasi BEI |
+| 14 | **Portofolio Meme** | `/portfolio` | `GET/POST /api/v1/portfolio/*` | Monitoring kepemilikan koin meme & tombol reset Rp 150K |
+| 15 | **Jurnal Trading** | `/journal` | `GET/POST /api/v1/journal/*` | Rekapitulasi transaksi closed, fee breakdown, ekspor Excel |
+| 16 | **Kalender PnL** | `/calendar` | `GET /api/v1/performance/daily-calendar` | Kalender keuntungan/kerugian harian bulanan |
+| 17 | **AI Degen Agents** | `/agents` | `GET /api/v1/ai/agents` | Pengelolaan sub-agen riset autonomous |
+| 18 | **Risk & Slippage** | `/risk` | `GET/PUT /api/v1/risk/config` | Proteksi drawdown, batas slippage, dan alokasi modal |
+| 19 | **Multi-Gate Wallets** | `/wallets` | `GET/POST /api/v1/wallets/*` | Manajemen 3 gate wallet, topup gas, settlement 05:00 WIB |
+| 20 | **Pengaturan Sistem** | `/settings` | `GET/PUT /api/v1/settings/*` | Konfigurasi API keys, RPC nodes, dan akun operator |
 
 ---
 
-## 4. Kriteria Kelayakan Produksi (Production Readiness Checklist)
-- [x] **Mode PAPER 100% Berfungsi**: Modal Rp 150.000, harga DexScreener Live, Snipe, Sell, Auto-Bot, dan Reset 1-Klik.
-- [x] **Mode LIVE 100% Berfungsi**: Bebas error `LIVE_NOT_CONFIGURED`, terhubung ke Live Hot Wallet, menghasilkan `tx_hash`, dan otomatis tercatat di Jurnal Neonbase.
-- [x] **Web3 Chrome Extension Wallet Connect**: Mendukung koneksi langsung ke Phantom, Solflare, Backpack, MetaMask, dan Rabby di Chrome.
-- [x] **Halaman Login (`/login`)**: Portal autentikasi operator & Web3 login siap pakai.
-- [x] **Desain Mobile-Responsive & PWA**: Dilengkapi `manifest.json`, Service Worker `sw.js`, Slide-Over Mobile Drawer, dan Fixed Bottom Navigation Bar.
-- [x] **Automated Test Suite**: 12/12 pengujian integrasi backend (`pytest`) dan kompilasi produksi Next.js lulus 100%.
+## 4. Standar Kualitas & Kriteria Integritas Data
+
+1. **Prinsip Zero Dummy**: Dilarang menampilkan data simulasi atau persentase karangan pada halaman produksi. Jika data riil belum mencukupi, sistem wajib menampilkan tanda *dash* (`—`) atau status informatif seperti `Belum ada trade`.
+2. **Keberlangsungan Bot Otonom**: Server backend adalah pemilik mutlak siklus eksekusi bot. Status bot dipertahankan di database dan tidak boleh terikat pada status login frontend.
+3. **Pemisahan Mode Transaksi**: Mode `PAPER` (Sandbox Rp 150.000) dan Mode `LIVE` (On-Chain Mainnet Hot Wallet) harus selalu terisolasi secara tegas pada level portofolio, database, dan transaksi.

@@ -1,8 +1,19 @@
-# ⚡ SOFIA Trenches v3.8 PRO (NextGenTSofia Trade)
+# ⚡ SOFIA Multi-Asset Intelligence & Autonomous Meme Coin Sniper (v4.0.0 PRO)
 
-Platform **AI-Powered Meme Coin Sniper & On-Chain Trading Command Center** dengan dukungan penuh **Dual-Engine (Mode PAPER Rp 150.000 & Mode LIVE On-Chain)**, **PumpSniper Pro Terminal (Jito 0-Slot Anti-MEV)**, **Direct Chrome Extension Wallet Connect (Phantom / Solflare / MetaMask / Rabby)**, **Jurnal Trading Live di Neon PostgreSQL Cloud + Export Excel**, serta **Mobile-Responsive Progressive Web App (PWA)**.
+Platform **AI-Powered Multi-Asset Market Intelligence & Autonomous Sniper Terminal** dengan dukungan penuh:
+- **Dual-Engine Execution**: Mode `PAPER` (Sandbox Rp 150.000) & Mode `LIVE` (On-Chain Solana Mainnet Hot Wallet).
+- **Autonomous Server Worker 24/7**: Bot terus berjalan memindai dan mengeksekusi order di background server bahkan saat pengguna logout atau menutup browser. Satu-satunya penghenti adalah tombol manual.
+- **3 Mode Strategi Sniper (Safe, Default, Agresif)**: Disertai kunci pengaman dan perhitungan winrate riil 100% dari database tanpa angka karangan.
+- **Quick Exit & Panic Sell**: Likuidasi parsial 25%, 50%, 100% dan Panic Sell All 100% dengan adaptive slippage retry.
+- **Multi-Asset Research Hub**: Analisa Saham BEI (IDX), Analisa Kripto Global (10 koin populer), Portofolio Emas Fisik, Kalkulator Deposito & SBN Obligasi, AI Chat Research dengan tool calling otonom, dan Ensiklopedia Pasar.
+- **Dual Theme Workspace**: Soft Daylight Workspace (Light Mode) yang teduh di mata & Obsidian Dark Mode.
 
-📄 **Dokumentasi Produk Lengkap**: Lihat [**PRD.md**](./PRD.md) untuk spesifikasi lengkap arsitektur dan fitur v3.8 PRO.
+---
+
+### 📄 Dokumentasi Resmi & Panduan AI Agent:
+- [**PRD.md**](./PRD.md) — Product Requirements Document versi 4.0.0-PRO lengkap.
+- [**AGENTS.md**](./AGENTS.md) — Panduan wajib & batasan aturan kritis untuk AI Agent & pengembang masa depan.
+- [**MCP_GUIDE.md**](./MCP_GUIDE.md) — Panduan Model Context Protocol (FastMCP).
 
 ---
 

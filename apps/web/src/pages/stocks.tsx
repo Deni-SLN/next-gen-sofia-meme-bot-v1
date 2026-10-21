@@ -95,6 +95,16 @@ export default function StockAnalysisPage() {
   const [portAvgPriceInput, setPortAvgPriceInput] = useState<string>('');
   const [portNotesInput, setPortNotesInput] = useState<string>('');
 
+  // AI Deep Stock Research Prompt Card state
+  const [promptHorizon, setPromptHorizon] = useState<string>('SWING / 6–12 BULAN');
+  const [promptRiskProfile, setPromptRiskProfile] = useState<string>('MODERAT');
+  const [promptGoal, setPromptGoal] = useState<string>('CAPITAL GAIN & DIVIDEN');
+  const [promptBuyPrice, setPromptBuyPrice] = useState<string>('');
+  const [promptCapital, setPromptCapital] = useState<string>('');
+  const [promptBenchmark, setPromptBenchmark] = useState<string>('IHSG / LQ45');
+  const [showPromptPreview, setShowPromptPreview] = useState<boolean>(false);
+  const [copiedPromptType, setCopiedPromptType] = useState<'filled' | 'raw' | null>(null);
+
   const fetchAnalysis = useCallback(
     async (code: string, force: boolean = false, tf: string = '1d') => {
       const clean = (code || 'BBRI').trim().toUpperCase();
@@ -301,6 +311,322 @@ export default function StockAnalysisPage() {
     return list.find((p) => p.code === activeTicker) || null;
   }, [portfolioData, activeTicker]);
 
+  const buildStockResearchPrompt = useCallback(
+    (useRawTemplate: boolean = false) => {
+      const companyName = useRawTemplate
+        ? '[NAMA PERUSAHAAN]'
+        : stockData?.name || activeTicker || '[NAMA PERUSAHAAN]';
+      const tickerCode = useRawTemplate ? '[TICKER]' : stockData?.code || activeTicker || '[TICKER]';
+      const exchangeName = useRawTemplate ? '[IDX / NASDAQ / NYSE / LAINNYA]' : 'IDX (Bursa Efek Indonesia)';
+      const currentPriceStr = useRawTemplate
+        ? '[HARGA / AMBIL DATA TERBARU]'
+        : stockData?.current_price
+          ? `${fmtPrice(stockData.current_price)} (Data Live Terminal, ambil juga data terbaru)`
+          : '[HARGA / AMBIL DATA TERBARU]';
+      const horizonStr = useRawTemplate
+        ? '[INTRADAY / SWING / 6–12 BULAN / 1–5 TAHUN]'
+        : promptHorizon || 'SWING / 6–12 BULAN';
+      const riskStr = useRawTemplate
+        ? '[KONSERVATIF / MODERAT / AGRESIF]'
+        : promptRiskProfile || 'MODERAT';
+      const goalStr = useRawTemplate
+        ? '[CAPITAL GAIN / DIVIDEN / GROWTH / VALUE INVESTING]'
+        : promptGoal || 'CAPITAL GAIN & DIVIDEN';
+      const buyPriceStr = useRawTemplate
+        ? '[HARGA]'
+        : promptBuyPrice.trim()
+          ? `Rp ${promptBuyPrice.trim()}`
+          : existingHolding?.avg_buy_price
+            ? fmtPrice(existingHolding.avg_buy_price)
+            : 'Belum memiliki posisi (opsional)';
+      const capitalStr = useRawTemplate
+        ? '[MODAL]'
+        : promptCapital.trim()
+          ? `Rp ${promptCapital.trim()}`
+          : totalCapital > 0
+            ? fmtPrice(totalCapital)
+            : '[MODAL]';
+      const benchmarkStr = useRawTemplate
+        ? '[IHSG / LQ45 / S&P 500 / LAINNYA]'
+        : promptBenchmark || 'IHSG / LQ45';
+
+      return `# DEEP STOCK RESEARCH & INVESTMENT DECISION
+
+## 1. PERAN AI
+
+Bertindaklah sebagai tim analis investasi profesional yang terdiri dari:
+- Equity Research Analyst
+- Financial Statement Analyst
+- Fundamental & Valuation Analyst
+- Quantitative Analyst
+- Technical Analyst
+- Risk Management Analyst
+- Macroeconomic Analyst
+
+Lakukan analisis secara independen, kritis, berbasis data, dan berorientasi pada pengambilan keputusan investasi. Jangan sekadar mengonfirmasi asumsi saya. Identifikasi pula kelemahan tesis investasi, potensi manipulasi laporan keuangan, risiko tersembunyi, dan kemungkinan kerugian permanen modal.
+
+## 2. INPUT ANALISIS
+
+Analisis saham berikut:
+
+- Nama perusahaan: ${companyName}
+- Kode saham: ${tickerCode}
+- Bursa: ${exchangeName}
+- Harga saham saat ini: ${currentPriceStr}
+- Horizon investasi: ${horizonStr}
+- Profil risiko: ${riskStr}
+- Tujuan: ${goalStr}
+- Harga beli saya (opsional): ${buyPriceStr}
+- Jumlah modal (opsional): ${capitalStr}
+- Benchmark: ${benchmarkStr}
+
+Jika ada informasi yang belum tersedia, gunakan asumsi yang wajar, tandai asumsi tersebut, dan jelaskan keterbatasan analisisnya.
+
+## 3. STANDAR PENGUMPULAN DATA
+
+Sebelum membuat kesimpulan:
+1. Cari data terbaru yang tersedia dari sumber tepercaya.
+2. Prioritaskan laporan tahunan, laporan keuangan kuartalan, keterbukaan informasi bursa, presentasi investor, dan publikasi regulator.
+3. Gunakan sumber sekunder seperti penyedia data pasar dan riset industri sebagai pelengkap.
+4. Cantumkan tanggal data, periode laporan, mata uang, dan sumber setiap metrik penting.
+5. Bandingkan minimal 3–5 tahun data historis apabila tersedia.
+6. Bandingkan perusahaan dengan minimal 3 kompetitor relevan apabila tersedia.
+7. Bedakan fakta, estimasi, asumsi, dan opini analis.
+8. Jangan mengarang data atau menyajikan harga tertunda sebagai harga real-time.
+9. Jika data tidak tersedia, nyatakan secara eksplisit dan jangan mengisi kekosongan dengan angka rekaan.
+
+## 4. ANALISIS FUNDAMENTAL
+
+### A. Profil dan model bisnis
+- Sumber pendapatan utama dan kontribusi setiap segmen.
+- Produk, pelanggan, wilayah operasional, dan keunggulan kompetitif.
+- Struktur industri, hambatan masuk, daya tawar pelanggan, dan pemasok.
+- Ketergantungan pada pelanggan besar, komoditas, regulasi, atau pihak terkait.
+- Kekuatan moat: brand, biaya rendah, jaringan, switching cost, teknologi, atau skala ekonomi.
+- Keberlanjutan model bisnis dalam 5–10 tahun mendatang.
+
+### B. Analisis laporan keuangan
+Evaluasi tren minimal 3–5 tahun:
+- Revenue growth dan pertumbuhan organik.
+- Gross profit margin, operating margin, net profit margin.
+- ROE, ROA, ROIC.
+- EPS dan pertumbuhan EPS.
+- Operating cash flow dan free cash flow.
+- Total debt, net debt, debt-to-equity, interest coverage.
+- Current ratio dan likuiditas.
+- Capital expenditure, working capital, serta kualitas laba.
+- Perbedaan laba bersih dengan arus kas operasional.
+
+Identifikasi red flags:
+- Pendapatan naik tetapi arus kas melemah.
+- Piutang atau persediaan tumbuh lebih cepat daripada pendapatan.
+- Transaksi pihak berelasi yang material.
+- Kapitalisasi biaya yang tidak wajar.
+- Dilusi saham, penerbitan saham berulang, atau utang berisiko.
+- Perubahan auditor, opini audit, atau restatement laporan keuangan.
+
+Sesuaikan metrik dengan sektor. Untuk bank, gunakan NIM, NPL, CASA, CAR, ROA, cost of credit, dan kualitas pencadangan. Untuk perusahaan komoditas, analisis siklus harga, biaya produksi, cadangan, dan sensitivitas harga komoditas.
+
+### C. Kualitas manajemen dan tata kelola
+- Rekam jejak direksi dan komisaris.
+- Alokasi modal: ekspansi, akuisisi, dividen, dan buyback.
+- Kualitas komunikasi kepada investor.
+- Kepemilikan insider dan pemegang saham pengendali.
+- Transaksi afiliasi, risiko tata kelola, dan perlindungan pemegang saham minoritas.
+
+## 5. ANALISIS INDUSTRI DAN MAKROEKONOMI
+
+Analisis faktor yang memengaruhi perusahaan:
+- Pertumbuhan industri dan pangsa pasar.
+- Posisi perusahaan dalam siklus bisnis.
+- Suku bunga, inflasi, kurs, daya beli, dan likuiditas pasar.
+- Kebijakan pemerintah dan perubahan regulasi.
+- Harga komoditas, biaya bahan baku, serta risiko geopolitik jika relevan.
+- Tren teknologi dan potensi disrupsi.
+- Katalis positif dan negatif dalam 3–12 bulan ke depan.
+
+Jelaskan hubungan sebab-akibat antara faktor makro dan kinerja perusahaan, bukan hanya menyebutkan berita.
+
+## 6. VALUASI INTRINSIK
+
+Gunakan metode yang relevan dengan sektor perusahaan:
+- Discounted Cash Flow (DCF).
+- Relative valuation: PER, PBV, EV/EBITDA, P/S, atau metrik sektoral.
+- Dividend Discount Model apabila relevan.
+- Sum-of-the-Parts jika perusahaan memiliki segmen berbeda.
+- Historical valuation dibandingkan dengan kompetitor dan rata-rata historisnya.
+
+Untuk DCF:
+1. Buat proyeksi pendapatan, margin, arus kas, dan belanja modal.
+2. Jelaskan asumsi pertumbuhan, WACC, dan terminal growth.
+3. Hitung estimasi nilai wajar per saham.
+4. Lakukan sensitivity analysis terhadap WACC dan pertumbuhan.
+5. Hindari terminal growth yang tidak realistis.
+6. Perhitungkan utang bersih, kas, kepentingan nonpengendali, dan jumlah saham terdilusi secara tepat.
+
+Sajikan tiga skenario:
+
+- Bear case: kondisi bisnis memburuk.
+- Base case: kondisi paling masuk akal.
+- Bull case: pertumbuhan lebih kuat dari ekspektasi.
+
+Untuk setiap skenario, tampilkan asumsi, nilai wajar, potensi kenaikan/penurunan dari harga saat ini, dan probabilitas jika dapat dipertanggungjawabkan.
+
+Hitung margin of safety pada harga saat ini. Jangan memberikan target harga presisi palsu jika ketidakpastian estimasi tinggi.
+
+## 7. ANALISIS DIVIDEN DAN STRUKTUR MODAL
+
+Jika relevan, evaluasi:
+- Dividend yield dan dividend payout ratio.
+- Konsistensi serta pertumbuhan dividen.
+- Free cash flow dividend coverage.
+- Risiko dividend trap.
+- Buyback, stock split, rights issue, dan potensi dilusi.
+- Kebutuhan pendanaan untuk ekspansi dan pembayaran utang.
+
+## 8. ANALISIS TEKNIKAL DAN PERILAKU PASAR
+
+Gunakan data harga dan volume terbaru yang tersedia:
+- Tren harga pada timeframe harian dan mingguan.
+- Support, resistance, dan struktur market.
+- Moving average 20, 50, 100, dan 200 hari jika tersedia.
+- RSI, MACD, serta volume untuk konfirmasi momentum.
+- Relative strength terhadap indeks acuan.
+- Volatilitas, gap harga, dan potensi false breakout.
+- Likuiditas, spread, serta risiko slippage.
+- Foreign flow, institutional flow, atau data order book hanya jika datanya tersedia dan valid.
+
+Tentukan:
+- Tren utama dan tren jangka pendek.
+- Zona entry potensial.
+- Level invalidasi tesis teknikal.
+- Area stop-loss berbasis struktur harga.
+- Target harga berdasarkan risk/reward.
+
+Jangan menyimpulkan sinyal teknikal hanya berdasarkan indikator tanpa mempertimbangkan tren, volume, dan kondisi pasar.
+
+## 9. ANALISIS RISIKO
+
+Buat risk register yang berisi:
+- Risiko bisnis.
+- Risiko keuangan dan likuiditas.
+- Risiko valuasi.
+- Risiko tata kelola.
+- Risiko makro dan regulasi.
+- Risiko likuiditas saham.
+- Risiko konsentrasi dan volatilitas.
+- Risiko tesis investasi tidak berjalan sesuai rencana.
+
+Untuk setiap risiko, berikan probabilitas kualitatif atau kuantitatif jika tersedia, dampak, indikator peringatan dini, dan mitigasi.
+
+Jelaskan kondisi yang dapat membatalkan tesis investasi dan bukti yang akan membuat Anda mengubah rekomendasi.
+
+## 10. SENTIMEN DAN KATALIS
+
+Analisis berita, keterbukaan informasi, laporan analis, dan sentimen pasar terbaru:
+- Berita positif dan negatif yang material.
+- Ekspektasi pasar dibandingkan dengan kinerja aktual.
+- Potensi earnings surprise.
+- Corporate action dan perubahan kebijakan.
+- Katalis yang sudah diperhitungkan dalam harga.
+- Rumor yang belum terverifikasi.
+
+Bedakan katalis yang memiliki bukti kuat dari spekulasi.
+
+## 11. STRATEGI INVESTASI
+
+Berdasarkan hasil analisis, susun:
+- Status: layak dipantau, akumulasi bertahap, hold, reduce, atau hindari.
+- Estimasi nilai wajar dan rentang valuasi.
+- Zona beli konservatif dan zona beli agresif.
+- Target harga berdasarkan horizon investasi.
+- Level invalidasi tesis.
+- Estimasi upside, downside, dan risk/reward.
+- Strategi pembelian bertahap jika sesuai.
+- Ukuran posisi berdasarkan toleransi risiko, likuiditas, dan diversifikasi.
+- Syarat fundamental atau peristiwa yang perlu dipantau sebelum menambah posisi.
+
+Jangan menetapkan stop-loss trading sebagai pengganti evaluasi fundamental untuk investasi jangka panjang. Pisahkan strategi trading dan strategi investasi.
+
+## 12. OUTPUT AKHIR
+
+Susun laporan dalam urutan berikut:
+
+1. Executive summary.
+2. Tabel metrik fundamental utama.
+3. Kualitas bisnis dan keunggulan kompetitif.
+4. Analisis tren keuangan 3–5 tahun.
+5. Perbandingan kompetitor.
+6. Analisis manajemen dan tata kelola.
+7. Analisis industri dan makro.
+8. Valuasi dan sensitivity analysis.
+9. Analisis teknikal.
+10. Risk register.
+11. Katalis positif dan negatif.
+12. Skenario bear, base, dan bull.
+13. Strategi entry, target, dan invalidasi.
+14. Kesimpulan dan rekomendasi.
+15. Daftar sumber beserta tanggal data.
+
+Berikan skor 0–100 untuk:
+- Kualitas bisnis.
+- Kesehatan keuangan.
+- Pertumbuhan.
+- Kualitas manajemen.
+- Valuasi.
+- Momentum pasar.
+- Risiko.
+
+Jelaskan bobot setiap komponen, alasan pemberian skor, dan jangan membuat skor total seolah-olah objektif jika datanya tidak memadai.
+
+## 13. ATURAN KESIMPULAN
+
+- Jangan merekomendasikan saham hanya karena harganya sedang naik.
+- Jangan menyamakan perusahaan bagus dengan saham yang murah.
+- Jangan menyamakan saham murah dengan saham yang layak dibeli.
+- Jangan menggunakan data usang tanpa memberi peringatan.
+- Jangan mengabaikan potensi penurunan modal secara permanen.
+- Jika bukti bertentangan, jelaskan kedua sisi secara adil.
+- Jika data belum cukup, berikan status “belum dapat disimpulkan”.
+- Utamakan kualitas analisis, transparansi asumsi, dan manajemen risiko daripada prediksi yang terdengar meyakinkan.
+
+Mulai analisis dengan memverifikasi ticker, bursa, harga, laporan keuangan terbaru, dan sumber data. Jangan langsung memberikan rekomendasi sebelum proses verifikasi selesai.`;
+    },
+    [
+      stockData,
+      activeTicker,
+      promptHorizon,
+      promptRiskProfile,
+      promptGoal,
+      promptBuyPrice,
+      promptCapital,
+      promptBenchmark,
+      existingHolding,
+      totalCapital,
+    ]
+  );
+
+  const handleCopyResearchPrompt = useCallback(
+    async (useRaw: boolean = false) => {
+      const text = buildStockResearchPrompt(useRaw);
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopiedPromptType(useRaw ? 'raw' : 'filled');
+        setTimeout(() => setCopiedPromptType(null), 2500);
+      } catch {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setCopiedPromptType(useRaw ? 'raw' : 'filled');
+        setTimeout(() => setCopiedPromptType(null), 2500);
+      }
+    },
+    [buildStockResearchPrompt]
+  );
+
   return (
     <>
       <Head>
@@ -375,25 +701,6 @@ export default function StockAnalysisPage() {
                 title="Refresh harga & indikator terbaru"
               >
                 <LucideIcon name="rotate-ccw" className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !isUltrawide;
-                  localStorage.setItem('sofia_ultrawide', next ? 'true' : 'false');
-                  window.dispatchEvent(new CustomEvent('sofia-ultrawide-toggle', { detail: next }));
-                }}
-                className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 shrink-0 ${
-                  isUltrawide
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm shadow-cyan-500/10'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                }`}
-                title="Alihkan susunan card antara Mode Biasa (vertikal & scroll) dan Mode Layar Lebar (multi-card menyamping)"
-              >
-                <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">
-                  {isUltrawide ? 'Mode Layar Lebar (Aktif)' : 'Mode Layar Lebar'}
-                </span>
               </button>
             </form>
           </div>
@@ -522,6 +829,140 @@ export default function StockAnalysisPage() {
           </div>
         ) : stockData ? (
           <>
+            {/* CARD COPY PROMPT UNTUK AI — DEEP STOCK RESEARCH & INVESTMENT DECISION (Compact Copy-Only Card) */}
+            <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-[#0d1326] via-[#0b101d] to-[#111827] px-5 py-3.5 shadow-xl space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                      Prompt AI • 13 Bagian Riset Institusional
+                    </span>
+                    <h2 className="text-sm font-extrabold text-white tracking-tight">
+                      Deep Stock Research &amp; Investment Decision ({stockData.code})
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Salin prompt analisis saham mendalam (<span className="text-slate-300">Peran 7 Analis, Fundamental, DCF, Teknikal, Risk Register &amp; Strategi</span>) untuk{' '}
+                    <strong className="text-emerald-300">{stockData.name} ({stockData.code})</strong> tanpa menampilkan teks penuh di layar.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyResearchPrompt(false)}
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-2 border shadow-md ${
+                      copiedPromptType === 'filled'
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                        : 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400/40'
+                    }`}
+                  >
+                    <span>{copiedPromptType === 'filled' ? '✓ Prompt Berhasil Disalin!' : `📋 Copy Prompt AI (${stockData.code})`}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyResearchPrompt(true)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border ${
+                      copiedPromptType === 'raw'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    <span>{copiedPromptType === 'raw' ? '✓ Template Tersalin!' : '📄 Copy Template Mentah'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPromptPreview((prev) => !prev)}
+                    className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-900 text-slate-300 border border-slate-800 transition"
+                  >
+                    {showPromptPreview ? 'Tutup Opsi ▲' : '⚙️ Opsi Input'}
+                  </button>
+                </div>
+              </div>
+
+              {showPromptPreview && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-800/80 text-xs">
+                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/90">
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Horizon Investasi</label>
+                    <select
+                      value={promptHorizon}
+                      onChange={(e) => setPromptHorizon(e.target.value)}
+                      className="w-full bg-slate-900 text-white rounded-lg px-2 py-1 text-xs border border-slate-700 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="INTRADAY">INTRADAY</option>
+                      <option value="SWING">SWING</option>
+                      <option value="SWING / 6–12 BULAN">6–12 BULAN (SWING/POSISI)</option>
+                      <option value="6–12 BULAN">6–12 BULAN</option>
+                      <option value="1–5 TAHUN">1–5 TAHUN (LONG TERM)</option>
+                    </select>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/90">
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Profil Risiko</label>
+                    <select
+                      value={promptRiskProfile}
+                      onChange={(e) => setPromptRiskProfile(e.target.value)}
+                      className="w-full bg-slate-900 text-white rounded-lg px-2 py-1 text-xs border border-slate-700 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="KONSERVATIF">KONSERVATIF</option>
+                      <option value="MODERAT">MODERAT</option>
+                      <option value="AGRESIF">AGRESIF</option>
+                    </select>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/90">
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Tujuan Investasi</label>
+                    <select
+                      value={promptGoal}
+                      onChange={(e) => setPromptGoal(e.target.value)}
+                      className="w-full bg-slate-900 text-white rounded-lg px-2 py-1 text-xs border border-slate-700 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="CAPITAL GAIN">CAPITAL GAIN</option>
+                      <option value="DIVIDEN">DIVIDEN</option>
+                      <option value="GROWTH">GROWTH</option>
+                      <option value="VALUE INVESTING">VALUE INVESTING</option>
+                      <option value="CAPITAL GAIN & DIVIDEN">CAPITAL GAIN &amp; DIVIDEN</option>
+                    </select>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/90">
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Harga Beli Saya (Opsional)</label>
+                    <input
+                      type="text"
+                      value={promptBuyPrice}
+                      onChange={(e) => setPromptBuyPrice(e.target.value)}
+                      placeholder={existingHolding?.avg_buy_price ? String(existingHolding.avg_buy_price) : 'Contoh: 4500'}
+                      className="w-full bg-slate-900 text-white rounded-lg px-2 py-1 text-xs font-mono border border-slate-700 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/90">
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Jumlah Modal (Opsional)</label>
+                    <input
+                      type="text"
+                      value={promptCapital}
+                      onChange={(e) => setPromptCapital(e.target.value)}
+                      placeholder={totalCapital > 0 ? String(totalCapital) : '10.000.000'}
+                      className="w-full bg-slate-900 text-white rounded-lg px-2 py-1 text-xs font-mono border border-slate-700 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800/90">
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Benchmark</label>
+                    <input
+                      type="text"
+                      value={promptBenchmark}
+                      onChange={(e) => setPromptBenchmark(e.target.value)}
+                      placeholder="IHSG / LQ45"
+                      className="w-full bg-slate-900 text-white rounded-lg px-2 py-1 text-xs border border-slate-700 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* ROW 1: TOP DECISION SUMMARY (Overview + Multi-Timeframe Trading Plan + Dividend Intelligence) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
               {/* Card 1: Harga Saat Ini, Sektor & Rentang 52M (4 cols) */}
@@ -1947,6 +2388,30 @@ export default function StockAnalysisPage() {
                     <p className="text-xs text-slate-400">
                       Bebas Halusinasi Angka • Tingkat Keyakinan: {aiAnalyst.confidence_and_scoring_rubric?.confidence_level}
                     </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyResearchPrompt(false)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition border ${
+                        copiedPromptType === 'filled'
+                          ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                          : 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400/40'
+                      }`}
+                    >
+                      {copiedPromptType === 'filled' ? '✓ Prompt Disalin!' : `📋 Copy Prompt AI (${stockData.code})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyResearchPrompt(true)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                        copiedPromptType === 'raw'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      {copiedPromptType === 'raw' ? '✓ Template Tersalin!' : '📄 Copy Template Mentah'}
+                    </button>
                   </div>
                 </div>
 

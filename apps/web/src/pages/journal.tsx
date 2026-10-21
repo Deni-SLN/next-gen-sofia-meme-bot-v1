@@ -6,6 +6,8 @@ import { LucideIcon } from '@/components/LucideIcon';
 export default function JournalPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [outcomeFilter, setOutcomeFilter] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 20;
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [actionMsg, setActionMsg] = useState<string>('');
   const [actionErr, setActionErr] = useState<string>('');
@@ -26,11 +28,15 @@ export default function JournalPage() {
   const [formTxHash, setFormTxHash] = useState<string>('');
   const [formNotes, setFormNotes] = useState<string>('Live bot snipe execution');
 
-  // Query only 10 latest trades by default to keep Neonbase & client UI ultra-lightweight
+  // Paginate with max 20 trades per page
   const journalQuery = useApiQuery(
-    () => api.getJournal(searchQuery, outcomeFilter, 10),
-    [searchQuery, outcomeFilter]
+    () => api.getJournal(searchQuery, outcomeFilter, PAGE_SIZE, currentPage),
+    [searchQuery, outcomeFilter, currentPage]
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, outcomeFilter]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -315,7 +321,7 @@ export default function JournalPage() {
           </div>
         </div>
 
-        {/* Compact Notice: 10 Latest Transactions */}
+        {/* Compact Notice: Max 20 Transactions per Page */}
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-obsidian-900 border border-emerald-500/20 text-[11px] text-slate-300">
           <div className="flex items-center gap-2">
             <span className="flex h-2 w-2 relative">
@@ -323,7 +329,7 @@ export default function JournalPage() {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
             <span>
-              Menampilkan <strong className="text-emerald-400">10 transaksi live terakhir</strong> agar memori ringan &amp; database Neonbase tidak terbebani.
+              Menampilkan maksimal <strong className="text-emerald-400">20 transaksi live per halaman</strong> (Halaman {d?.page || currentPage} dari {d?.total_pages || 1}).
             </span>
           </div>
           <button
@@ -337,18 +343,22 @@ export default function JournalPage() {
           </button>
         </div>
 
-        {/* Live Bot Trading Journal Table (Compact View) */}
+        {/* Live Bot Trading Journal Table (Paginated Max 20 / Page) */}
         <div className="rounded-xl bg-obsidian-900 border border-obsidian-700/80 overflow-hidden shadow-lg">
           <div className="px-3 py-2 border-b border-obsidian-800 flex flex-wrap items-center justify-between gap-2">
             <div className="font-bold text-xs uppercase tracking-wider text-slate-100 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Histori Transaksi Live (10 Terakhir)</span>
+              <span>Histori Transaksi Live On-Chain (Maks 20 / Halaman)</span>
               <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                DATABASE OPTIMIZED
+                PAGINATION 20/PAGE
               </span>
             </div>
             <div className="flex items-center gap-2 text-[10px] text-slate-400">
-              <span>Menampilkan: <strong className="text-white">{d?.trades?.length || 0}</strong> dari <strong className="text-white">{d?.total_trades || 0}</strong> total di Neonbase</span>
+              <span>
+                Halaman <strong className="text-emerald-400">{d?.page || currentPage}</strong> / <strong className="text-white">{d?.total_pages || 1}</strong> • Menampilkan:{' '}
+                <strong className="text-white">{d?.trades?.length || 0}</strong> dari{' '}
+                <strong className="text-white">{d?.total_matching ?? d?.total_trades ?? 0}</strong> transaksi
+              </span>
             </div>
           </div>
 
@@ -526,6 +536,45 @@ export default function JournalPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Footer (Max 20 trades per page) */}
+          <div className="px-3.5 py-2.5 bg-obsidian-950/80 border-t border-obsidian-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <div className="text-[11px] text-slate-400">
+              {(() => {
+                const totalMatching = Number(d?.total_matching ?? d?.total_trades ?? 0);
+                const pageNum = Number(d?.page || currentPage);
+                const startRow = totalMatching === 0 ? 0 : (pageNum - 1) * PAGE_SIZE + 1;
+                const endRow = Math.min(totalMatching, pageNum * PAGE_SIZE);
+                return (
+                  <span>
+                    Menampilkan <strong className="text-slate-200">{startRow}–{endRow}</strong> dari{' '}
+                    <strong className="text-emerald-400">{totalMatching}</strong> transaksi (Maks {PAGE_SIZE} trade/halaman)
+                  </span>
+                );
+              })()}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={(d?.page || currentPage) <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-2.5 py-1 rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-200 border border-obsidian-700 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold transition"
+              >
+                ← Sebelumnya
+              </button>
+              <span className="px-2.5 py-1 rounded bg-obsidian-900 border border-emerald-500/30 text-emerald-300 text-[11px] font-extrabold">
+                Hal {d?.page || currentPage} / {d?.total_pages || 1}
+              </span>
+              <button
+                type="button"
+                disabled={(d?.page || currentPage) >= (d?.total_pages || 1)}
+                onClick={() => setCurrentPage((p) => Math.min(d?.total_pages || 1, p + 1))}
+                className="px-2.5 py-1 rounded bg-obsidian-900 hover:bg-obsidian-800 text-slate-200 border border-obsidian-700 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold transition"
+              >
+                Berikutnya →
+              </button>
+            </div>
           </div>
         </div>
       </QueryState>

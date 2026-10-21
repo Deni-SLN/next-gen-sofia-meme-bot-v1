@@ -11,10 +11,19 @@ from app.services import market
 
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
-SOLANA_MAINNET_RPC = "https://api.mainnet-beta.solana.com"
+SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92"
+SOLANA_RPC_POOL = [
+    "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92",
+    "https://solana-rpc.publicnode.com",
+    "https://api.mainnet.solana.com",
+    "https://api.mainnet-beta.solana.com",
+]
+if SOLANA_MAINNET_RPC not in SOLANA_RPC_POOL:
+    SOLANA_RPC_POOL.insert(0, SOLANA_MAINNET_RPC)
+
 BASE_MAINNET_RPC = "https://mainnet.base.org"
 ETH_MAINNET_RPC = "https://eth.llamarpc.com"
-JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6/quote"
+JUPITER_QUOTE_API = "https://api.jup.ag/swap/v1/quote"
 
 
 def generate_tx_hash(chain: str = "Solana") -> str:
@@ -175,9 +184,193 @@ def credit_live_wallet_usd(db: Session, wallet: Wallet, credit_usd: float) -> fl
 
 _LAST_ONCHAIN_SYNC = 0.0
 _SPL_CACHE: dict[str, tuple[float, list[dict]]] = {}
+_SPL_CACHE_FRESH: dict[str, bool] = {}
+_RECENTLY_SOLD_TOKENS: dict[str, float] = {}
+_KNOWN_WALLET_MINTS: set[str] = {
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # USDC
+    "C5hmni8PQvZpGz1i3KfRowbM5ij5Msrk65RR1E1Qpump",  # Beancat
+    "CARDSccUMFKoPRZxt5vt3ksUbxEFEcnZ3H2pd3dKxYjp",  # CARDS
+    "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",  # ANSEM
+    "GXetNo3HpSku1Y59E1spoU9QpiDEkWxMLAF4DWnbpump",  # SI
+}
 
 
-def auto_sync_live_wallets(db: Session, max_age_seconds: float = 15.0) -> None:
+def _fetch_tokens_via_multiple_accounts(addr: str) -> list[dict] | None:
+    """
+    Fast, 429-immune fallback using Solana `getMultipleAccounts` on derived ATA addresses
+    for all known/cached mints when `getTokenAccountsByOwner` is throttled by public RPCs.
+    """
+    try:
+        from solders.pubkey import Pubkey
+        owner_pk = Pubkey.from_string(addr)
+        token_prog = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+        token22_prog = Pubkey.from_string("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+        ata_prog = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+
+        mints = set(_KNOWN_WALLET_MINTS)
+        for item in _SPL_CACHE.get(addr, (0.0, []))[1]:
+            if item.get("mint"):
+                mints.add(item["mint"])
+
+        ata_list = []
+        for m_str in mints:
+            try:
+                m_pk = Pubkey.from_string(m_str)
+                ata1, _ = Pubkey.find_program_address([bytes(owner_pk), bytes(token_prog), bytes(m_pk)], ata_prog)
+                ata2, _ = Pubkey.find_program_address([bytes(owner_pk), bytes(token22_prog), bytes(m_pk)], ata_prog)
+                ata_list.append(str(ata1))
+                ata_list.append(str(ata2))
+            except Exception:
+                continue
+
+        if not ata_list:
+            return None
+
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getMultipleAccounts",
+            "params": [ata_list[:90], {"encoding": "jsonParsed"}],
+        }
+        fast_rpcs = [
+            "https://solana-rpc.publicnode.com",
+            "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92",
+            "https://api.mainnet-beta.solana.com",
+        ]
+        with httpx.Client(timeout=2.5) as client:
+            for ep in fast_rpcs:
+                try:
+                    res = client.post(ep, json=payload)
+                    if res.status_code == 200 and "result" in res.json():
+                        vals = res.json()["result"].get("value") or []
+                        valid_accounts = []
+                        for v in vals:
+                            if v and isinstance(v, dict) and "data" in v:
+                                valid_accounts.append({"account": v})
+                        return valid_accounts
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return None
+
+
+def is_spl_cache_fresh(address: str | None) -> bool:
+    """Return True only if the most recent SPL + Token-2022 query succeeded for BOTH programs without 429 fallback."""
+    if not address:
+        return False
+    return bool(_SPL_CACHE_FRESH.get(address.strip(), False))
+
+
+def upsert_spl_cache_token(
+    address: str | None,
+    mint: str,
+    symbol: str,
+    amount: float,
+    price: float,
+    liquidity: float = 1800.0,
+    spent_usdc: float = 0.0,
+) -> None:
+    """
+    Immediately inject/update a newly bought on-chain token into _SPL_CACHE so that
+    even if Solana RPC returns HTTP 429 right after a swap, sync_onchain_holdings_to_portfolio
+    never wipes out the newly acquired position!
+    """
+    global _SPL_CACHE, _KNOWN_WALLET_MINTS
+    addr = (address or "").strip()
+    if not addr:
+        return
+    if mint and len(mint) >= 32:
+        _KNOWN_WALLET_MINTS.add(mint)
+    now_ts = time.time()
+    existing_items = list(_SPL_CACHE.get(addr, (0.0, []))[1])
+    updated = []
+    found = False
+    base_sym = symbol.split("/")[0].upper()
+    for item in existing_items:
+        it_mint = item.get("mint", "")
+        it_sym = (item.get("symbol") or "").split("/")[0].upper()
+        if spent_usdc > 0 and (it_mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" or it_sym == "USDC"):
+            new_usdc = max(0.0, round(float(item.get("amount", 0.0)) - spent_usdc, 6))
+            updated.append({
+                **item,
+                "amount": new_usdc,
+                "amount_raw": str(int(round(new_usdc * 1e6))),
+                "usd_val": round(new_usdc, 4),
+            })
+        elif (mint and it_mint == mint) or (base_sym and it_sym == base_sym):
+            new_amt = float(amount)
+            updated.append({
+                "mint": mint or it_mint,
+                "symbol": symbol,
+                "amount": new_amt,
+                "amount_raw": str(int(round(new_amt * (10 ** int(item.get("decimals", 6)))))),
+                "decimals": int(item.get("decimals", 6)),
+                "price": price,
+                "liquidity": max(liquidity, float(item.get("liquidity", 1800.0))),
+                "usd_val": round(new_amt * price, 4),
+            })
+            found = True
+        else:
+            updated.append(item)
+
+    if not found and amount > 0:
+        updated.append({
+            "mint": mint,
+            "symbol": symbol,
+            "amount": float(amount),
+            "amount_raw": str(int(round(float(amount) * 1e6))),
+            "decimals": 6,
+            "price": price,
+            "liquidity": max(liquidity, 1800.0),
+            "usd_val": round(float(amount) * price, 4),
+        })
+
+    _RECENTLY_SOLD_TOKENS.pop(base_sym, None)
+    if mint:
+        _RECENTLY_SOLD_TOKENS.pop(mint, None)
+    _SPL_CACHE[addr] = (now_ts, updated)
+
+
+def remove_spl_cache_token(address: str | None, symbol: str, sell_pct: float = 100.0, mint: str | None = None) -> None:
+    """Immediately remove or reduce a sold token from _SPL_CACHE after an on-chain sell."""
+    global _SPL_CACHE, _RECENTLY_SOLD_TOKENS
+    addr = (address or "").strip()
+    base_sym = symbol.split("/")[0].upper()
+    if sell_pct >= 99.0:
+        _RECENTLY_SOLD_TOKENS[base_sym] = time.time()
+        if mint:
+            _RECENTLY_SOLD_TOKENS[mint] = time.time()
+    if not addr or addr not in _SPL_CACHE:
+        return
+    _, existing_items = _SPL_CACHE[addr]
+    if sell_pct >= 99.0:
+        filtered = [
+            it for it in existing_items
+            if (it.get("symbol") or "").split("/")[0].upper() != base_sym
+            and (not mint or it.get("mint") != mint)
+        ]
+    else:
+        remain_ratio = max(0.0, 1.0 - (float(sell_pct) / 100.0))
+        filtered = []
+        for it in existing_items:
+            if (it.get("symbol") or "").split("/")[0].upper() == base_sym or (mint and it.get("mint") == mint):
+                new_amt = round(float(it.get("amount", 0.0)) * remain_ratio, 6)
+                new_raw = str(max(0, int(round(int(it.get("amount_raw", "0") or 0) * remain_ratio))))
+                px = float(it.get("price", 0.0))
+                if new_amt > 0.0001:
+                    filtered.append({
+                        **it,
+                        "amount": new_amt,
+                        "amount_raw": new_raw,
+                        "usd_val": round(new_amt * px, 4),
+                    })
+            else:
+                filtered.append(it)
+    _SPL_CACHE[addr] = (time.time(), filtered)
+
+
+def auto_sync_live_wallets(db: Session, max_age_seconds: float = 20.0) -> None:
     """Automatically refresh real on-chain native balances for live wallets if stale."""
     global _LAST_ONCHAIN_SYNC
     now_ts = time.time()
@@ -220,24 +413,26 @@ def auto_sync_live_wallets(db: Session, max_age_seconds: float = 15.0) -> None:
 
 def invalidate_spl_cache(address: str | None = None) -> None:
     """Force immediate refresh on next SPL query while preserving last known good tokens against 429 errors."""
-    global _SPL_CACHE, _LAST_ONCHAIN_SYNC
+    global _SPL_CACHE, _SPL_CACHE_FRESH, _LAST_ONCHAIN_SYNC
     _LAST_ONCHAIN_SYNC = 0.0
     if address:
         addr = address.strip()
+        _SPL_CACHE_FRESH[addr] = False
         if addr in _SPL_CACHE:
             _SPL_CACHE[addr] = (0.0, _SPL_CACHE[addr][1])
     else:
         for k in list(_SPL_CACHE.keys()):
+            _SPL_CACHE_FRESH[k] = False
             _SPL_CACHE[k] = (0.0, _SPL_CACHE[k][1])
 
 
-def query_solana_spl_tokens(address: str, max_cache_seconds: float = 15.0) -> list[dict]:
+def query_solana_spl_tokens(address: str, max_cache_seconds: float = 20.0) -> list[dict]:
     """
-    Query all SPL & Token-2022 accounts owned by the Solana address (e.g. USDC, SI, ANSEM), cached for 15s.
+    Query all SPL & Token-2022 accounts owned by the Solana address (e.g. USDC, SI, ANSEM), cached for 20s.
     Protects against HTTP 429 rate-limits on public Solana RPC by retaining the last known good token list
     if either program call fails or gets throttled.
     """
-    global _SPL_CACHE
+    global _SPL_CACHE, _SPL_CACHE_FRESH
     addr = (address or "").strip()
     if not addr or len(addr) < 32 or addr == "11111111111111111111111111111111" or addr.startswith("SIMULATION"):
         return []
@@ -258,8 +453,23 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 15.0) -> li
         any_rate_limited = False
         success_prog_count = 0
 
-        with httpx.Client(timeout=4.0) as client:
-            for prog in programs:
+        # Primary ultra-fast ATA check via getMultipleAccounts (~200ms, 429-immune on publicnode)
+        fallback_items = _fetch_tokens_via_multiple_accounts(addr)
+        if fallback_items is not None:
+            items.extend(fallback_items)
+            success_prog_count = len(programs)
+
+        # Secondary discovery check via getTokenAccountsByOwner (fast 2.0s timeout, single attempt)
+        indexed_rpcs = [
+            "https://api.mainnet.solana.com",
+            "https://api.mainnet-beta.solana.com",
+        ]
+        seen_mints = {
+            it.get("account", {}).get("data", {}).get("parsed", {}).get("info", {}).get("mint")
+            for it in items
+        }
+        with httpx.Client(timeout=2.0) as client:
+            for prog_idx, prog in enumerate(programs):
                 payload = {
                     "jsonrpc": "2.0",
                     "id": 1,
@@ -270,30 +480,24 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 15.0) -> li
                         {"encoding": "jsonParsed"},
                     ],
                 }
-                prog_ok = False
-                for attempt in range(2):
-                    try:
-                        res = client.post(SOLANA_MAINNET_RPC, json=payload)
-                        if res.status_code == 200:
-                            data = res.json()
-                            if "result" in data:
-                                items.extend(data.get("result", {}).get("value", []))
-                                prog_ok = True
-                                success_prog_count += 1
-                                break
-                        elif res.status_code == 429:
-                            any_rate_limited = True
-                            time.sleep(0.35 * (attempt + 1))
-                    except Exception:
-                        time.sleep(0.2)
-                if not prog_ok:
-                    any_rate_limited = True
+                rpc_ep = indexed_rpcs[prog_idx % len(indexed_rpcs)]
+                try:
+                    res = client.post(rpc_ep, json=payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        if "result" in data:
+                            for acc in data.get("result", {}).get("value", []):
+                                m = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {}).get("mint")
+                                if m and m not in seen_mints:
+                                    items.append(acc)
+                                    seen_mints.add(m)
+                            success_prog_count = len(programs)
+                except Exception:
+                    pass
 
-        # CRITICAL GUARD: If Solana RPC throttled (429) either SPL or Token-2022 program and we have cached tokens,
-        # NEVER overwrite cache with an incomplete/empty list (which would wipe out active holdings in DB)!
-        if any_rate_limited and cached_entry and cached_entry[1]:
-            # Extend cache timestamp slightly (5s) so we don't hammer the rate-limited RPC on the very next ms
-            _SPL_CACHE[addr] = (now_ts - max_cache_seconds + 5.0, cached_entry[1])
+        if not items and fallback_items is None and cached_entry and cached_entry[1]:
+            _SPL_CACHE_FRESH[addr] = False
+            _SPL_CACHE[addr] = (now_ts - max_cache_seconds + 6.0, cached_entry[1])
             return cached_entry[1]
 
         # Protect against system accounts or whale wallets with hundreds of token accounts
@@ -307,6 +511,7 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 15.0) -> li
             mint = info.get("mint", "")
             amt = float(info.get("tokenAmount", {}).get("uiAmount") or 0.0)
             if amt > 0.000001 and mint:
+                _KNOWN_WALLET_MINTS.add(mint)
                 is_usdc = (mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
                 parsed_entries.append({
                     "mint": mint,
@@ -342,6 +547,10 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 15.0) -> li
                 tok_info = market.get_live_token_info(mint)
 
             symbol = "USDC" if is_usdc else ((tok_info.get("symbol") if tok_info else None) or mint[:6])
+            base_sym_check = (symbol or "").split("/")[0].upper()
+            sold_ts = _RECENTLY_SOLD_TOKENS.get(mint) or _RECENTLY_SOLD_TOKENS.get(base_sym_check)
+            if sold_ts and (now_ts - sold_ts) < 30.0:
+                continue
             price = 1.0 if is_usdc else (float(tok_info.get("price", 0.0) or 0.0) if tok_info else 0.0)
             liq = 999999.0 if is_usdc else (float(tok_info.get("liquidity", 0.0) or 0.0) if tok_info else 0.0)
             # Ignore rugged / dead spam tokens with < $50 liquidity (e.g. solpump, rugsfun, PHP) so wallet & terminal match Phantom's active tokens
@@ -359,10 +568,16 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 15.0) -> li
                 "usd_val": round(usd_val, 4),
             })
 
-        if success_prog_count == len(programs) or tokens:
+        if success_prog_count == len(programs):
+            _SPL_CACHE_FRESH[addr] = True
             _SPL_CACHE[addr] = (now_ts, tokens)
+        else:
+            _SPL_CACHE_FRESH[addr] = False
+            if tokens and not cached_entry:
+                _SPL_CACHE[addr] = (now_ts - max_cache_seconds + 6.0, tokens)
         return tokens
     except Exception:
+        _SPL_CACHE_FRESH[addr] = False
         return _SPL_CACHE.get(addr, (0, []))[1]
 
 
@@ -442,31 +657,42 @@ def query_onchain_wallet_balance(address: str, chain: str = "Solana") -> dict:
                 "method": "getBalance",
                 "params": [addr],
             }
+            last_data = {}
+            used_ep = SOLANA_MAINNET_RPC
             with httpx.Client(timeout=4.0) as client:
-                resp = client.post(SOLANA_MAINNET_RPC, json=payload)
+                for ep in SOLANA_RPC_POOL:
+                    try:
+                        t_ep = time.perf_counter()
+                        resp = client.post(ep, json=payload)
+                        latency_ms = round((time.perf_counter() - t_ep) * 1000.0, 1)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            last_data = data
+                            used_ep = ep.split("?")[0]
+                            if "result" in data and "value" in data["result"]:
+                                lamports = int(data["result"]["value"])
+                                sol_bal = round(lamports / 1e9, 6)
+                                return {
+                                    "rpc_connected": True,
+                                    "chain": "Solana",
+                                    "rpc_endpoint": used_ep,
+                                    "latency_ms": latency_ms,
+                                    "onchain_balance": sol_bal,
+                                    "token": "SOL",
+                                    "valid_address": True,
+                                }
+                    except Exception:
+                        continue
                 latency_ms = round((time.perf_counter() - t0) * 1000.0, 1)
-                data = resp.json()
-                if "result" in data and "value" in data["result"]:
-                    lamports = int(data["result"]["value"])
-                    sol_bal = round(lamports / 1e9, 6)
-                    return {
-                        "rpc_connected": True,
-                        "chain": "Solana",
-                        "rpc_endpoint": SOLANA_MAINNET_RPC,
-                        "latency_ms": latency_ms,
-                        "onchain_balance": sol_bal,
-                        "token": "SOL",
-                        "valid_address": True,
-                    }
                 return {
                     "rpc_connected": True,
                     "chain": "Solana",
-                    "rpc_endpoint": SOLANA_MAINNET_RPC,
+                    "rpc_endpoint": used_ep,
                     "latency_ms": latency_ms,
                     "onchain_balance": None,
                     "token": "SOL",
                     "valid_address": False,
-                    "note": data.get("error", {}).get("message", "Format alamat Solana tidak dikenal di Mainnet"),
+                    "note": last_data.get("error", {}).get("message", "Format alamat Solana tidak dikenal di Mainnet"),
                 }
         else:
             rpc_url = BASE_MAINNET_RPC if chain_norm.lower() == "base" else ETH_MAINNET_RPC

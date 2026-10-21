@@ -191,7 +191,8 @@ def execute_snipe(db: Session, data: dict) -> dict:
     token_launchpad = (live_tok.get("launchpad") if live_tok else None) or check.get("launchpad") or "Pump.fun"
     gmgn_url = (live_tok.get("gmgn_url") if live_tok else None) or f"https://gmgn.ai/sol/token/{resolved_contract}"
     dex_url = (live_tok.get("dex_url") if live_tok else None) or check.get("dex_url") or ""
-    target_chain = "Base" if "USDC" in resolved_symbol.upper() or check.get("chain") == "Base" else "Solana"
+    is_evm_contract = str(resolved_contract).startswith("0x")
+    target_chain = "Solana" if (snipe_mode == "LIVE" or not is_evm_contract) else "Base"
 
     # Determine buy amount in USD (supports amount_idr or amount_usd)
     if data.get("amount_idr") is not None and float(data["amount_idr"]) > 0:
@@ -286,6 +287,7 @@ def execute_snipe(db: Session, data: dict) -> dict:
                 )
 
         # Execute real on-chain transaction without fake fallback
+        onchain_out_raw = None
         try:
             if swap_via_usdc:
                 onchain_tx_res = solana_trader.execute_onchain_usdc_to_token(
@@ -302,9 +304,27 @@ def execute_snipe(db: Session, data: dict) -> dict:
             if not onchain_tx_res or not onchain_tx_res.get("tx_hash"):
                 raise RuntimeError("Transaksi swap on-chain tidak menghasilkan tx hash yang valid.")
             tx_hash = onchain_tx_res["tx_hash"]
-            live_engine.invalidate_spl_cache(live_wallet.address)
+            onchain_out_raw = onchain_tx_res.get("out_amount_raw")
         except Exception as swap_err:
             raise RuntimeError(f"EKSEKUSI_SWAP_ONCHAIN_GAGAL: {swap_err}") from swap_err
+
+        fill_price_est = live_price * (1.0 + eff_slippage_pct / 100.0)
+        net_swap_usd_est = max(0.0001, amount_usd - dex_fee_usd)
+        est_qty = round(net_swap_usd_est / fill_price_est, 6) if fill_price_est > 0 else 0.0
+        if onchain_out_raw and int(onchain_out_raw) > 0:
+            est_qty = round(int(onchain_out_raw) / 1e6, 6)
+
+        # Immediately inject the newly bought token into _SPL_CACHE so even if Solana RPC returns 429
+        # right after confirmation, sync_onchain_holdings_to_portfolio keeps 100% parity with Phantom Wallet!
+        live_engine.upsert_spl_cache_token(
+            address=live_wallet.address,
+            mint=resolved_contract,
+            symbol=resolved_symbol,
+            amount=est_qty,
+            price=live_price,
+            liquidity=liq_usd,
+            spent_usdc=amount_usd if swap_via_usdc else 0.0,
+        )
 
         try:
             from app.services import wallets as wallet_svc
@@ -317,6 +337,7 @@ def execute_snipe(db: Session, data: dict) -> dict:
         t_state.total_dex_fees_usd = float(t_state.total_dex_fees_usd or 0.0) + dex_fee_usd
         db.commit()
     else:
+        onchain_out_raw = None
         # PAPER MODE: Check against Paper Cash balance
         available_usd = float(paper_wallet.balance)
         initial_usd = round(portfolio.PAPER_INITIAL_CAPITAL_IDR / usd_idr, 4)
@@ -342,6 +363,8 @@ def execute_snipe(db: Session, data: dict) -> dict:
     fill_price = live_price * (1.0 + eff_slippage_pct / 100.0)
     net_swap_usd = max(0.0001, amount_usd - dex_fee_usd)
     qty = round(net_swap_usd / fill_price, 6) if fill_price > 0 else 0.0
+    if snipe_mode == "LIVE" and onchain_out_raw and int(onchain_out_raw) > 0:
+        qty = round(int(onchain_out_raw) / 1e6, 6)
     effective_entry_price = (amount_usd / qty) if qty > 0 else fill_price
 
     holding = portfolio.add_holding(

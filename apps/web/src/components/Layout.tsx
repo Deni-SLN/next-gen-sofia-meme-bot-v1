@@ -9,6 +9,7 @@ import {
   formatUsd,
   getTradingMode,
   setTradingMode,
+  getStrategyMode,
 } from '@/lib/api';
 import {
   ConnectedExtensionWallet,
@@ -229,7 +230,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMobileMenuOpen(false);
-    setAuthenticated(Boolean(getToken()));
+    const hasAuth = Boolean(getToken());
+    setAuthenticated(hasAuth);
+    if (hasAuth) {
+      api
+        .getBotStatus()
+        .then((res) => {
+          const running = res?.status === 'running';
+          setBotRunning(running);
+          if (running && (res?.mode === 'LIVE' || res?.mode === 'PAPER')) {
+            setMode(res.mode);
+            setTradingMode(res.mode);
+          }
+        })
+        .catch(() => {});
+    }
   }, [router.pathname]);
 
   useEffect(() => {
@@ -243,14 +258,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
       api
         .getBotStatus()
         .then((res) => {
-          setBotRunning(res?.status === 'running');
+          const running = res?.status === 'running';
+          setBotRunning(running);
+          if (running && (res?.mode === 'LIVE' || res?.mode === 'PAPER')) {
+            setMode(res.mode);
+            setTradingMode(res.mode);
+          }
         })
         .catch(() => {});
       fetchLiveBalances();
     }
   }, [authenticated]);
 
+  // Global background bot heartbeat: ensures bot keeps running & UI stays synced even when navigating away from '/' or '/trading'
+  useEffect(() => {
+    if (!authenticated || !botRunning) return;
+    const isBotCardMountedPage = router.pathname === '/' || router.pathname === '/trading';
+    const interval = setInterval(() => {
+      // On pages where BotActivityCard is not mounted, trigger background tick & sync state
+      api
+        .getBotActivity(!isBotCardMountedPage, false)
+        .then((res) => {
+          if (res?.status) {
+            setBotRunning(res.status === 'running');
+          }
+          if (res?.trade_executed && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res.trade_action }));
+            fetchLiveBalances();
+          }
+        })
+        .catch(() => {});
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [authenticated, botRunning, router.pathname]);
+
   const handleSelectMode = (nextMode: 'PAPER' | 'LIVE') => {
+    if (botRunning && nextMode !== mode) {
+      setHeaderNotice('🔒 Mode tidak dapat diubah selama Bot sedang berjalan. Hentikan Bot terlebih dahulu.');
+      setTimeout(() => setHeaderNotice(''), 4000);
+      return;
+    }
     setMode(nextMode);
     setTradingMode(nextMode);
   };
@@ -278,7 +326,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: false } }));
         }
       } else {
-        await api.startBot(mode);
+        await api.startBot(mode, getStrategyMode());
         setBotRunning(true);
         setHeaderNotice(`Auto-Sniper Bot diaktifkan (${mode} Mode).`);
         if (typeof window !== 'undefined') {

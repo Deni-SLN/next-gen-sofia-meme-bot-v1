@@ -33,6 +33,21 @@ export function setTradingMode(mode: 'PAPER' | 'LIVE'): void {
   }
 }
 
+export function getStrategyMode(): 'SAFE' | 'DEFAULT' | 'AGGRESSIVE' {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('sofia_strategy_mode');
+    if (saved === 'SAFE' || saved === 'DEFAULT' || saved === 'AGGRESSIVE') return saved;
+  }
+  return 'AGGRESSIVE';
+}
+
+export function setStrategyModeStorage(mode: 'SAFE' | 'DEFAULT' | 'AGGRESSIVE'): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('sofia_strategy_mode', mode);
+    window.dispatchEvent(new CustomEvent('sofia-strategy-mode-change', { detail: mode }));
+  }
+}
+
 export function formatIdr(amountIdr: number | undefined | null): string {
   const val = Number(amountIdr || 0);
   const sign = val < 0 ? '-' : '';
@@ -201,11 +216,12 @@ export const api = {
       body: JSON.stringify({ enabled, max_copy_usd }),
     }),
   // Live Trading Journal Endpoints (Neonbase)
-  getJournal: (q?: string, outcome?: string, limit: number = 10) => {
+  getJournal: (q?: string, outcome?: string, limit: number = 20, page: number = 1) => {
     const params = new URLSearchParams();
     if (q) params.append('q', q);
     if (outcome) params.append('outcome', outcome);
     if (limit) params.append('limit', String(limit));
+    if (page) params.append('page', String(page));
     const qs = params.toString();
     return request<any>(`/journal${qs ? `?${qs}` : ''}`);
   },

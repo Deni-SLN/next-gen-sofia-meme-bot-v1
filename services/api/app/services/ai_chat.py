@@ -426,26 +426,64 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
             code = str(arguments.get("code") or "BBRI").strip().upper()
             tf = str(arguments.get("timeframe") or "1d").strip()
             data = stocks_service.analyze_stock(code, timeframe=tf, force_refresh=False)
-            plan = data.get("trading_plan", {})
+            plan = data.get("trading_plan") or {}
+            val = data.get("valuation") or {}
+            scenarios = val.get("scenarios") or {}
+            multiples = val.get("multiples") or {}
+            fund = data.get("fundamentals") or {}
+            f_metrics = fund.get("metrics") or {}
+            div = data.get("dividend") or {}
+            tech = data.get("technicals") or {}
+            ai_rep = data.get("ai_analyst") or {}
+            macd_hist = tech.get("macd_histogram")
+            macd_status = "Bullish Momentum" if (isinstance(macd_hist, (int, float)) and macd_hist >= 0) else "Bearish Momentum"
             return {
                 "tool": "analyze_stock",
                 "status": "success",
                 "code": data.get("code"),
                 "name": data.get("name"),
+                "sector": data.get("sector"),
+                "subsector": data.get("subsector"),
                 "current_price": data.get("current_price"),
                 "day_change": data.get("day_change"),
                 "day_change_pct": data.get("day_change_pct"),
-                "signal_direction": plan.get("signal_direction"),
-                "action_verdict": plan.get("action_verdict"),
+                "signal_direction": plan.get("signal_direction") or plan.get("signal") or (ai_rep.get("signal_rationale") or {}).get("signal"),
+                "action_verdict": plan.get("action_verdict") or plan.get("strategy_label"),
                 "entry_zone": f"Rp {plan.get('entry_zone_low')} – Rp {plan.get('entry_zone_high')}",
                 "tp_1": plan.get("tp_1"),
                 "tp_2": plan.get("tp_2"),
                 "stop_loss": plan.get("stop_loss"),
-                "net_rr_ratio": plan.get("net_risk_reward_ratio"),
-                "trend_status": plan.get("trend_status"),
-                "key_indicator_summary": plan.get("indicator_summary"),
-                "valuation_base": data.get("valuation_engine", {}).get("scenarios", {}).get("base_case"),
-                "valuation_verdict": data.get("valuation_engine", {}).get("verdict"),
+                "net_rr_ratio": plan.get("net_risk_reward_ratio") or plan.get("risk_reward_ratio"),
+                "trend_status": plan.get("trend_status") or (tech.get("structure") or {}).get("trend_regime"),
+                "key_indicator_summary": plan.get("indicator_summary") or plan.get("signal_reason"),
+                "valuation_base": scenarios.get("base_case") or val.get("fair_value_base"),
+                "valuation_bear": scenarios.get("bear_case") or val.get("fair_value_bear"),
+                "valuation_bull": scenarios.get("bull_case") or val.get("fair_value_bull"),
+                "margin_of_safety_pct": val.get("margin_of_safety_pct"),
+                "valuation_verdict": val.get("valuation_status") or val.get("verdict"),
+                "fundamentals": {
+                    "per": multiples.get("pe_ttm") or f_metrics.get("per_ttm"),
+                    "pbv": multiples.get("pbv") or f_metrics.get("pbv"),
+                    "roe_pct": f_metrics.get("roe_pct"),
+                    "npm_pct": f_metrics.get("net_margin_pct"),
+                    "der": f_metrics.get("der_ratio") or f_metrics.get("debt_to_equity"),
+                    "eps": f_metrics.get("eps_ttm"),
+                    "revenue_growth_pct": f_metrics.get("revenue_yoy_pct") or f_metrics.get("revenue_growth_yoy_pct"),
+                },
+                "dividend": {
+                    "yield_pct": div.get("dividend_yield_pct") or multiples.get("dividend_yield_pct"),
+                    "per_share_idr": div.get("annual_dividend_per_share"),
+                    "status": div.get("sustainability_status") or div.get("status_badge"),
+                },
+                "technicals": {
+                    "rsi_14": tech.get("rsi_14"),
+                    "macd_signal": macd_status,
+                    "support_1": plan.get("support_1"),
+                    "support_2": plan.get("support_2"),
+                    "resistance_1": plan.get("resistance_1"),
+                    "resistance_2": plan.get("resistance_2"),
+                },
+                "ai_analyst": ai_rep,
             }
 
         elif name == "analyze_crypto":
@@ -453,24 +491,29 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
             tf = str(arguments.get("timeframe") or "1d").strip()
             data = crypto_service.analyze_crypto(symbol, timeframe=tf, force_refresh=False)
             plan = data.get("trading_plan", {})
+            tok = data.get("tokenomics", {})
+            tech = data.get("technicals", {})
             return {
                 "tool": "analyze_crypto",
                 "status": "success",
                 "symbol": data.get("code") or symbol,
                 "name": data.get("name") or symbol,
+                "category": data.get("category") or "Crypto Asset",
                 "price_usd": data.get("current_price_usd"),
                 "price_idr": data.get("current_price_idr"),
                 "day_change_pct": data.get("day_change_pct"),
-                "signal_direction": plan.get("signal_direction"),
-                "action_verdict": plan.get("action_verdict"),
+                "signal_direction": plan.get("signal_direction") or plan.get("signal"),
+                "action_verdict": plan.get("action_verdict") or plan.get("strategy_type"),
                 "entry_zone": f"${plan.get('entry_zone_low_usd')} - ${plan.get('entry_zone_high_usd')}",
                 "tp_1_usd": plan.get("tp_1_usd"),
                 "tp_2_usd": plan.get("tp_2_usd"),
                 "stop_loss_usd": plan.get("stop_loss_usd"),
-                "net_rr_ratio": plan.get("net_risk_reward_ratio"),
-                "trend_status": plan.get("trend_status"),
-                "staking_yield_apr": data.get("staking_intelligence", {}).get("estimated_apr_pct"),
-                "tokenomics_risk": data.get("tokenomics", {}).get("fdv_to_mcap_ratio"),
+                "net_rr_ratio": plan.get("net_risk_reward_ratio") or plan.get("risk_reward_ratio"),
+                "trend_status": plan.get("trend_status") or tech.get("trend_regime"),
+                "rsi_14": tech.get("rsi_14"),
+                "staking_yield_apr": tok.get("staking_apr_pct") or data.get("staking_intelligence", {}).get("estimated_apr_pct"),
+                "market_cap_usd": tok.get("market_cap_usd"),
+                "tokenomics_risk": tok.get("fdv_mcap_ratio") or tok.get("unlock_risk_verdict"),
             }
 
         elif name == "get_gold_prices":
@@ -580,18 +623,31 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
         elif name == "get_bot_and_portfolio_status":
             def _extract_summary(s: Session):
                 b_status = bot_service.get_bot_status(s)
-                p_data = portfolio_service.get_live_portfolio(s, refresh_live_prices=False)
+                cfg = bot_service.get_sniper_config()
+                active_mode = (b_status.mode or "LIVE").upper()
+                p_data = portfolio_service.get_overview(s, refresh_live_prices=False, mode=active_mode)
                 return {
                     "tool": "get_bot_and_portfolio_status",
                     "status": "success",
-                    "bot_running": b_status.get("status") == "running",
-                    "bot_mode": b_status.get("mode"),
-                    "total_trades": b_status.get("total_trades", 0),
+                    "bot_running": b_status.status == "running",
+                    "bot_mode": active_mode,
+                    "strategy_mode": cfg.get("strategy_mode", "DEFAULT"),
+                    "strategy_label": cfg.get("strategy_label", "DEFAULT"),
+                    "total_trades": b_status.total_trades or 0,
                     "portfolio": {
-                        "total_equity_usd": p_data.get("live_total_equity_usd") or p_data.get("paper_cash_usd"),
-                        "total_equity_idr": p_data.get("live_cash_idr") or p_data.get("paper_cash_idr"),
-                        "cash_balance_usd": p_data.get("paper_cash_usd"),
-                        "holdings_count": len(p_data.get("items", [])),
+                        "total_equity_usd": p_data.get("total_equity_usd") or p_data.get("total_value", 0.0),
+                        "total_equity_idr": p_data.get("total_equity_idr") or p_data.get("total_value_idr", 0.0),
+                        "cash_balance_usd": p_data.get("live_cash_usd") if active_mode == "LIVE" else p_data.get("paper_cash_usd"),
+                        "cash_balance_idr": p_data.get("live_cash_idr") if active_mode == "LIVE" else p_data.get("paper_cash_idr"),
+                        "holdings_count": len(p_data.get("holdings", [])),
+                        "holdings": [
+                            {
+                                "symbol": h.get("symbol"),
+                                "value_idr": h.get("net_value_idr") or h.get("value_idr"),
+                                "pnl_pct": h.get("net_pnl_pct") or h.get("pnl_pct"),
+                            }
+                            for h in (p_data.get("holdings") or [])[:5]
+                        ],
                     },
                 }
             if db is not None:
@@ -885,13 +941,180 @@ def run_chat_completion(
         r"^help\b",
     ])
 
+    is_deep_stock_prompt = (
+        "deep stock research" in lower_user
+        or "input analisis" in lower_user
+        or "kode saham:" in lower_user
+        or "peran ai" in lower_user
+    )
+
+    # Detect explicit stock ticker first so words like 'bandarmologi', 'dcf', 'rsi' in a stock query never get hijacked by Encyclopedia
+    detected_stock_ticker: Optional[str] = None
+    if is_deep_stock_prompt:
+        m_ticker_line = re.search(r"kode saham\s*:\s*\[?([A-Za-z]{4}|IHSG)\]?", last_user_msg, re.IGNORECASE)
+        if m_ticker_line and m_ticker_line.group(1).upper() not in ("TICK", "KODE"):
+            detected_stock_ticker = m_ticker_line.group(1).upper()
+        else:
+            all_caps = re.findall(r"\b([A-Z]{4})\b", last_user_msg)
+            ignore_caps = {
+                "DEEP", "PERA", "INPU", "NAMA", "KODE", "HARGA", "DATA", "DARI", "PADA",
+                "YANG", "BISA", "AKAN", "SAYA", "KAMU", "TIGA", " LIMA", "JIKA", "ATAU",
+                "UNTU", "DENG", "OLEH", "SAAT", "MAKA", "BUAT", "SKOR", " POIN", "RATA",
+                "BEAR", "BASE", "BULL", "CASE", "HOLD", "SELL", "STOP", "LOSS", "RISK",
+                "FLOW", "CASH", "DEBT", "FREE", "COST", "HIGH", "LOWS", "TRUE",
+            }
+            valid_t = [w for w in all_caps if w not in ignore_caps]
+            detected_stock_ticker = valid_t[0] if valid_t else "BBRI"
+
+    CRYPTO_MAP = {
+        "btc": "BTC", "bitcoin": "BTC", "eth": "ETH", "ethereum": "ETH",
+        "sol": "SOL", "solana": "SOL", "bnb": "BNB", "xrp": "XRP",
+        "doge": "DOGE", "dogecoin": "DOGE", "ada": "ADA", "cardano": "ADA",
+        "avax": "AVAX", "avalanche": "AVAX", "link": "LINK", "chainlink": "LINK",
+        "ton": "TON", "toncoin": "TON", "dot": "DOT", "polkadot": "DOT",
+        "trx": "TRX", "tron": "TRX", "apt": "APT", "aptos": "APT",
+        "sui": "SUI", "tia": "TIA", "celestia": "TIA", "jup": "JUP", "jupiter": "JUP",
+        "sei": "SEI", "near": "NEAR", "render": "RENDER", "rndr": "RENDER",
+        "tao": "TAO", "bittensor": "TAO", "fet": "FET", "inj": "INJ", "injective": "INJ",
+        "pendle": "PENDLE", "ondo": "ONDO", "kas": "KAS", "kaspa": "KAS",
+        "pepe": "PEPE", "bonk": "BONK", "wif": "WIF", "shib": "SHIB",
+        "arb": "ARB", "arbitrum": "ARB", "op": "OP", "optimism": "OP",
+        "uni": "UNI", "aave": "AAVE", "atom": "ATOM", "ltc": "LTC",
+        "hbar": "HBAR", "ena": "ENA", "pyth": "PYTH", "wld": "WLD", "ordi": "ORDI",
+    }
+    crypto_match = re.search(
+        r"\b(" + "|".join(CRYPTO_MAP.keys()) + r")\b",
+        lower_user,
+    )
+    detected_crypto_symbol = CRYPTO_MAP[crypto_match.group(1).lower()] if crypto_match else None
+
+    KNOWN_IDX_TICKERS = {
+        "IHSG", "BBRI", "BBCA", "BMRI", "BBNI", "TLKM", "ASII", "ADRO", "PTBA",
+        "ITMG", "ANTM", "PGAS", "UNTR", "ICBP", "BREN", "GOTO", "BRIS", "AMMN",
+        "MDKA", "INDF", "KLBF", "ACES", "MEDC", "INKP", "PGEO", "TPIA", "CUAN",
+        "AMRT", "CPIN", "EXCL", "ISAT", "JSMR", "MYOR", "SMGR", "TOWR", "AKRA",
+        "ESSA", "HRUM", "INCO", "MBMA", "NCKL", "PNBN", "BDMN", "BNGA", "NISP",
+        "ARTO", "BBTN", "BSDE", "CTRA", "PWON", "SMRA", "ERAA", "MAPI", "SIDO",
+    }
+    if not detected_stock_ticker and not is_asking_time and not is_general_or_capabilities:
+        if "ihsg" in lower_user:
+            detected_stock_ticker = "IHSG"
+        else:
+            for w in re.findall(r"\b([a-zA-Z]{4})\b", last_user_msg):
+                if w.upper() in KNOWN_IDX_TICKERS:
+                    detected_stock_ticker = w.upper()
+                    break
+            if not detected_stock_ticker and any(
+                k in lower_user for k in ("saham", "emiten", "bei", "idx", "analisa saham", "harga saham")
+            ):
+                m_code = re.search(
+                    r"\b(?:saham|emiten|analisa|evaluasi|harga|kode)\s+([a-zA-Z]{4})\b",
+                    last_user_msg,
+                    re.IGNORECASE,
+                )
+                if m_code and m_code.group(1).upper() not in (
+                    "SAHA", "EMIT", "ANAL", "EVAL", "HARG", "KODE", "YANG", "DARI", "PADA", "HARI", "APA",
+                ):
+                    detected_stock_ticker = m_code.group(1).upper()
+
+    is_explicit_definition_query = (
+        any(
+            k in lower_user
+            for k in ("apa itu", "pengertian", "jelaskan istilah", "maksud dari", "arti dari", "ensiklopedia")
+        )
+        and not detected_stock_ticker
+        and not detected_crypto_symbol
+        and not is_deep_stock_prompt
+    )
+
     if is_asking_time or is_general_or_capabilities:
-        # Time or general capabilities requested, do not run background financial tools
         pass
 
-    # 1. Market Encyclopedia & Financial Terms (Evaluated first for educational questions)
-    elif any(k in lower_user for k in (
-        "apa itu", "pengertian", "istilah", "maksud dari", "arti dari", "ensiklopedia",
+    # 1. Deep Stock Research or IDX Stock Analysis
+    elif is_deep_stock_prompt or detected_stock_ticker:
+        target_stk = detected_stock_ticker or "BBRI"
+        res = execute_application_tool("analyze_stock", {"code": target_stk, "timeframe": "1d"}, db)
+        res["is_deep_research"] = is_deep_stock_prompt
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_stock", "arguments": {"code": target_stk}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_stock('{target_stk}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 2. Memecoin Rugcheck & Security Audit
+    elif any(k in lower_user for k in ("rugcheck", "rug check", "honeypot", "audit token", "cek token", "scam coin")):
+        tok_match = re.search(r"\b(?:rugcheck|audit|token|koin|cek)?\s*([a-zA-Z0-9]{2,44})\b", last_user_msg, re.IGNORECASE)
+        target_token = tok_match.group(1).upper() if tok_match and tok_match.group(1).lower() not in ("cek", "rugcheck", "token") else "BONK"
+        res = execute_application_tool("analyze_memecoin_rugcheck", {"token": target_token}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_memecoin_rugcheck", "arguments": {"token": target_token}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_memecoin_rugcheck('{target_token}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 3. Crypto Analysis (BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, LINK, TON, etc.)
+    elif detected_crypto_symbol or any(k in lower_user for k in ("analisa crypto", "analisa kripto", "harga crypto", "harga bitcoin")):
+        s = detected_crypto_symbol or "BTC"
+        res = execute_application_tool("analyze_crypto", {"symbol": s, "timeframe": "1d"}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_crypto", "arguments": {"symbol": s}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_crypto('{s}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 4. Gold Prices & Buyback
+    elif any(k in lower_user for k in ("emas", "antam", "buyback", "xau", "ubs", "galeri24", "logam mulia")):
+        res = execute_application_tool("get_gold_prices", {}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "get_gold_prices", "arguments": {}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: get_gold_prices()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 5. Deposito & Bond Investment Calculator
+    elif any(k in lower_user for k in ("deposito", "obligasi", "sbn", "sukuk", "ori", "bunga bank", "bagi hasil")):
+        num_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(juta|jt|miliar|m|rb|ribu)?", lower_user)
+        nominal = 50000000.0 if "50.000.000" in lower_user or "50 juta" in lower_user else 10000000.0
+        if num_match:
+            try:
+                raw_cln = num_match.group(1).replace(".", "").replace(",", ".") if num_match.group(1).count(".") >= 2 else num_match.group(1).replace(",", ".")
+                raw_n = float(raw_cln)
+                unit = (num_match.group(2) or "").lower()
+                if "j" in unit:
+                    nominal = raw_n * 1000000.0
+                elif "m" in unit:
+                    nominal = raw_n * 1000000000.0
+                elif "r" in unit:
+                    nominal = raw_n * 1000.0
+                elif raw_n >= 100000:
+                    nominal = raw_n
+            except Exception:
+                nominal = 10000000.0
+        is_syariah = any(k in lower_user for k in ("syariah", "sukuk", "mudharabah", "bagi hasil", "sbsn"))
+        res = execute_application_tool(
+            "calculate_deposito_and_bonds",
+            {"nominal_idr": nominal, "deposito_rate_pct": 5.0, "bond_rate_pct": 6.8 if "6.8" in lower_user else 6.5, "tenor_days": 365, "is_syariah": is_syariah},
+            db
+        )
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "calculate_deposito_and_bonds", "arguments": {"nominal_idr": nominal, "is_syariah": is_syariah}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: calculate_deposito_and_bonds()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 6. Bot Trading Status & Portfolio Overview
+    elif any(k in lower_user for k in ("status bot", "bot trading", "auto-sniper", "sniper bot", "portofolio saya", "saldo wallet", "posisi aktif", "wallet live")):
+        res = execute_application_tool("get_bot_and_portfolio_status", {}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "get_bot_and_portfolio_status", "arguments": {}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: get_bot_and_portfolio_status()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 7. Financial & Market News
+    elif any(k in lower_user for k in ("berita", "news", "kabar pasar", "sentimen pasar", "headline")):
+        cat = "all"
+        if "saham" in lower_user or "ihsg" in lower_user:
+            cat = "saham"
+        elif "crypto" in lower_user or "kripto" in lower_user:
+            cat = "crypto"
+        elif "emas" in lower_user:
+            cat = "emas"
+        res = execute_application_tool("search_market_news", {"category": cat, "query": None}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "search_market_news", "arguments": {"category": cat}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: search_market_news()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 8. Market Encyclopedia & Financial Terms (for educational/terminology queries)
+    elif is_explicit_definition_query or any(k in lower_user for k in (
         "order block", "fvg", "bos", "choch", "ara", "arb", "mudharabah", "fair value gap",
         "bandarmologi", "broker summary", "broksum", "fca", "ppk", "notasi khusus", "tato saham",
         "waran", "dcf", "graham", "lq45", "idx30", "bonding curve", "dev dump",
@@ -918,160 +1141,71 @@ def run_chat_completion(
         executed_tool_results.append(res)
         auto_tool_context += f"\n\n[DATA TOOL SOFIA: lookup_market_encyclopedia('{kw}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
 
-    # 2. Memecoin Rugcheck & Security Audit
-    elif any(k in lower_user for k in ("rugcheck", "rug check", "honeypot", "audit token", "cek token", "scam coin", "audit")):
-        tok_match = re.search(r"\b(?:rugcheck|audit|token|koin|cek)?\s*([a-zA-Z0-9]{2,44})\b", last_user_msg, re.IGNORECASE)
-        target_token = tok_match.group(1).upper() if tok_match and tok_match.group(1).lower() not in ("cek", "rugcheck", "token") else "BONK"
-        res = execute_application_tool("analyze_memecoin_rugcheck", {"token": target_token}, db)
-        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_memecoin_rugcheck", "arguments": {"token": target_token}})
+    # 9. Stock Recommendation / Watchlist Idea Fallback
+    elif any(k in lower_user for k in ("rekomendasi", "saham apa", "watchlist", "ide trading", "sinyal")):
+        res = execute_application_tool("analyze_stock", {"code": "BBRI", "timeframe": "1d"}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_stock", "arguments": {"code": "BBRI"}})
         executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_memecoin_rugcheck('{target_token}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
-
-    # 3. Gold Prices & Buyback
-    elif any(k in lower_user for k in ("emas", "antam", "buyback", "xau", "ubs", "galeri24", "logam mulia")):
-        res = execute_application_tool("get_gold_prices", {}, db)
-        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "get_gold_prices", "arguments": {}})
-        executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA TOOL SOFIA: get_gold_prices()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
-
-    # 4. Deposito & Bond Investment Calculator
-    elif any(k in lower_user for k in ("deposito", "obligasi", "sbn", "sukuk", "ori", "bunga bank", "bagi hasil")):
-        num_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(juta|jt|miliar|m|rb|ribu)?", lower_user)
-        nominal = 10000000.0
-        if num_match:
-            try:
-                raw_n = float(num_match.group(1).replace(",", "."))
-                unit = (num_match.group(2) or "").lower()
-                if "j" in unit:
-                    nominal = raw_n * 1000000.0
-                elif "m" in unit:
-                    nominal = raw_n * 1000000000.0
-                elif "r" in unit:
-                    nominal = raw_n * 1000.0
-                elif raw_n > 10000:
-                    nominal = raw_n
-            except Exception:
-                nominal = 10000000.0
-        is_syariah = any(k in lower_user for k in ("syariah", "sukuk", "mudharabah", "bagi hasil", "sbsn"))
-        res = execute_application_tool(
-            "calculate_deposito_and_bonds",
-            {"nominal_idr": nominal, "deposito_rate_pct": 5.0, "bond_rate_pct": 6.5, "tenor_days": 365, "is_syariah": is_syariah},
-            db
-        )
-        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "calculate_deposito_and_bonds", "arguments": {"nominal_idr": nominal, "is_syariah": is_syariah}})
-        executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA TOOL SOFIA: calculate_deposito_and_bonds()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
-
-    # 5. Financial & Market News
-    elif any(k in lower_user for k in ("berita", "news", "kabar pasar", "sentimen pasar", "headline")):
-        cat = "all"
-        if "saham" in lower_user or "ihsg" in lower_user:
-            cat = "saham"
-        elif "crypto" in lower_user or "kripto" in lower_user:
-            cat = "crypto"
-        elif "emas" in lower_user:
-            cat = "emas"
-        res = execute_application_tool("search_market_news", {"category": cat, "query": None}, db)
-        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "search_market_news", "arguments": {"category": cat}})
-        executed_tool_results.append(res)
-        auto_tool_context += f"\n\n[DATA TOOL SOFIA: search_market_news()]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
-
-    # 6. Stocks Check (BEI / IDX) - Strict validation to prevent random words being treated as stock tickers
-    else:
-        stock_ticker = None
-        has_stock_intent = any(k in lower_user for k in ("saham", "emiten", "ihsg", "bei", "idx", "dividen", "bandarmologi", "valuasi", "analisa saham", "harga saham"))
-
-        if "ihsg" in lower_user:
-            stock_ticker = "IHSG"
-        elif has_stock_intent:
-            # When stock intent exists, find candidate ticker (e.g. 'saham BBRI', 'analisa BRIS', 'emiten BREN')
-            m_code = re.search(r"\b(?:saham|emiten|analisa|evaluasi|harga|kode)?\s*([a-zA-Z]{4})\b", last_user_msg, re.IGNORECASE)
-            if m_code and m_code.group(1).upper() not in ("SAHA", "EMIT", "ANAL", "EVAL", "HARG", "KODE"):
-                cand = m_code.group(1).upper()
-                if cand not in ("YANG", "DARI", "PADA", "BISA", "AKAN", "SAYA", "KAMU", "KEMU", "HARI", "INFO"):
-                    stock_ticker = cand
-        else:
-            # Only trigger if user wrote an explicit ALL-CAPS 4-letter ticker (like 'BBRI', 'BRIS', 'BREN')
-            all_caps_words = re.findall(r"\b([A-Z]{4})\b", last_user_msg)
-            valid_caps = [w for w in all_caps_words if w not in ("YANG", "DARI", "PADA", "BISA", "AKAN", "SAYA", "KAMU", "KEMU", "HARI", "INFO", "USER", "TEST", "NOTE", "CHAT")]
-            if valid_caps:
-                stock_ticker = valid_caps[0]
-
-        if stock_ticker:
-            res = execute_application_tool("analyze_stock", {"code": stock_ticker, "timeframe": "1d"}, db)
-            executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_stock", "arguments": {"code": stock_ticker}})
-            executed_tool_results.append(res)
-            auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_stock('{stock_ticker}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
-        elif any(k in lower_user for k in ("rekomendasi", "saham apa", "watchlist", "ide trading", "sinyal")):
-            # Top stock recommendation fallback
-            res = execute_application_tool("analyze_stock", {"code": "BBRI", "timeframe": "1d"}, db)
-            executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_stock", "arguments": {"code": "BBRI"}})
-            executed_tool_results.append(res)
-            auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_stock('BBRI')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
-
-        # 7. Crypto Check
-        crypto_match = re.search(r"\b(btc|bitcoin|eth|ethereum|sol|solana|xrp|doge|bonk|pepe|ada|bnb|sui|near|wif)\b", lower_user)
-        if crypto_match and not stock_ticker:
-            s = crypto_match.group(1).upper()
-            res = execute_application_tool("analyze_crypto", {"symbol": s, "timeframe": "1d"}, db)
-            executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_crypto", "arguments": {"symbol": s}})
-            executed_tool_results.append(res)
-            auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_crypto('{s}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: analyze_stock('BBRI')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
 
     # Inject auto tool context into system prompt
     if auto_tool_context:
         formatted_messages[0]["content"] += auto_tool_context
 
-    # Determine Base URL & Headers based on provider
-    if prov == "openrouter":
-        url = "https://openrouter.ai/api/v1/chat/completions"
-        key = api_key if (api_key and not api_key.startswith("SOFIA_")) else "sk-or-v1-free-tier-proxy"
-        headers = {
-            "Authorization": f"Bearer {key}",
-            "HTTP-Referer": "https://sofia.trade",
-            "X-Title": "SOFIA Market Analyst",
-            "Content-Type": "application/json",
-        }
-    elif prov == "9router":
-        url = "https://api.9router.com/v1/chat/completions"
-        key = api_key if (api_key and not api_key.startswith("SOFIA_")) else "9router-free-tier"
-        headers = {
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-        }
-    elif prov == "google":
-        key = api_key if (api_key and not api_key.startswith("SOFIA_")) else "AIzaSy-default"
-        url = f"https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-        }
-    else:
-        url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    # Determine Base URL & Headers based on provider (only call external LLM API if a real API key is configured)
+    clean_api_key = (api_key or "").strip()
+    has_valid_external_key = bool(clean_api_key) and not clean_api_key.startswith("SOFIA_") and clean_api_key not in (
+        "sk-or-v1-free-tier-proxy",
+        "9router-free-tier",
+        "AIzaSy-default",
+    )
 
-    payload: Dict[str, Any] = {
-        "model": selected_model,
-        "messages": formatted_messages,
-        "temperature": 0.4,
-        "max_tokens": 1500,
-    }
-
-    # Attempt calling Provider API
     assistant_content = ""
-    try:
-        with httpx.Client(timeout=25.0) as client:
-            res = client.post(url, json=payload, headers=headers)
-            if res.status_code == 200:
-                data = res.json()
-                choices = data.get("choices", [])
-                if choices:
-                    msg = choices[0].get("message", {})
-                    assistant_content = msg.get("content", "")
-    except Exception:
-        pass
+    if has_valid_external_key:
+        if prov == "openrouter":
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {clean_api_key}",
+                "HTTP-Referer": "https://sofia.trade",
+                "X-Title": "SOFIA Market Analyst",
+                "Content-Type": "application/json",
+            }
+        elif prov == "9router":
+            url = "https://api.9router.com/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {clean_api_key}",
+                "Content-Type": "application/json",
+            }
+        elif prov == "google":
+            url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {clean_api_key}",
+                "Content-Type": "application/json",
+            }
+        else:
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {clean_api_key}", "Content-Type": "application/json"}
 
-    # If provider call returned empty or error, synthesize intelligent institutional response
+        payload: Dict[str, Any] = {
+            "model": selected_model,
+            "messages": formatted_messages,
+            "temperature": 0.4,
+            "max_tokens": 1800,
+        }
+
+        try:
+            with httpx.Client(timeout=20.0) as client:
+                res = client.post(url, json=payload, headers=headers)
+                if res.status_code == 200:
+                    data = res.json()
+                    choices = data.get("choices", [])
+                    if choices:
+                        msg = choices[0].get("message", {})
+                        assistant_content = msg.get("content", "")
+        except Exception:
+            pass
+
+    # Synthesize intelligent institutional response using real SOFIA Engine data
     if not assistant_content:
         def _fmt_n(v, is_curr=True, prefix="Rp "):
             if v is None:
@@ -1089,7 +1223,6 @@ def run_chat_completion(
             tname = res0.get("tool")
 
             if tname == "analyze_stock":
-                # Check if tool execution was an error or empty
                 if res0.get("status") != "success" or not res0.get("code") or res0.get("current_price") is None:
                     target_code = res0.get("arguments", {}).get("code") or res0.get("code") or "yang dimasukkan"
                     assistant_content = (
@@ -1103,22 +1236,68 @@ def run_chat_completion(
                     tp2 = _fmt_n(res0.get("tp_2"))
                     sl = _fmt_n(res0.get("stop_loss"))
                     val_base = _fmt_n(res0.get("valuation_base"))
+                    val_bear = _fmt_n(res0.get("valuation_bear"))
+                    val_bull = _fmt_n(res0.get("valuation_bull"))
+                    mos = res0.get("margin_of_safety_pct")
+                    mos_str = f"{mos:+.2f}%" if isinstance(mos, (int, float)) else "N/A"
                     day_chg = res0.get("day_change_pct") or 0.0
+                    f_m = res0.get("fundamentals") or {}
+                    div_m = res0.get("dividend") or {}
+                    tech_m = res0.get("technicals") or {}
+                    ai_rep = res0.get("ai_analyst") or {}
+                    rubric = ai_rep.get("confidence_and_scoring_rubric", {}).get("pillar_scores", {})
 
-                    assistant_content = (
-                        f"### 📊 Hasil Analisa Saham: **{res0.get('code')}** ({res0.get('name')})\n\n"
-                        f"- **Harga Saat Ini**: {p_curr} ({'+' if day_chg >= 0 else ''}{day_chg}%)\n"
-                        f"- **Sinyal Kuantitatif**: **{res0.get('signal_direction', 'NETRAL')}** ({res0.get('action_verdict', 'HOLD')})\n"
-                        f"- **Zona Beli (Entry Range)**: **{res0.get('entry_zone', 'N/A')}**\n"
-                        f"- **Target Profit 1 (Konservatif)**: {tp1}\n"
-                        f"- **Target Profit 2 (Ekspansi)**: {tp2}\n"
-                        f"- **Stop Loss Proteksi**: {sl}\n"
-                        f"- **Rasio Reward/Risk Bersih**: **{res0.get('net_rr_ratio', 1.5)}x** (Setelah Fee Beli 0.15% & Jual 0.25%)\n"
-                        f"- **Status Tren**: {res0.get('trend_status', 'Konsolidasi')}\n\n"
-                        f"**Ringkasan Valuasi Fundamental:**\n"
-                        f"- Nilai Wajar Base Case (DCF & Multiples): {val_base} ({res0.get('valuation_verdict', 'Fairly Valued')})\n\n"
-                        f"💡 *Catatan Manajemen Risiko*: Disiplin memasang Stop Loss ketat dan batasi alokasi maksimal 1–2% risiko modal portofolio per posisi."
-                    )
+                    if res0.get("is_deep_research"):
+                        assistant_content = (
+                            f"## 📊 DEEP STOCK RESEARCH & INVESTMENT DECISION: **{res0.get('code')}** ({res0.get('name')})\n"
+                            f"*Sektor: {res0.get('sector') or 'BEI'} • Subsektor: {res0.get('subsector') or 'Utama'} • Bursa: IDX (BEI)*\n\n"
+                            f"### 1. Executive Summary & Tesis Utama\n"
+                            f"- **Harga Saat Ini**: **{p_curr}** ({'+' if day_chg >= 0 else ''}{day_chg}%)\n"
+                            f"- **Keputusan Kuantitatif**: **{res0.get('signal_direction', 'HOLD')}** — *{res0.get('action_verdict', 'Pantau Struktur Harga')}*\n"
+                            f"- **Ringkasan Eksekutif**: {ai_rep.get('executive_summary') or res0.get('key_indicator_summary') or 'Emiten dievaluasi secara independen menggunakan multi-pilar teknikal, laporan keuangan, dan valuasi intrinsik.'}\n\n"
+                            f"### 2. Metrik Fundamental Utama & Kualitas Keuangan\n"
+                            f"- **PER (TTM)**: `{f_m.get('per') or 'N/A'}x` | **PBV**: `{f_m.get('pbv') or 'N/A'}x`\n"
+                            f"- **ROE**: `{f_m.get('roe_pct') or 'N/A'}%` | **Net Profit Margin (NPM)**: `{f_m.get('npm_pct') or 'N/A'}%`\n"
+                            f"- **Debt-to-Equity (DER)**: `{f_m.get('der') or 'N/A'}x` | **EPS (TTM)**: `{_fmt_n(f_m.get('eps'))}`\n"
+                            f"- **Pertumbuhan Pendapatan (YoY)**: `{f_m.get('revenue_growth_pct') or 'N/A'}%`\n\n"
+                            f"### 3. Valuasi Intrinsik (DCF & Multiples — 3 Skenario)\n"
+                            f"- **Bear Case (Konservatif)**: **{val_bear}**\n"
+                            f"- **Base Case (Nilai Wajar Utama)**: **{val_base}** ({res0.get('valuation_verdict', 'Fairly Valued')})\n"
+                            f"- **Bull Case ( Pertumbuhan Optimis)**: **{val_bull}**\n"
+                            f"- **Margin of Safety (MoS)**: **{mos_str}** terhadap harga saat ini ({p_curr})\n\n"
+                            f"### 4. Analisis Dividen & Struktur Modal\n"
+                            f"- **Dividend Yield (TTM)**: **{div_m.get('yield_pct') or 0}%** ({div_m.get('status') or 'Reguler'})\n"
+                            f"- **Dividen Tahunan per Lembar**: {_fmt_n(div_m.get('per_share_idr'))} / lembar\n\n"
+                            f"### 5. Analisis Teknikal & Struktur Pasar\n"
+                            f"- **Status Tren**: {res0.get('trend_status', 'Konsolidasi')} | **RSI (14)**: `{tech_m.get('rsi_14') or 'N/A'}` | **MACD**: `{tech_m.get('macd_signal') or 'Netral'}`\n"
+                            f"- **Support Kunci**: S1 `{_fmt_n(tech_m.get('support_1'))}` • S2 `{_fmt_n(tech_m.get('support_2'))}`\n"
+                            f"- **Resistance Kunci**: R1 `{_fmt_n(tech_m.get('resistance_1'))}` • R2 `{_fmt_n(tech_m.get('resistance_2'))}`\n\n"
+                            f"### 6. Strategi Entry, Target Harga & Invalidasi Tesis\n"
+                            f"- **Zona Entry Ideal**: **{res0.get('entry_zone', 'N/A')}**\n"
+                            f"- **Target Profit 1 (TP1)**: **{tp1}** | **Target Profit 2 (TP2)**: **{tp2}**\n"
+                            f"- **Level Invalidasi / Stop Loss**: **{sl}** (Net R/R: **{res0.get('net_rr_ratio', 1.5)}x** setelah fee BEI 0.40% PP)\n\n"
+                            f"### 7. Skor Komponen (0–100) & Manajemen Risiko\n"
+                            f"- **Skor Teknikal**: `{rubric.get('technical_score_0_100', 70)}/100` | **Skor Fundamental**: `{rubric.get('fundamental_score_0_100', 75)}/100` | **Skor Valuasi**: `{rubric.get('valuation_score_0_100', 72)}/100`\n"
+                            f"- **Aturan Risiko**: Batasi risiko maksimal 1–2% dari total ekuitas portofolio per posisi dan hindari mengejar harga saat mendekati batas ARA/resistensi kuat."
+                        )
+                    else:
+                        assistant_content = (
+                            f"### 📊 Hasil Analisa Saham: **{res0.get('code')}** ({res0.get('name')})\n"
+                            f"*Sektor: {res0.get('sector') or 'BEI'} • {res0.get('subsector') or 'IDX'}*\n\n"
+                            f"- **Harga Saat Ini**: **{p_curr}** ({'+' if day_chg >= 0 else ''}{day_chg}%)\n"
+                            f"- **Sinyal Kuantitatif**: **{res0.get('signal_direction', 'NETRAL')}** ({res0.get('action_verdict', 'HOLD')})\n"
+                            f"- **Zona Beli (Entry Range)**: **{res0.get('entry_zone', 'N/A')}**\n"
+                            f"- **Target Profit 1 (Konservatif)**: {tp1}\n"
+                            f"- **Target Profit 2 (Ekspansi)**: {tp2}\n"
+                            f"- **Stop Loss / Invalidasi**: {sl} (Support 1: {_fmt_n(tech_m.get('support_1'))} • Resistance 1: {_fmt_n(tech_m.get('resistance_1'))})\n"
+                            f"- **Rasio Reward/Risk Bersih**: **{res0.get('net_rr_ratio', 1.5)}x** (Setelah Fee Beli 0.15% & Jual 0.25%)\n"
+                            f"- **Status Tren & Momentum**: {res0.get('trend_status', 'Konsolidasi')} (RSI-14: `{tech_m.get('rsi_14') or 'N/A'}`)\n\n"
+                            f"**Ringkasan Fundamental, Valuasi & Dividen:**\n"
+                            f"- **PER / PBV / ROE**: PER `{f_m.get('per') or 'N/A'}x` • PBV `{f_m.get('pbv') or 'N/A'}x` • ROE `{f_m.get('roe_pct') or 'N/A'}%`\n"
+                            f"- **Nilai Wajar Base Case (DCF)**: **{val_base}** (MoS: `{mos_str}` • *{res0.get('valuation_verdict', 'Fairly Valued')}*)\n"
+                            f"- **Dividend Yield**: **{div_m.get('yield_pct') or 0}%** ({_fmt_n(div_m.get('per_share_idr'))}/lbr)\n\n"
+                            f"💡 *Catatan Manajemen Risiko*: {res0.get('key_indicator_summary') or 'Disiplin memasang Stop Loss ketat dan batasi alokasi maksimal 1–2% risiko modal portofolio per posisi.'}"
+                        )
 
             elif tname == "analyze_crypto":
                 if res0.get("status") != "success" or not res0.get("symbol") or res0.get("price_usd") is None:
@@ -1134,19 +1313,44 @@ def run_chat_completion(
                     tp2_usd = _fmt_n(res0.get("tp_2_usd"), prefix="$")
                     sl_usd = _fmt_n(res0.get("stop_loss_usd"), prefix="$")
                     day_chg = res0.get("day_change_pct") or 0.0
+                    rsi_val = res0.get("rsi_14")
 
                     assistant_content = (
                         f"### 🪙 Hasil Analisa Crypto: **{res0.get('symbol')}** ({res0.get('name')})\n\n"
-                        f"- **Harga Live**: **{p_usd}** (≈ {p_idr})\n"
+                        f"- **Harga Live 24/7**: **{p_usd}** (≈ {p_idr})\n"
                         f"- **Perubahan 24 Jam**: {'+' if day_chg >= 0 else ''}{day_chg}%\n"
                         f"- **Sinyal Algoritmik**: **{res0.get('signal_direction', 'NEUTRAL')}** ({res0.get('action_verdict', 'WATCH')})\n"
-                        f"- **Zona Entry Ideal**: **{res0.get('entry_zone', 'N/A')}**\n"
+                        f"- **Status Tren & RSI-14**: {res0.get('trend_status', 'Konsolidasi')} (RSI-14: `{rsi_val if rsi_val is not None else 'N/A'}`)\n"
+                        f"- **Zona Entry / Area DCA Ideal**: **{res0.get('entry_zone', 'N/A')}**\n"
                         f"- **Target Profit 1**: {tp1_usd}\n"
                         f"- **Target Profit 2**: {tp2_usd}\n"
-                        f"- **Stop Loss**: {sl_usd}\n"
-                        f"- **Net R/R Ratio**: **{res0.get('net_rr_ratio', 2.0)}x** (setelah fee exchange & PPh 0.10% + PPN 0.11%)\n"
-                        f"- **Estimasi Staking APR**: {res0.get('staking_yield_apr', 'N/A')}%\n"
+                        f"- **Stop Loss Proteksi**: {sl_usd}\n"
+                        f"- **Net R/R Ratio**: **{res0.get('net_rr_ratio', 2.0)}x** (setelah fee exchange & pajak kripto)\n"
+                        f"- **Estimasi Staking APR**: **{res0.get('staking_yield_apr', 'N/A')}%** p.a.\n\n"
+                        f"💡 *Strategi DCA & Risiko*: Cicil akumulasi bertahap (DCA) di area Zona Entry Ideal saat RSI tidak berada di area ekstrem overbought (>70), dan selalu pasang Stop Loss di bawah struktur support."
                     )
+
+            elif tname == "get_bot_and_portfolio_status":
+                port = res0.get("portfolio", {})
+                h_list = port.get("holdings") or []
+                h_text = (
+                    "\n".join(
+                        f"  - **{h.get('symbol')}**: {_fmt_n(h.get('value_idr'))} ({h.get('pnl_pct', 0):+.2f}%)"
+                        for h in h_list
+                    )
+                    if h_list
+                    else "  - *Belum ada koin aktif di portofolio saat ini*"
+                )
+                assistant_content = (
+                    f"### 🤖 Status Bot Trading & Portofolio SOFIA\n\n"
+                    f"- **Status Mesin Auto-Sniper**: **{'🟢 AKTIF (Running 24/7)' if res0.get('bot_running') else '⏹ IDLE (Standby)'}**\n"
+                    f"- **Mode Eksekusi**: **{res0.get('bot_mode', 'LIVE')}** • **Strategi**: **{res0.get('strategy_label') or res0.get('strategy_mode', 'DEFAULT')}**\n"
+                    f"- **Total Ekuitas Portofolio**: **{_fmt_n(port.get('total_equity_idr'))}** (≈ {_fmt_n(port.get('total_equity_usd'), prefix='$')})\n"
+                    f"- **Saldo Kas Tersedia**: **{_fmt_n(port.get('cash_balance_idr'))}** (≈ {_fmt_n(port.get('cash_balance_usd'), prefix='$')})\n"
+                    f"- **Jumlah Posisi Aktif**: **{port.get('holdings_count', 0)} Koin**\n"
+                    f"{h_text}\n"
+                    f"- **Total Transaksi Selesai**: **{res0.get('total_trades', 0)} Eksekusi**"
+                )
 
             elif tname == "get_gold_prices":
                 assistant_content = (
@@ -1233,17 +1437,6 @@ def run_chat_completion(
                         + "\n\n".join(art_lines)
                         + "\n\n💡 *Sentimen Pasar*: Pantau perkembangan berita makroekonomi dan sentimen global untuk mengonfirmasi arah tren bursa saham, kripto, dan komoditas."
                     )
-
-            elif tname == "get_bot_and_portfolio_status":
-                port = res0.get("portfolio", {})
-                assistant_content = (
-                    f"### 🤖 Status Bot Trading & Portofolio SOFIA\n\n"
-                    f"- **Status Bot Sniper**: **{'AKTIF (Running)' if res0.get('bot_running') else 'IDLE (Standby)'}** (Mode: {res0.get('bot_mode', 'PAPER')})\n"
-                    f"- **Total Ekuitas**: **{_fmt_n(port.get('total_equity_usd'), prefix='$')}** (≈ {_fmt_n(port.get('total_equity_idr'))})\n"
-                    f"- **Saldo Kas (Cash)**: {_fmt_n(port.get('cash_balance_usd'), prefix='$')}\n"
-                    f"- **Jumlah Posisi Aktif**: {port.get('holdings_count', 0)} Token\n"
-                    f"- **Total Transaksi Selesai**: {res0.get('total_trades', 0)} Eksekusi"
-                )
             else:
                 assistant_content = f"Data dari tool **{tname}** berhasil diproses: {json.dumps(res0, ensure_ascii=False)}"
 

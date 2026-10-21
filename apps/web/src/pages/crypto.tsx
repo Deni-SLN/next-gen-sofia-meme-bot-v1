@@ -121,28 +121,10 @@ export default function CryptoAnalysisPage() {
     { code: 'BNB', name: 'BNB' },
     { code: 'XRP', name: 'XRP' },
     { code: 'DOGE', name: 'Dogecoin' },
-    { code: 'PEPE', name: 'Pepe' },
-    { code: 'BONK', name: 'Bonk' },
-    { code: 'WIF', name: 'dogwifhat' },
-    { code: 'SHIB', name: 'Shiba' },
-    { code: 'APT', name: 'Aptos' },
-    { code: 'SUI', name: 'Sui' },
-    { code: 'TIA', name: 'Celestia' },
-    { code: 'JUP', name: 'Jupiter' },
-    { code: 'SEI', name: 'Sei' },
-    { code: 'NEAR', name: 'NEAR' },
-    { code: 'RENDER', name: 'Render' },
-    { code: 'TAO', name: 'Bittensor' },
-    { code: 'FET', name: 'Fetch.ai' },
-    { code: 'INJ', name: 'Injective' },
-    { code: 'PENDLE', name: 'Pendle' },
-    { code: 'ONDO', name: 'Ondo' },
-    { code: 'KAS', name: 'Kaspa' },
+    { code: 'ADA', name: 'Cardano' },
     { code: 'AVAX', name: 'Avalanche' },
     { code: 'LINK', name: 'Chainlink' },
     { code: 'TON', name: 'Toncoin' },
-    { code: 'ADA', name: 'Cardano' },
-    { code: 'DOT', name: 'Polkadot' },
   ];
 
   const availableTimeframes = data?.available_timeframes || [
@@ -278,33 +260,13 @@ export default function CryptoAnalysisPage() {
             >
               <LucideIcon name="refresh-cw" className={`w-4 h-4 ${refreshing ? 'animate-spin text-cyan-400' : ''}`} />
             </button>
-            {/* QUICK ULTRAWIDE TOGGLE BUTTON */}
-            <button
-              type="button"
-              onClick={() => {
-                const next = !isUltrawide;
-                localStorage.setItem('sofia_ultrawide', next ? 'true' : 'false');
-                window.dispatchEvent(new CustomEvent('sofia-ultrawide-toggle', { detail: next }));
-              }}
-              className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
-                isUltrawide
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm shadow-cyan-500/10'
-                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 border-slate-700'
-              }`}
-              title="Alihkan antara Mode Biasa (3 card di atas & scroll ke bawah) dan Mode Layar Lebar (card dari bawah dipindahkan ke samping)"
-            >
-              <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">
-                {isUltrawide ? 'Mode Layar Lebar (Aktif)' : 'Mode Layar Lebar'}
-              </span>
-            </button>
           </form>
         </div>
 
-        {/* POPULAR CRYPTO QUICK BUTTONS */}
+        {/* POPULAR CRYPTO QUICK BUTTONS (MAX 10 COINS) */}
         <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           <span className="text-[11px] font-bold text-slate-400 mr-1 shrink-0">Koin Populer:</span>
-          {popularList.map((item: any) => {
+          {popularList.slice(0, 10).map((item: any) => {
             const active = activeSymbol === item.code;
             return (
               <button
@@ -324,6 +286,9 @@ export default function CryptoAnalysisPage() {
               </button>
             );
           })}
+          <span className="text-[11px] text-slate-500 ml-2 shrink-0">
+            • Koin lainnya ketik manual di kolom pencarian atas
+          </span>
         </div>
       </div>
 

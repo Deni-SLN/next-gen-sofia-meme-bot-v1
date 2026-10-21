@@ -3,40 +3,37 @@ import csv
 from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+import math
 from app.db.models import Trade, Wallet
-from app.services import market
+from app.services import market, live_engine
 
 
 def get_journal_summary(
     db: Session,
     token_filter: str | None = None,
     outcome_filter: str | None = None,
-    limit: int = 10,
+    limit: int = 20,
+    page: int = 1,
 ) -> dict:
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
 
-    # Calculate Modal Awal Live Trading from hot wallets (trading gate)
-    trading_wallets = list(
-        db.execute(
-            select(Wallet).where(
-                Wallet.gate == "trading",
-                ~Wallet.name.contains("Modal Paper"),
+    # Calculate real Live Trading Wallet capital (SOL + USDC + Active Holdings)
+    live_eq = live_engine.get_live_equity_metrics(db, usd_idr)
+    initial_capital_usd = float(live_eq.get("live_total_equity_usd") or 0.0)
+    if initial_capital_usd <= 0:
+        trading_wallets = list(
+            db.execute(
+                select(Wallet).where(
+                    Wallet.gate == "trading",
+                    ~Wallet.name.contains("Modal Paper"),
+                )
             )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
-
-    initial_capital_usd = 0.0
-    for w in trading_wallets:
-        token_upper = (w.token or "USDT").upper()
-        if "SOL" in token_upper and "USD" not in token_upper:
-            sol_info = market.get_live_token_info("SOL/USDT")
-            sol_price = float(sol_info["price"]) if (sol_info and sol_info.get("price", 0) > 10) else 145.0
-            initial_capital_usd += float(w.balance) * sol_price
-        else:
-            initial_capital_usd += float(w.balance)
+        for w in trading_wallets:
+            initial_capital_usd += live_engine.wallet_balance_to_usd(w)
 
     initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
 
@@ -89,9 +86,14 @@ def get_journal_summary(
         elif of == "OPEN":
             filtered = [t for t in filtered if t.status == "open"]
 
-    # Slice to 10 latest transactions by default so Neonbase payload and UI rendering are lightweight
+    # Paginate with maximum 20 trades per page
+    safe_limit = max(1, min(20, int(limit or 20)))
     total_matching = len(filtered)
-    display_trades = filtered[:limit] if limit > 0 else filtered
+    total_pages = max(1, math.ceil(total_matching / safe_limit))
+    safe_page = max(1, min(int(page or 1), total_pages))
+    start_idx = (safe_page - 1) * safe_limit
+    end_idx = start_idx + safe_limit
+    display_trades = filtered[start_idx:end_idx]
 
     items = []
     for t in display_trades:
@@ -158,15 +160,18 @@ def get_journal_summary(
         "net_result_usd": net_result_usd,
         "net_result_idr": net_result_idr,
         "net_result_pct": net_result_pct,
-        # Performance KPIs
+        # Performance KPIs & Pagination Metadata
         "total_trades": len(all_live_trades),
         "total_matching": total_matching,
-        "display_limit": limit,
+        "page": safe_page,
+        "limit": safe_limit,
+        "display_limit": safe_limit,
+        "total_pages": total_pages,
         "winning_trades": winning_trades,
         "losing_trades": losing_trades,
         "open_trades": open_trades,
         "win_rate": win_rate,
-        # Live Journal Trades Table (10 latest)
+        # Live Journal Trades Table (paginated max 20 per page)
         "trades": items,
     }
 

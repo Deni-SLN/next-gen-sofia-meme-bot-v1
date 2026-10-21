@@ -10,6 +10,8 @@ export default function CalendarPage() {
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
+  const [tradePage, setTradePage] = useState<number>(1);
+  const TRADES_PER_PAGE = 20;
 
   useEffect(() => {
     // Default to the current global trading mode
@@ -41,6 +43,10 @@ export default function CalendarPage() {
   }, [days, selectedDayDate]);
 
   const selectedDay = days.find((d: any) => d.date === selectedDayDate) || days[0];
+
+  useEffect(() => {
+    setTradePage(1);
+  }, [selectedDayDate, selectedMode, currentYear, currentMonth]);
 
   const handlePrevMonth = () => {
     if (currentMonth === 1) {
@@ -136,21 +142,6 @@ export default function CalendarPage() {
               <span>Semua Mode</span>
             </button>
           </div>
-
-          {/* Ultrawide Toggle */}
-          <button
-            type="button"
-            onClick={() => toggleUltrawide(!isUltrawide)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono text-[11px] font-bold transition ${
-              isUltrawide
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
-                : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border-obsidian-800 hover:text-white'
-            }`}
-            title="Beralih antara Mode Standar dan Mode Layar Lebar (Multi-Column Side-by-Side)"
-          >
-            <LucideIcon name={isUltrawide ? 'minimize' : 'maximize'} className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{isUltrawide ? 'Mode Layar Lebar: ON' : 'Mode Layar Lebar: OFF'}</span>
-          </button>
 
           {/* Month Navigator Controls */}
           <div className="flex items-center bg-obsidian-950 rounded-xl border border-obsidian-700 p-0.5">
@@ -437,96 +428,136 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* Trade Table */}
-          {selectedDay?.trades && selectedDay.trades.length > 0 ? (
-            <div className="overflow-x-auto mt-3">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-obsidian-800 text-[10px] text-slate-400 uppercase">
-                    <th className="py-2 px-2">Waktu</th>
-                    <th className="py-2 px-2">Mode</th>
-                    <th className="py-2 px-2">Token / Pair</th>
-                    <th className="py-2 px-2">Side</th>
-                    <th className="py-2 px-2 text-right">Harga Eksekusi</th>
-                    <th className="py-2 px-2 text-right">Qty</th>
-                    <th className="py-2 px-2 text-right">Total Nilai</th>
-                    <th className="py-2 px-2 text-right">Biaya (Slip/DEX/Gas)</th>
-                    <th className="py-2 px-2 text-right">Net PnL (Bersih)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-obsidian-800/60">
-                  {selectedDay.trades.map((t: any) => {
-                    const isWin = (t.pnl_usd || 0) > 0;
-                    return (
-                      <tr key={t.id} className="hover:bg-obsidian-800/40 transition">
-                        <td className="py-2.5 px-2 text-slate-400 text-[11px]">{t.time}</td>
-                        <td className="py-2.5 px-2">
-                          <span
-                            className={`text-[9px] px-1.5 py-0.5 rounded font-sans font-bold ${
-                              t.mode === 'LIVE'
-                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                            }`}
-                          >
-                            {t.mode}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2 font-bold text-slate-200">
-                          <a
-                            href={`https://dexscreener.com/search?q=${encodeURIComponent(t.symbol)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="hover:text-cyan-400 transition underline decoration-dotted"
-                          >
-                            {t.symbol}
-                          </a>
-                        </td>
-                        <td className="py-2.5 px-2">
-                          <span
-                            className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-                              t.side === 'buy'
-                                ? 'bg-cyan-500/20 text-cyan-300'
-                                : 'bg-amber-500/20 text-amber-300'
-                            }`}
-                          >
-                            {t.side}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2 text-right text-slate-300">
-                          <div>{formatUsd(t.price)}</div>
-                          <div className="text-[10px] text-slate-500">{formatIdr(t.price_idr)}</div>
-                        </td>
-                        <td className="py-2.5 px-2 text-right text-slate-300">
-                          {Number(t.quantity).toLocaleString()}
-                        </td>
-                        <td className="py-2.5 px-2 text-right text-slate-300">
-                          <div>{formatUsd(t.total_usd)}</div>
-                          <div className="text-[10px] text-slate-500">{formatIdr(t.total_idr)}</div>
-                        </td>
-                        <td className="py-2.5 px-2 text-right text-slate-400 text-[11px]">
-                          <div>{formatIdr(t.total_fee_idr)}</div>
-                          <div className="text-[9px] text-slate-500">
-                            Slip {t.slippage_pct}% • Gas {formatUsd(t.gas_fee_usd)}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-2 text-right font-bold">
-                          <div className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
-                            {isWin ? '+' : ''}
-                            {formatUsd(t.pnl_usd)} ({t.pnl_pct > 0 ? '+' : ''}
-                            {t.pnl_pct}%)
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-normal">
-                            {isWin ? '+' : ''}
-                            {formatIdr(t.pnl_idr)}
-                          </div>
-                        </td>
+          {/* Trade Table (Paginated Max 20 Trades Per Page) */}
+          {selectedDay?.trades && selectedDay.trades.length > 0 ? (() => {
+            const totalDayTrades = selectedDay.trades.length;
+            const totalTradePages = Math.max(1, Math.ceil(totalDayTrades / TRADES_PER_PAGE));
+            const safeTradePage = Math.min(Math.max(1, tradePage), totalTradePages);
+            const startIdx = (safeTradePage - 1) * TRADES_PER_PAGE;
+            const endIdx = Math.min(totalDayTrades, startIdx + TRADES_PER_PAGE);
+            const paginatedTrades = selectedDay.trades.slice(startIdx, endIdx);
+
+            return (
+              <div className="space-y-3 mt-3">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead>
+                      <tr className="border-b border-obsidian-800 text-[10px] text-slate-400 uppercase">
+                        <th className="py-2 px-2">Waktu</th>
+                        <th className="py-2 px-2">Mode</th>
+                        <th className="py-2 px-2">Token / Pair</th>
+                        <th className="py-2 px-2">Side</th>
+                        <th className="py-2 px-2 text-right">Harga Eksekusi</th>
+                        <th className="py-2 px-2 text-right">Qty</th>
+                        <th className="py-2 px-2 text-right">Total Nilai</th>
+                        <th className="py-2 px-2 text-right">Biaya (Slip/DEX/Gas)</th>
+                        <th className="py-2 px-2 text-right">Net PnL (Bersih)</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
+                    </thead>
+                    <tbody className="divide-y divide-obsidian-800/60">
+                      {paginatedTrades.map((t: any) => {
+                        const isWin = (t.pnl_usd || 0) > 0;
+                        return (
+                          <tr key={t.id} className="hover:bg-obsidian-800/40 transition">
+                            <td className="py-2.5 px-2 text-slate-400 text-[11px]">{t.time}</td>
+                            <td className="py-2.5 px-2">
+                              <span
+                                className={`text-[9px] px-1.5 py-0.5 rounded font-sans font-bold ${
+                                  t.mode === 'LIVE'
+                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                }`}
+                              >
+                                {t.mode}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-2 font-bold text-slate-200">
+                              <a
+                                href={`https://dexscreener.com/search?q=${encodeURIComponent(t.symbol)}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:text-cyan-400 transition underline decoration-dotted"
+                              >
+                                {t.symbol}
+                              </a>
+                            </td>
+                            <td className="py-2.5 px-2">
+                              <span
+                                className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                                  t.side === 'buy'
+                                    ? 'bg-cyan-500/20 text-cyan-300'
+                                    : 'bg-amber-500/20 text-amber-300'
+                                }`}
+                              >
+                                {t.side}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-2 text-right text-slate-300">
+                              <div>{formatUsd(t.price)}</div>
+                              <div className="text-[10px] text-slate-500">{formatIdr(t.price_idr)}</div>
+                            </td>
+                            <td className="py-2.5 px-2 text-right text-slate-300">
+                              {Number(t.quantity).toLocaleString()}
+                            </td>
+                            <td className="py-2.5 px-2 text-right text-slate-300">
+                              <div>{formatUsd(t.total_usd)}</div>
+                              <div className="text-[10px] text-slate-500">{formatIdr(t.total_idr)}</div>
+                            </td>
+                            <td className="py-2.5 px-2 text-right text-slate-400 text-[11px]">
+                              <div>{formatIdr(t.total_fee_idr)}</div>
+                              <div className="text-[9px] text-slate-500">
+                                Slip {t.slippage_pct}% • Gas {formatUsd(t.gas_fee_usd)}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-2 text-right font-bold">
+                              <div className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
+                                {isWin ? '+' : ''}
+                                {formatUsd(t.pnl_usd)} ({t.pnl_pct > 0 ? '+' : ''}
+                                {t.pnl_pct}%)
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-normal">
+                                {isWin ? '+' : ''}
+                                {formatIdr(t.pnl_idr)}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls for Daily Transaction Details (Max 20 trades per page) */}
+                <div className="pt-2.5 border-t border-obsidian-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                  <div className="text-[11px] text-slate-400">
+                    Menampilkan <strong className="text-slate-200">{startIdx + 1}–{endIdx}</strong> dari{' '}
+                    <strong className="text-cyan-300">{totalDayTrades}</strong> transaksi pada {selectedDay.date} (Maks {TRADES_PER_PAGE} trade/halaman)
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={safeTradePage <= 1}
+                      onClick={() => setTradePage((p) => Math.max(1, p - 1))}
+                      className="px-2.5 py-1 rounded bg-obsidian-950 hover:bg-obsidian-800 text-slate-200 border border-obsidian-700 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold transition"
+                    >
+                      ← Sebelumnya
+                    </button>
+                    <span className="px-2.5 py-1 rounded bg-obsidian-950 border border-cyan-500/30 text-cyan-300 text-[11px] font-extrabold">
+                      Hal {safeTradePage} / {totalTradePages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={safeTradePage >= totalTradePages}
+                      onClick={() => setTradePage((p) => Math.min(totalTradePages, p + 1))}
+                      className="px-2.5 py-1 rounded bg-obsidian-950 hover:bg-obsidian-800 text-slate-200 border border-obsidian-700 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-bold transition"
+                    >
+                      Berikutnya →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })() : (
             <div className="text-center py-8 text-xs font-mono text-slate-400">
               <p>Tidak ada riwayat closed trade yang tercatat pada {selectedDay?.date || 'tanggal ini'}.</p>
               {selectedDay?.is_today && (

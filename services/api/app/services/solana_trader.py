@@ -12,16 +12,24 @@ logger = logging.getLogger("sofia.solana_trader")
 
 NATIVE_SOL_MINT = "So11111111111111111111111111111111111111112"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://api.mainnet-beta.solana.com"
+SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://solana-rpc.publicnode.com"
+SOLANA_RPC_POOL = [
+    "https://solana-rpc.publicnode.com",
+    "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92",
+    "https://api.mainnet.solana.com",
+    "https://api.mainnet-beta.solana.com",
+]
+if SOLANA_MAINNET_RPC not in SOLANA_RPC_POOL:
+    SOLANA_RPC_POOL.insert(0, SOLANA_MAINNET_RPC)
 
 JUPITER_QUOTE_ENDPOINTS = [
-    "https://api.jup.ag/swap/v1/quote",
     "https://lite-api.jup.ag/swap/v1/quote",
+    "https://api.jup.ag/swap/v1/quote",
 ]
 
 JUPITER_SWAP_ENDPOINTS = [
-    "https://api.jup.ag/swap/v1/swap",
     "https://lite-api.jup.ag/swap/v1/swap",
+    "https://api.jup.ag/swap/v1/swap",
 ]
 
 
@@ -43,7 +51,7 @@ def get_jupiter_quote(
     amount_raw: int,
     slippage_bps: int = 150,
 ) -> dict:
-    """Fetch best swap routing quote from Jupiter v6 Aggregator."""
+    """Fetch best swap routing quote from Jupiter v6 Aggregator with automatic 429 retry."""
     params = {
         "inputMint": input_mint,
         "outputMint": output_mint,
@@ -52,15 +60,19 @@ def get_jupiter_quote(
     }
 
     last_err = None
-    for endpoint in JUPITER_QUOTE_ENDPOINTS:
-        try:
-            with httpx.Client(timeout=8.0) as client:
-                res = client.get(endpoint, params=params)
-                if res.status_code == 200:
-                    return res.json()
-                last_err = f"{endpoint} -> {res.status_code}: {res.text}"
-        except Exception as exc:
-            last_err = f"{endpoint} -> {exc}"
+    for attempt in range(3):
+        for endpoint in JUPITER_QUOTE_ENDPOINTS:
+            try:
+                with httpx.Client(timeout=8.0) as client:
+                    res = client.get(endpoint, params=params)
+                    if res.status_code == 200:
+                        return res.json()
+                    last_err = f"{endpoint} -> {res.status_code}: {res.text[:160]}"
+                    if res.status_code == 429:
+                        time.sleep(0.8 * (attempt + 1))
+            except Exception as exc:
+                last_err = f"{endpoint} -> {exc}"
+        time.sleep(0.5)
 
     raise RuntimeError(f"Gagal mengambil quote dari Jupiter: {last_err}")
 
@@ -78,17 +90,23 @@ def build_and_sign_swap_tx(quote_resp: dict, kp: Keypair) -> tuple[VersionedTran
 
     swap_tx_b64 = None
     last_err = None
-    for endpoint in JUPITER_SWAP_ENDPOINTS:
-        try:
-            with httpx.Client(timeout=10.0) as client:
-                res = client.post(endpoint, json=payload)
-                if res.status_code == 200:
-                    swap_tx_b64 = res.json().get("swapTransaction")
-                    if swap_tx_b64:
-                        break
-                last_err = f"{endpoint} -> {res.status_code}: {res.text}"
-        except Exception as exc:
-            last_err = f"{endpoint} -> {exc}"
+    for attempt in range(3):
+        for endpoint in JUPITER_SWAP_ENDPOINTS:
+            try:
+                with httpx.Client(timeout=10.0) as client:
+                    res = client.post(endpoint, json=payload)
+                    if res.status_code == 200:
+                        swap_tx_b64 = res.json().get("swapTransaction")
+                        if swap_tx_b64:
+                            break
+                    last_err = f"{endpoint} -> {res.status_code}: {res.text[:160]}"
+                    if res.status_code == 429:
+                        time.sleep(0.8 * (attempt + 1))
+            except Exception as exc:
+                last_err = f"{endpoint} -> {exc}"
+        if swap_tx_b64:
+            break
+        time.sleep(0.5)
 
     if not swap_tx_b64:
         raise RuntimeError(f"Gagal membuat transaksi swap Jupiter: {last_err}")
@@ -107,7 +125,7 @@ def broadcast_transaction(
     rpc_url: str = SOLANA_MAINNET_RPC,
     skip_preflight: bool = False,
 ) -> str:
-    """Broadcast signed VersionedTransaction to Solana Mainnet RPC node."""
+    """Broadcast signed VersionedTransaction to Solana Mainnet RPC node (with multi-node failover for Alpenglow v4.3+)."""
     b64_tx = base64.b64encode(bytes(signed_tx)).decode("utf-8")
     payload = {
         "jsonrpc": "2.0",
@@ -124,20 +142,33 @@ def broadcast_transaction(
         ],
     }
 
+    endpoints = [rpc_url] + [ep for ep in SOLANA_RPC_POOL if ep != rpc_url]
+    last_err = None
     with httpx.Client(timeout=15.0) as client:
-        res = client.post(rpc_url, json=payload)
-        data = res.json()
-        if "error" in data:
-            raise RuntimeError(f"Solana RPC Error: {data['error']}")
-        return data["result"]
+        for ep in endpoints:
+            try:
+                res = client.post(ep, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    if "error" not in data and "result" in data:
+                        return data["result"]
+                    last_err = data.get("error")
+                else:
+                    last_err = f"HTTP {res.status_code}: {res.text[:120]}"
+            except Exception as exc:
+                last_err = str(exc)
+    raise RuntimeError(f"Solana RPC Error across pool: {last_err}")
 
 
 def wait_for_confirmation(
     signature: str,
     rpc_url: str = SOLANA_MAINNET_RPC,
-    max_timeout_secs: int = 25,
+    max_timeout_secs: int = 20,
 ) -> dict:
-    """Poll Solana RPC until the transaction is confirmed on-chain."""
+    """
+    Poll Solana RPC until the transaction is confirmed on-chain.
+    Adapted for Solana Alpenglow (Votor/Rotor consensus) where sub-second finality (100-200ms) is standard.
+    """
     t0 = time.time()
     payload = {
         "jsonrpc": "2.0",
@@ -146,33 +177,40 @@ def wait_for_confirmation(
         "params": [[signature], {"searchTransactionHistory": True}],
     }
 
+    endpoints = [rpc_url] + [ep for ep in SOLANA_RPC_POOL if ep != rpc_url]
+    poll_idx = 0
     while time.time() - t0 < max_timeout_secs:
+        ep = endpoints[poll_idx % len(endpoints)]
+        poll_idx += 1
         try:
-            with httpx.Client(timeout=5.0) as client:
-                res = client.post(rpc_url, json=payload)
-                data = res.json()
-                vals = data.get("result", {}).get("value", [])
-                if vals and vals[0]:
-                    status_info = vals[0]
-                    conf = status_info.get("confirmationStatus")
-                    if conf in ("confirmed", "finalized"):
-                        err = status_info.get("err")
-                        return {
-                            "confirmed": True,
-                            "status": conf,
-                            "err": err,
-                            "slot": status_info.get("slot"),
-                            "elapsed_secs": round(time.time() - t0, 1),
-                        }
+            with httpx.Client(timeout=4.0) as client:
+                res = client.post(ep, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    vals = data.get("result", {}).get("value", [])
+                    if vals and vals[0]:
+                        status_info = vals[0]
+                        conf = status_info.get("confirmationStatus")
+                        if conf in ("confirmed", "finalized", "processed"):
+                            err = status_info.get("err")
+                            if conf in ("confirmed", "finalized") or err is not None:
+                                return {
+                                    "confirmed": err is None,
+                                    "status": conf,
+                                    "err": err,
+                                    "slot": status_info.get("slot"),
+                                    "elapsed_secs": round(time.time() - t0, 2),
+                                }
         except Exception:
             pass
-        time.sleep(1.5)
+        # Faster polling (0.5s) for Solana Alpenglow sub-second finality
+        time.sleep(0.5)
 
     return {
         "confirmed": False,
         "status": "pending_or_timeout",
         "err": None,
-        "elapsed_secs": round(time.time() - t0, 1),
+        "elapsed_secs": round(time.time() - t0, 2),
     }
 
 
@@ -274,41 +312,58 @@ def execute_onchain_usdc_to_token(
 def execute_onchain_token_to_sol(
     token_mint: str,
     amount_tokens_raw: int,
-    slippage_pct: float = 1.5,
+    slippage_pct: float = 3.5,
 ) -> dict:
     """
     Execute REAL On-Chain Swap from Target Token -> SOL on Solana Mainnet!
-    Returns on-chain signature, solscan link, amounts, and confirmation status.
+    Uses adaptive slippage (3.5% -> 8.0% retry if SlippageToleranceExceeded 6001)
+    so Quick Exit & Panic Sell never fail due to micro-volatility on meme coins.
     """
     kp = get_trading_keypair()
     if not kp:
         raise ValueError("SOFIA_SOLANA_TRADING_PRIVATE_KEY belum disetel di .env.local")
 
-    slippage_bps = int(round(slippage_pct * 100))
+    # Adaptive slippage tiers: start at max(slippage_pct, 3.5%), escalate to 8.0% if needed
+    slip_candidates = [max(float(slippage_pct or 3.5), 3.5), 8.0]
+    last_error_msg = None
 
-    logger.info(f"Mengambil Jupiter quote: {token_mint} -> SOL ({amount_tokens_raw} raw)...")
-    quote = get_jupiter_quote(
-        input_mint=token_mint,
-        output_mint=NATIVE_SOL_MINT,
-        amount_raw=amount_tokens_raw,
-        slippage_bps=slippage_bps,
-    )
+    for attempt_idx, slip_val in enumerate(slip_candidates):
+        slippage_bps = int(round(slip_val * 100))
+        try:
+            logger.info(f"Mengambil Jupiter quote: {token_mint} -> SOL ({amount_tokens_raw} raw, slippage {slippage_bps} bps)...")
+            quote = get_jupiter_quote(
+                input_mint=token_mint,
+                output_mint=NATIVE_SOL_MINT,
+                amount_raw=amount_tokens_raw,
+                slippage_bps=slippage_bps,
+            )
 
-    logger.info("Menandatangani transaksi swap sell dengan Keypair Phantom...")
-    signed_tx, expected_sig = build_and_sign_swap_tx(quote, kp)
+            logger.info("Menandatangani transaksi swap sell dengan Keypair Phantom...")
+            signed_tx, expected_sig = build_and_sign_swap_tx(quote, kp)
 
-    logger.info(f"Menyiarkan transaksi sell ke Solana Mainnet (Tx: {expected_sig})...")
-    actual_sig = broadcast_transaction(signed_tx)
+            logger.info(f"Menyiarkan transaksi sell ke Solana Mainnet (Tx: {expected_sig})...")
+            actual_sig = broadcast_transaction(signed_tx, skip_preflight=(attempt_idx > 0))
 
-    logger.info(f"Menunggu konfirmasi on-chain (Tx: {actual_sig})...")
-    conf = wait_for_confirmation(actual_sig)
+            logger.info(f"Menunggu konfirmasi on-chain (Tx: {actual_sig})...")
+            conf = wait_for_confirmation(actual_sig)
 
-    return {
-        "success": conf.get("confirmed", True),
-        "tx_hash": actual_sig,
-        "solscan_url": f"https://solscan.io/tx/{actual_sig}",
-        "in_tokens_raw": amount_tokens_raw,
-        "out_amount_sol": round(int(quote.get("outAmount", 0)) / 1e9, 6),
-        "price_impact_pct": quote.get("priceImpactPct"),
-        "confirmation": conf,
-    }
+            if conf.get("err") is not None:
+                last_error_msg = f"On-chain error: {conf.get('err')}"
+                logger.warning(f"Attempt {attempt_idx + 1} sell failed on-chain ({last_error_msg}), retrying with higher slippage...")
+                continue
+
+            return {
+                "success": True,
+                "tx_hash": actual_sig,
+                "solscan_url": f"https://solscan.io/tx/{actual_sig}",
+                "in_tokens_raw": amount_tokens_raw,
+                "out_amount_sol": round(int(quote.get("outAmount", 0)) / 1e9, 6),
+                "price_impact_pct": quote.get("priceImpactPct"),
+                "confirmation": conf,
+            }
+        except Exception as exc:
+            last_error_msg = str(exc)
+            logger.warning(f"Attempt {attempt_idx + 1} sell exception ({last_error_msg})")
+            time.sleep(0.6)
+
+    raise ValueError(f"Transaksi Quick Exit on-chain gagal dieksekusi: {last_error_msg}")

@@ -62,20 +62,27 @@ class SniperConfigUpdateRequest(BaseModel):
 def get_status(db: Session = Depends(get_db)):
     state = bot.get_bot_status(db)
     data = _row_to_dict(state)
-    cfg = bot.get_sniper_config()
+    cfg = bot.get_sniper_config(db)
     data["sniper_config"] = cfg
     data["strategy_mode"] = cfg.get("strategy_mode", "DEFAULT")
+    data["strategy_stats"] = cfg.get("strategy_stats", {})
     return data
 
 
 @router.get("/config")
-def get_config():
-    return bot.get_sniper_config()
+def get_config(db: Session = Depends(get_db)):
+    return bot.get_sniper_config(db)
 
 
 @router.put("/config")
-def update_config(body: SniperConfigUpdateRequest):
-    return bot.update_sniper_config(body.model_dump(exclude_unset=True))
+def update_config(body: SniperConfigUpdateRequest, db: Session = Depends(get_db)):
+    try:
+        return bot.update_sniper_config(body.model_dump(exclude_unset=True), db=db)
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"code": "MODE_LOCKED", "message": str(e)}, "detail": str(e)},
+        )
 
 
 @router.get("/activity")

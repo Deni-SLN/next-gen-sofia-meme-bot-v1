@@ -30,11 +30,12 @@ class TradeRecordRequest(BaseModel):
 def get_live_journal(
     q: str | None = Query(None, description="Filter by symbol or chain"),
     outcome: str | None = Query(None, description="Filter by WIN, LOSS, OPEN"),
-    limit: int = Query(10, ge=1, le=100, description="Max trades to return for display (default 10)"),
+    limit: int = Query(20, ge=1, le=20, description="Max trades per page (max 20)"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     db: Session = Depends(get_db),
 ):
-    """Retrieve Live Trading Journal summary with 4 Cards and 10 latest transactions stored in Neonbase."""
-    return journal.get_journal_summary(db, token_filter=q, outcome_filter=outcome, limit=limit)
+    """Retrieve Live Trading Journal summary with 4 Cards and paginated transactions (max 20 per page) stored in Neonbase."""
+    return journal.get_journal_summary(db, token_filter=q, outcome_filter=outcome, limit=limit, page=page)
 
 
 @router.get("/export-excel")

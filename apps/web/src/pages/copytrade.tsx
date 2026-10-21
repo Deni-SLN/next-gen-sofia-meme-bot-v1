@@ -26,20 +26,6 @@ export default function CopyTradePage() {
             <span className="text-emerald-400 font-mono font-bold">{formatIdr(usdIdr)}</span>
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => toggleUltrawide(!isUltrawide)}
-          className={`px-3 py-1.5 rounded-xl border text-xs font-mono font-bold transition flex items-center gap-2 ${
-            isUltrawide
-              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-          }`}
-          title="Mode Layar Lebar: Menampilkan dompet whale berdampingan multi-kolom horizontal"
-        >
-          <LucideIcon name={isUltrawide ? 'Minimize2' : 'Maximize2'} className="w-4 h-4" />
-          <span>{isUltrawide ? 'Layar Biasa' : 'Mode Layar Lebar'}</span>
-        </button>
       </div>
 
       <QueryState isLoading={smQuery.isLoading} isError={smQuery.isError} error={smQuery.error}>

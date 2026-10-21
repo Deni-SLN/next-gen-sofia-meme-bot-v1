@@ -1,9 +1,19 @@
+import json
+import os
 import random
+import threading
+import time
+from pathlib import Path
 from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.db.models import BotState, PortfolioHolding
 from app.services import market, portfolio, memecoins
+
+_CONFIG_FILE_PATH = Path(__file__).resolve().parent.parent.parent / "sniper_config.json"
+_TICK_LOCK = threading.Lock()
+_LAST_TICK_TS: float = 0.0
+_LAST_TICK_RESULT: dict | None = None
 
 _BOT_ACTIVITY_LOGS: list[dict] = []
 _CURRENT_STAGE: dict = {
@@ -164,16 +174,127 @@ _SNIPER_CONFIG: dict = {
 }
 
 
-def get_sniper_config() -> dict:
+def _load_persisted_sniper_config() -> None:
+    """Load persisted sniper config from disk so strategy_mode never resets to DEFAULT across reloads or workers."""
+    try:
+        if _CONFIG_FILE_PATH.exists():
+            data = json.loads(_CONFIG_FILE_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    if k in _SNIPER_CONFIG and v is not None:
+                        _SNIPER_CONFIG[k] = v
+                strat = str(_SNIPER_CONFIG.get("strategy_mode", "DEFAULT")).upper()
+                if strat in STRATEGY_PRESETS:
+                    _SNIPER_CONFIG["strategy_label"] = STRATEGY_PRESETS[strat]["strategy_label"]
+                    _SNIPER_CONFIG["strategy_desc"] = STRATEGY_PRESETS[strat]["strategy_desc"]
+    except Exception:
+        pass
+
+
+def _save_persisted_sniper_config() -> None:
+    """Persist sniper config to disk immediately on change."""
+    try:
+        _CONFIG_FILE_PATH.write_text(json.dumps(_SNIPER_CONFIG, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+_load_persisted_sniper_config()
+
+
+def get_strategy_winrate_stats(db: Session | None = None) -> dict[str, dict]:
+    """
+    Return genuine winrate, trade counts, wins, losses, and realized PnL for each strategy mode
+    (SAFE, DEFAULT, AGGRESSIVE) computed strictly from real closed trades.
+    No dummy, estimated, or synthetic numbers.
+    """
+    from app.db.models import Trade
+
+    stats: dict[str, dict] = {
+        "SAFE": {
+            "strategy_mode": "SAFE",
+            "winrate_pct": None,
+            "trades_count": 0,
+            "wins": 0,
+            "losses": 0,
+            "realized_pnl_idr": 0.0,
+        },
+        "DEFAULT": {
+            "strategy_mode": "DEFAULT",
+            "winrate_pct": None,
+            "trades_count": 0,
+            "wins": 0,
+            "losses": 0,
+            "realized_pnl_idr": 0.0,
+        },
+        "AGGRESSIVE": {
+            "strategy_mode": "AGGRESSIVE",
+            "winrate_pct": None,
+            "trades_count": 0,
+            "wins": 0,
+            "losses": 0,
+            "realized_pnl_idr": 0.0,
+        },
+    }
+
+    if db is not None:
+        try:
+            closed_sells = list(
+                db.execute(select(Trade).where(Trade.side == "sell", Trade.status == "closed")).scalars().all()
+            )
+            for t in closed_sells:
+                notes_u = (t.notes or "").upper()
+                if "[SAFE]" in notes_u:
+                    m_key = "SAFE"
+                elif "[AGGRESSIVE]" in notes_u:
+                    m_key = "AGGRESSIVE"
+                elif "[DEFAULT]" in notes_u:
+                    m_key = "DEFAULT"
+                else:
+                    continue
+                stats[m_key]["trades_count"] += 1
+                pnl_val = float(t.pnl or 0.0)
+                stats[m_key]["realized_pnl_idr"] += pnl_val
+                if pnl_val >= 0:
+                    stats[m_key]["wins"] += 1
+                else:
+                    stats[m_key]["losses"] += 1
+
+            for m_key, s in stats.items():
+                tc = s["trades_count"]
+                if tc > 0:
+                    s["winrate_pct"] = round((s["wins"] / tc) * 100.0, 1)
+        except Exception:
+            pass
+
+    return stats
+
+
+def get_sniper_config(db: Session | None = None) -> dict:
+    _load_persisted_sniper_config()
     cfg = dict(_SNIPER_CONFIG)
     cfg["presets"] = STRATEGY_PRESETS
+    cfg["strategy_stats"] = get_strategy_winrate_stats(db)
     cfg["legacy_blacklist"] = sorted(list(market.LEGACY_ESTABLISHED_TOKENS))
     return cfg
 
 
-def update_sniper_config(updates: dict) -> dict:
+def update_sniper_config(updates: dict, db: Session | None = None, allow_while_running: bool = False) -> dict:
+    _load_persisted_sniper_config()
     req_strategy = updates.get("strategy_mode")
     apply_preset = bool(updates.get("apply_preset", False))
+    current_strat = str(_SNIPER_CONFIG.get("strategy_mode", "DEFAULT")).strip().upper()
+
+    if db is not None and not allow_while_running and req_strategy:
+        norm_req = str(req_strategy).strip().upper()
+        if norm_req != current_strat:
+            state = get_bot_status(db)
+            if state and state.status == "running":
+                raise ValueError(
+                    f"MODE_TERKUNCI: Mode Strategi ({current_strat}) tidak dapat diubah selama Bot sedang berjalan. "
+                    f"Hentikan Bot terlebih dahulu untuk mengganti mode."
+                )
+
     if req_strategy:
         norm_strat = str(req_strategy).strip().upper()
         if norm_strat in STRATEGY_PRESETS:
@@ -191,14 +312,15 @@ def update_sniper_config(updates: dict) -> dict:
                 _SNIPER_CONFIG["only_new_creations"] = preset["only_new_creations"]
                 _SNIPER_CONFIG["discovery_sources"] = preset["discovery_sources"]
 
-            _append_log(
-                "SYSTEM",
-                "SOL",
-                norm_strat,
-                f"Mode Strategi Bot diubah ke {preset['strategy_label']} — {preset['strategy_desc']}",
-                f"TP +{_SNIPER_CONFIG['auto_tp_pct']}% / SL -{_SNIPER_CONFIG['auto_sl_pct']}% • Max Age {_SNIPER_CONFIG['max_token_age_minutes']}m",
-                "success" if norm_strat != "AGGRESSIVE" else "warn",
-            )
+            if norm_strat != current_strat or apply_preset:
+                _append_log(
+                    "SYSTEM",
+                    "SOL",
+                    norm_strat,
+                    f"Mode Strategi Bot dikunci ke {preset['strategy_label']} — {preset['strategy_desc']}",
+                    f"TP +{_SNIPER_CONFIG['auto_tp_pct']}% / SL -{_SNIPER_CONFIG['auto_sl_pct']}% • Max Age {_SNIPER_CONFIG['max_token_age_minutes']}m",
+                    "success" if norm_strat != "AGGRESSIVE" else "warn",
+                )
 
     # Support frontend alias keys (max_slippage_pct -> slippage_pct, snipe_amount_idr -> buy_amount_idr)
     if updates.get("max_slippage_pct") is not None and updates.get("slippage_pct") is None:
@@ -209,6 +331,7 @@ def update_sniper_config(updates: dict) -> dict:
     for k, v in updates.items():
         if k in _SNIPER_CONFIG and v is not None and k not in ("strategy_mode",):
             _SNIPER_CONFIG[k] = v
+    _save_persisted_sniper_config()
     return get_sniper_config()
 
 
@@ -229,8 +352,15 @@ def start_bot(db: Session, mode: str, strategy_mode: str | None = None) -> BotSt
     if norm_mode not in ("PAPER", "LIVE"):
         norm_mode = "PAPER"
 
+    _load_persisted_sniper_config()
     if strategy_mode and strategy_mode.strip().upper() in STRATEGY_PRESETS:
-        update_sniper_config({"strategy_mode": strategy_mode.strip().upper(), "apply_preset": True})
+        req_strat_norm = strategy_mode.strip().upper()
+        cur_strat_norm = str(_SNIPER_CONFIG.get("strategy_mode", "DEFAULT")).strip().upper()
+        update_sniper_config(
+            {"strategy_mode": req_strat_norm, "apply_preset": req_strat_norm != cur_strat_norm},
+            db=db,
+            allow_while_running=True,
+        )
 
     strat_mode = _SNIPER_CONFIG.get("strategy_mode", "DEFAULT")
     strat_label = _SNIPER_CONFIG.get("strategy_label", "DEFAULT")
@@ -304,8 +434,10 @@ def stop_bot(db: Session) -> BotState:
 
 def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = False) -> dict:
     """Execute one real-time scan/audit/signal/auto-snipe cycle using live DexScreener market data in PAPER or LIVE mode."""
+    global _LAST_TICK_TS, _LAST_TICK_RESULT
     from app.services import treasury, live_engine
 
+    _load_persisted_sniper_config()
     state = get_bot_status(db)
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
@@ -326,10 +458,68 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             "trade_executed": False,
         }
 
+    now_ts = time.monotonic()
+    if not force_trade and _LAST_TICK_RESULT is not None and (now_ts - _LAST_TICK_TS) < 1.2:
+        return {
+            **_LAST_TICK_RESULT,
+            "status": state.status,
+            "mode": state.mode,
+            "strategy_mode": strat_mode,
+            "sniper_config": get_sniper_config(),
+            "current_stage": _CURRENT_STAGE,
+            "logs": _BOT_ACTIVITY_LOGS[:25],
+            "usd_idr": usd_idr,
+        }
+
+    if not _TICK_LOCK.acquire(blocking=force_trade):
+        return {
+            "status": state.status,
+            "mode": state.mode,
+            "strategy_mode": strat_mode,
+            "total_trades": state.total_trades or 0,
+            "sniper_config": get_sniper_config(),
+            "current_stage": _CURRENT_STAGE,
+            "logs": _BOT_ACTIVITY_LOGS[:25],
+            "usd_idr": usd_idr,
+            "trade_executed": False,
+        }
+
+    try:
+        return _run_bot_scan_tick_locked(db, state, usd_idr, active_mode, strat_mode, auto_trade, force_trade)
+    finally:
+        _LAST_TICK_TS = time.monotonic()
+        _TICK_LOCK.release()
+
+
+def _run_bot_scan_tick_locked(
+    db: Session,
+    state: BotState,
+    usd_idr: float,
+    active_mode: str,
+    strat_mode: str,
+    auto_trade: bool = True,
+    force_trade: bool = False,
+) -> dict:
+    global _LAST_TICK_RESULT
+    from app.services import treasury, live_engine
+
+    trade_executed = False
+    trade_action = None
+
     pulse = market.get_live_pulse_feed()
     new_creations = pulse.get("new_creations") or []
     final_stretch = pulse.get("final_stretch") or []
     migrated = pulse.get("migrated") or []
+
+    if active_mode == "LIVE":
+        def _valid_solana_live(c: dict) -> bool:
+            ca = str(c.get("contract") or "").strip()
+            ch = str(c.get("chain") or "Solana").strip().lower()
+            return ch == "solana" and len(ca) >= 32 and not ca.startswith("0x")
+
+        new_creations = [c for c in new_creations if _valid_solana_live(c)]
+        final_stretch = [c for c in final_stretch if _valid_solana_live(c)]
+        migrated = [c for c in migrated if _valid_solana_live(c)]
 
     max_age_mins = float(_SNIPER_CONFIG.get("max_token_age_minutes", 180 if strat_mode == "AGGRESSIVE" else 2880))
     max_mcap_usd = float(_SNIPER_CONFIG.get("max_market_cap_usd", 500000.0 if strat_mode == "AGGRESSIVE" else 50000000.0))
@@ -343,11 +533,13 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             c for c in (new_creations + final_stretch)
             if not market.is_legacy_token(c.get("base_symbol") or c.get("symbol", ""))
             and float(c.get("market_cap", 0)) <= max(max_mcap_usd, 800000.0)
+            and (active_mode != "LIVE" or _valid_solana_live(c))
         ]
         if not raw_aggressive:
             raw_aggressive = [
                 c for c in market.fetch_dexscreener_latest_new_creations(usd_idr, limit=20)
                 if not market.is_legacy_token(c.get("base_symbol") or c.get("symbol", ""))
+                and (active_mode != "LIVE" or _valid_solana_live(c))
             ]
         candidates = raw_aggressive
     elif strat_mode == "SAFE":
@@ -364,7 +556,7 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             "stage": "SCANNING_DEX",
             "stage_index": 1,
             "target_token": "DexScreener / GMGN New Pairs",
-            "detail": f"[{strat_mode}] Memindai DexScreener Token Profiles v1 & GMGN.ai untuk mencari koin meme yang baru rilis...",
+            "detail": f"[{strat_mode}] Memindai DexScreener Token Profiles v1 & GMGN.ai untuk mencari koin meme yang sesuai kriteria...",
         })
         return {
             "status": state.status,
@@ -379,42 +571,82 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
 
     min_score = int(_SNIPER_CONFIG.get("min_safety_score", 70))
     min_liq = float(_SNIPER_CONFIG.get("min_liquidity_usd", 5000.0))
+    score_threshold = (min_score - 15) if strat_mode == "AGGRESSIVE" else (min_score - 5)
     held_symbols = {h.symbol.upper() for h in holdings}
+    held_bases = {h.symbol.upper().split("/")[0] for h in holdings}
+
+    def _not_held(c: dict) -> bool:
+        sym_u = str(c.get("symbol") or "").upper()
+        base_u = str(c.get("base_symbol") or sym_u.split("/")[0]).upper()
+        return sym_u not in held_symbols and base_u not in held_bases
 
     if strat_mode == "AGGRESSIVE":
-        # Strictly pick from brand-new non-legacy meme coins (prefer age <= max_age_mins & mcap <= max_mcap_usd)
+        # Strictly pick from brand-new non-legacy meme coins (prefer age <= max_age_mins, mcap <= max_mcap_usd, score >= score_threshold)
         strict_fresh = [
             c for c in candidates
-            if c["symbol"].upper() not in held_symbols
+            if _not_held(c)
             and not market.is_legacy_token(c.get("base_symbol") or c["symbol"])
             and float(c.get("age_minutes", c.get("age_hours", 1.0) * 60.0)) <= max_age_mins
             and float(c.get("market_cap", 0)) <= max_mcap_usd
+            and float(c.get("safety_score", 0)) >= score_threshold
+            and float(c.get("liquidity", 0)) >= min(min_liq, 1500.0)
         ]
         if not strict_fresh:
             strict_fresh = [
                 c for c in candidates
-                if c["symbol"].upper() not in held_symbols
+                if _not_held(c)
                 and not market.is_legacy_token(c.get("base_symbol") or c["symbol"])
+                and float(c.get("safety_score", 0)) >= score_threshold
             ]
         pool_to_pick = strict_fresh if strict_fresh else [
-            c for c in candidates if not market.is_legacy_token(c.get("base_symbol") or c["symbol"])
+            c for c in candidates if _not_held(c) and not market.is_legacy_token(c.get("base_symbol") or c["symbol"])
         ][: min(6, len(candidates))]
     elif strat_mode == "SAFE":
+        graduated_candidates = migrated + final_stretch
         safe_pool = [
-            c for c in (migrated + final_stretch)
-            if c.get("safety_score", 0) >= min_score
-            and c.get("liquidity", 0) >= min_liq
-            and c["symbol"].upper() not in held_symbols
+            c for c in graduated_candidates
+            if _not_held(c)
+            and float(c.get("safety_score", 0)) >= min_score
+            and float(c.get("liquidity", 0)) >= min_liq
         ]
-        pool_to_pick = safe_pool if safe_pool else candidates[: min(5, len(candidates))]
+        if not safe_pool:
+            safe_pool = sorted(
+                [
+                    c for c in graduated_candidates
+                    if _not_held(c)
+                    and float(c.get("safety_score", 0)) >= score_threshold
+                    and float(c.get("liquidity", 0)) >= min(min_liq * 0.5, 10000.0)
+                ],
+                key=lambda x: (float(x.get("safety_score", 0)), float(x.get("liquidity", 0))),
+                reverse=True,
+            )[:5]
+        pool_to_pick = safe_pool if safe_pool else sorted(
+            [c for c in candidates if _not_held(c)],
+            key=lambda x: (float(x.get("safety_score", 0)), float(x.get("liquidity", 0))),
+            reverse=True,
+        )[: min(5, len(candidates))]
     else:
         eligible = [
             c for c in candidates
-            if c.get("safety_score", 0) >= min_score
-            and c.get("liquidity", 0) >= min_liq
-            and c["symbol"].upper() not in held_symbols
+            if _not_held(c)
+            and float(c.get("safety_score", 0)) >= min_score
+            and float(c.get("liquidity", 0)) >= min_liq
         ]
-        pool_to_pick = eligible if eligible else candidates[: min(8, len(candidates))]
+        if not eligible:
+            eligible = sorted(
+                [
+                    c for c in candidates
+                    if _not_held(c)
+                    and float(c.get("safety_score", 0)) >= score_threshold
+                    and float(c.get("liquidity", 0)) >= min(min_liq * 0.6, 3000.0)
+                ],
+                key=lambda x: (float(x.get("safety_score", 0)), float(x.get("volume_5m", 0))),
+                reverse=True,
+            )[:6]
+        pool_to_pick = eligible if eligible else [c for c in candidates if _not_held(c)][: min(8, len(candidates))]
+
+    if not pool_to_pick:
+        pool_to_pick = candidates[: min(5, len(candidates))]
 
     pick = random.choice(pool_to_pick)
 
@@ -567,15 +799,17 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
                 avail_cash_idr = avail_cash_usd * usd_idr
 
         # 1. Refresh live prices on existing holdings & check Auto TP / SL (or Fast Scalp Flip in AGGRESSIVE mode)
+        # Note: In LIVE mode, sync_onchain_holdings_to_portfolio already sets h.current_price from the exact on-chain mint address!
         sold_any = False
         for h in holdings:
-            live_tok = market.get_live_token_info(h.symbol)
-            if live_tok and live_tok.get("price", 0) > 0:
-                h.current_price = float(live_tok["price"])
-                if live_tok.get("liquidity", 0) > 0:
-                    h.liquidity_usd = float(live_tok["liquidity"])
-                h.updated_at = datetime.now(timezone.utc)
-                db.commit()
+            if active_mode != "LIVE":
+                live_tok = market.get_live_token_info(h.symbol)
+                if live_tok and live_tok.get("price", 0) > 0:
+                    h.current_price = float(live_tok["price"])
+                    if live_tok.get("liquidity", 0) > 0:
+                        h.liquidity_usd = float(live_tok["liquidity"])
+                    h.updated_at = datetime.now(timezone.utc)
+                    db.commit()
 
             net_m = treasury.compute_holding_net_metrics(h, usd_idr)
             net_pnl_pct = net_m["net_pnl_pct"]
@@ -773,7 +1007,7 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
                         "warn",
                     )
 
-    return {
+    res_payload = {
         "status": state.status,
         "mode": state.mode,
         "strategy_mode": strat_mode,
@@ -785,18 +1019,23 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
         "trade_executed": trade_executed,
         "trade_action": trade_action,
     }
+    _LAST_TICK_RESULT = res_payload
+    return res_payload
 
 
 def get_bot_activity(db: Session, tick: bool = True, force_trade: bool = False) -> dict:
+    _load_persisted_sniper_config()
     state = get_bot_status(db)
     if (tick or force_trade) and state.status == "running":
         return run_bot_scan_tick(db, auto_trade=True, force_trade=force_trade)
     fx = market.get_fx_rate()
+    strat_mode = (_SNIPER_CONFIG.get("strategy_mode") or "AGGRESSIVE").upper()
     return {
         "status": state.status,
         "mode": state.mode,
+        "strategy_mode": strat_mode,
         "total_trades": state.total_trades or 0,
-        "sniper_config": _SNIPER_CONFIG,
+        "sniper_config": get_sniper_config(),
         "current_stage": _CURRENT_STAGE,
         "logs": _BOT_ACTIVITY_LOGS[:25],
         "usd_idr": fx["usd_idr"],
