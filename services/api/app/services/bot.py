@@ -500,12 +500,22 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
 
         paper_wallet, _ = portfolio.get_or_create_paper_wallet(db)
         if active_mode == "LIVE":
-            _, avail_cash_usd, _ = live_engine.get_live_trading_wallet(db, "Solana")
-            avail_cash_idr = avail_cash_usd * usd_idr
+            live_w, avail_cash_usd, _ = live_engine.get_live_trading_wallet(db, "Solana")
+            spl_tokens = live_engine.query_solana_spl_tokens(live_w.address) if (live_w and live_w.chain == "Solana" and live_w.address) else []
+            spl_usd = sum(t.get("usd_val", 0.0) for t in spl_tokens)
+            total_live_cash_usd = avail_cash_usd + spl_usd
+            avail_cash_idr = total_live_cash_usd * usd_idr
+
+            # Calculate spendable SOL (reserve 0.0025 SOL for Solana ATA rent + gas fee)
+            sol_bal = float(live_w.balance or 0.0) if live_w else 0.0
+            sol_px = live_engine.get_sol_price_usd()
+            spendable_sol = max(0.0, sol_bal - 0.0025)
+            spendable_sol_idr = spendable_sol * sol_px * usd_idr
         else:
             treasury.ensure_gas_reserve(db, paper_wallet, usd_idr, needed_gas_usd=0.015)
             avail_cash_usd = float(paper_wallet.balance)
             avail_cash_idr = avail_cash_usd * usd_idr
+            spendable_sol_idr = avail_cash_idr
 
         tp_target = float(_SNIPER_CONFIG.get("auto_tp_pct", 12.0))
         sl_target = -abs(float(_SNIPER_CONFIG.get("auto_sl_pct", 8.0)))
@@ -598,12 +608,24 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
                 except Exception:
                     pass
 
-        # 2. Auto-Snipe new token if we have Cash >= Rp 15.000 and open positions < max_positions
+        # 2. Auto-Snipe new token if we have sufficient spendable Cash and open positions < max_positions
         score_threshold = (min_score - 15) if strat_mode == "AGGRESSIVE" else (min_score - 5)
-        if not sold_any and auto_trade and avail_cash_idr >= 15000.0 and len(holdings) < max_positions and score >= score_threshold:
+        min_cash_threshold = 2000.0 if active_mode == "LIVE" else 5000.0
+        has_enough_cash = (spendable_sol_idr >= min_cash_threshold) if active_mode == "LIVE" else (avail_cash_idr >= min_cash_threshold)
+
+        can_snipe = (
+            not sold_any
+            and auto_trade
+            and has_enough_cash
+            and len(holdings) < max_positions
+            and score >= score_threshold
+        )
+
+        if can_snipe:
             cfg_buy_idr = float(_SNIPER_CONFIG.get("buy_amount_idr", 15000.0))
             if active_mode == "LIVE":
-                snipe_idr = min(max(15000.0, cfg_buy_idr), avail_cash_idr * 0.25)
+                # Adapt buy size to available spendable SOL cash, bounded by cfg_buy_idr
+                snipe_idr = min(cfg_buy_idr, max(2000.0, spendable_sol_idr))
             else:
                 snipe_idr = min(cfg_buy_idr, round(avail_cash_idr * 0.25, -2))
                 if snipe_idr < 10000.0:
@@ -636,16 +658,47 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
                         f"Rp {snipe_idr:,.0f} @ ${snipe_res['entry_price']:.6f} (Slip {snipe_res['slippage_pct']:.2f}% • Gas Rp {snipe_res['gas_fee_idr']:,.0f})"
                     ),
                 })
+                _append_log(
+                    "SNIPE",
+                    chain,
+                    snipe_res["symbol"],
+                    (
+                        f"[{active_mode} • {snipe_tag}] TERBELI Rp {snipe_idr:,.0f} @ ${snipe_res['entry_price']:.6f} | "
+                        f"TX: {snipe_res.get('tx_hash', '')[:12]}... (Anti-MEV Jito)"
+                    ),
+                    f"Rp {snipe_idr:,.0f}",
+                    "success",
+                )
                 trade_executed = True
                 trade_action = snipe_res
             except Exception as exc:
                 _CURRENT_STAGE.update({
-                    "stage": "POSITION_MONITOR",
+                    "stage": "AUTO_SNIPE_MONITOR",
                     "stage_index": 4,
                     "target_token": sym,
-                    "detail": f"Skip Auto-Snipe {sym}: {exc}",
+                    "detail": f"⚠️ [{active_mode}] Gagal/Lewati Auto-Snipe {sym}: {exc}",
                 })
+                _append_log(
+                    "SYSTEM",
+                    chain,
+                    sym,
+                    f"[{active_mode}] Gagal/Lewati Auto-Snipe {sym}: {exc}",
+                    f"Rp {snipe_idr:,.0f}",
+                    "warn",
+                )
         elif not sold_any:
+            # Diagnose exact reason why auto-snipe did not execute on this tick
+            skip_reason = ""
+            if not auto_trade:
+                skip_reason = "Saklar 'Otomatis Eksekusi Swap' nonaktif (mode monitoring saja)"
+            elif not has_enough_cash:
+                cash_label = f"SOL Kas Rp {spendable_sol_idr:,.0f}" if active_mode == "LIVE" else f"Kas Rp {avail_cash_idr:,.0f}"
+                skip_reason = f"{cash_label} < batas minimal beli Rp {min_cash_threshold:,.0f}"
+            elif len(holdings) >= max_positions:
+                skip_reason = f"Slot open positions penuh ({len(holdings)}/{max_positions})"
+            elif score < score_threshold:
+                skip_reason = f"Skor Keamanan {score:.0f} di bawah batas minimal {score_threshold:.0f} [{strat_mode}] (Anti-Rug Guard aktif)"
+
             ov = portfolio.get_overview(db, refresh_live_prices=True)
             if holdings:
                 h = holdings[0]
@@ -659,13 +712,15 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
                     "detail": (
                         f"[{active_mode} • {strat_mode}] Memantau {len(holdings)} posisi ({h.symbol} Net PnL: {net_pnl_pct:+.2f}% | Gross: {gross_pnl_pct:+.2f}% "
                         f"setelah est. Slippage+DEX+Gas Rp {net_m['est_exit_cost_idr']:,.0f}) • Target Net TP +{tp_target}%"
+                        + (f" • Skip buy {sym}: {skip_reason}" if skip_reason else "")
                     ),
                 })
                 _append_log(
                     "MONITOR",
                     "SOL",
                     h.symbol,
-                    f"[{active_mode} • {strat_mode}] Live ${h.current_price:.6f} | Net PnL: {net_pnl_pct:+.2f}% (setelah Slippage {net_m['exit_slippage_pct']:.2f}%, DEX & Gas)",
+                    f"[{active_mode} • {strat_mode}] Live ${h.current_price:.6f} | Net PnL: {net_pnl_pct:+.2f}% (setelah Slippage {net_m['exit_slippage_pct']:.2f}%, DEX & Gas)"
+                    + (f" | {skip_reason}" if skip_reason else ""),
                     f"Net ≈ Rp {net_m['net_value_usd'] * usd_idr:,.0f}",
                     "success" if net_pnl_pct >= 0 else "warn",
                 )
@@ -674,8 +729,17 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
                     "stage": "MEV_STANDBY",
                     "stage_index": 4,
                     "target_token": sym,
-                    "detail": f"Sisa kas {active_mode} Rp {avail_cash_idr:,.0f}. Menunggu sinyal token [{strat_mode}].",
+                    "detail": f"[{active_mode} • {strat_mode}] Kas Rp {avail_cash_idr:,.0f}. Menunggu koin lolos kriteria: {skip_reason}.",
                 })
+                if skip_reason and score < score_threshold:
+                    _append_log(
+                        "AUDIT",
+                        chain,
+                        sym,
+                        f"[{active_mode} • ANTI-RUG GUARD] Lewati {sym} ({pick.get('launchpad', 'Pump.fun')}) - {skip_reason}",
+                        f"Skor {score:.0f}",
+                        "warn",
+                    )
 
     return {
         "status": state.status,
