@@ -8,14 +8,14 @@ export default function Document() {
         <link rel="icon" href="/icon-192.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icon-192.svg" />
         <meta name="theme-color" content="#10b981" />
-        <meta name="application-name" content="SOFIA PRO" />
+        <meta name="application-name" content="Sofia Market 3.9" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="SOFIA PRO" />
+        <meta name="apple-mobile-web-app-title" content="Sofia Market 3.9" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta
           name="description"
-          content="SOFIA Trenches v3.8 PRO — AI-Powered Meme Coin Sniper Terminal, Jito 0-Slot Anti-MEV, Paper & Live On-Chain Trading."
+          content="Sofia Market 3.9 — Multi-Asset Quantitative Terminal & Autonomous Meme Coin Sniper."
         />
       </Head>
       <body className="bg-obsidian-950 text-slate-200 antialiased">

@@ -1,5 +1,5 @@
 """
-Comprehensive Crypto Asset Analysis Engine for SOFIA Trenches v3.8.
+Comprehensive Crypto Asset Analysis Engine for Sofia Market 3.9.
 Covers:
 - Live USD & IDR Pricing + 24/7 Crypto Market Pulse (BTC, ETH, SOL benchmarks)
 - Multi-Timeframe Trading Plan (15m, 1h, 4h, 1d, 1w, 1mo) with Entry Zone, TP1, TP2, Stop Loss, Support/Resistance & Net R/R
@@ -574,7 +574,7 @@ def fetch_crypto_futures_contract(symbol: str, force_refresh: bool = False) -> d
     contract_name = f"{clean_sym}_USDT"
     url = f"https://api.gateio.ws/api/v4/futures/usdt/contracts/{contract_name}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SofiaTrading/3.8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SofiaMarket/3.9",
         "Accept": "application/json",
     }
 

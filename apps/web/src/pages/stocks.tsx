@@ -630,7 +630,7 @@ Mulai analisis dengan memverifikasi ticker, bursa, harga, laporan keuangan terba
   return (
     <>
       <Head>
-        <title>Analisa Saham BEI ({activeTicker}) | SOFIA Trenches v3.8 PRO</title>
+        <title>Analisa Saham BEI ({activeTicker}) | Sofia Market 3.9</title>
       </Head>
 
       <div

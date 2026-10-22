@@ -217,7 +217,7 @@ export default function NewsPage() {
   return (
     <>
       <Head>
-        <title>News & Riset Pasar Indonesia | SOFIA Trenches v3.8 PRO</title>
+        <title>News &amp; Riset Pasar Indonesia | Sofia Market 3.9</title>
       </Head>
 
       <div className={`p-4 lg:p-6 space-y-5 ${isUltrawide ? 'w-full max-w-none' : 'max-w-[1600px] mx-auto'}`}>

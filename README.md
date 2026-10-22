@@ -1,6 +1,6 @@
-# ⚡ SOFIA Multi-Asset Intelligence & Autonomous Meme Coin Sniper (v4.0.0 PRO)
+# ⚡ Sofia Market 3.9 — Multi-Asset Trading Terminal & Autonomous Sniper
 
-Platform **AI-Powered Multi-Asset Market Intelligence & Autonomous Sniper Terminal** dengan dukungan penuh:
+Platform **Sofia Market 3.9** adalah terminal riset pasar finansial & sistem *trading* kuantitatif terintegrasi:
 - **Dual-Engine Execution**: Mode `PAPER` (Sandbox Rp 150.000) & Mode `LIVE` (On-Chain Solana Mainnet Hot Wallet).
 - **Autonomous Server Worker 24/7**: Bot terus berjalan memindai dan mengeksekusi order di background server bahkan saat pengguna logout atau menutup browser. Satu-satunya penghenti adalah tombol manual.
 - **3 Mode Strategi Sniper (Safe, Default, Agresif)**: Disertai kunci pengaman dan perhitungan winrate riil 100% dari database tanpa angka karangan.
@@ -11,7 +11,7 @@ Platform **AI-Powered Multi-Asset Market Intelligence & Autonomous Sniper Termin
 ---
 
 ### 📄 Dokumentasi Resmi & Panduan AI Agent:
-- [**PRD.md**](./PRD.md) — Product Requirements Document versi 4.0.0-PRO lengkap.
+- [**PRD.md**](./PRD.md) — Product Requirements Document versi Sofia Market 3.9 lengkap.
 - [**AGENTS.md**](./AGENTS.md) — Panduan wajib & batasan aturan kritis untuk AI Agent & pengembang masa depan.
 - [**MCP_GUIDE.md**](./MCP_GUIDE.md) — Panduan Model Context Protocol (FastMCP).
 

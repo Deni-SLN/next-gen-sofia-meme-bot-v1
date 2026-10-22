@@ -1,7 +1,7 @@
 # 🤖 PANDUAN PENGEMBANGAN UNTUK AI AGENT (AGENTS.md)
-## **SOFIA Multi-Asset Intelligence & Autonomous Meme Coin Sniper Platform**
+## **Sofia Market 3.9 — Multi-Asset Quantitative Terminal & Autonomous Sniper Platform**
 
-Dokumen ini adalah referensi teknis wajib bagi seluruh **AI Agent**, *autonomous developer*, atau asisten AI yang membaca, memelihara, atau memodifikasi *codebase* **NextGen SOFIA Trading Platform**.
+Dokumen ini adalah referensi teknis wajib bagi seluruh **AI Agent**, *autonomous developer*, atau asisten AI yang membaca, memelihara, atau memodifikasi *codebase* **Sofia Market 3.9**.
 
 ---
 
@@ -44,6 +44,12 @@ Setiap AI Agent yang bekerja pada repositori ini **WAJIB** mematuhi 6 aturan di 
 - **Kewajiban**:
   - Jika mengubah CSS tema, pastikan Light Mode menggunakan palet *Soft Daylight Workspace* (terinspirasi dari TradingView & Stockbit Pro).
   - Hindari latar belakang putih menyilaukan (`#ffffff` mentah); gunakan abu-abu netral lembut (`#f1f5f9` / `#e2e8f0`), kartu putih bertepi teduh, dan kontras teks gelap (`#0f172a`) yang nyaman dibaca berjam-jam.
+
+### ⚠️ Aturan 7: Pemanfaatan Bot Telegram Publik Terverifikasi
+- **Kewajiban**:
+  - Manfaatkan modul `services/api/app/services/telegram_radar.py` dan router `/api/v1/telegram/*` saat menangani permintaan analisa berbasis komunitas atau bot Telegram.
+  - Sediakan akses dan deep-link 1-klik untuk bot terverifikasi (RickBurp `@RickBurpBot`, DexScreener `@DexScreener_Bot`, GMGN `@GMGN_sol_alert_bot`, EtherDrops `@EtherDrops_bot`, SolanaTracker `@SolanaTrackerBot`, Saham IDX `@SahamIdxBot`).
+  - Fitur notifikasi Telegram di settings wajib memverifikasi koneksi melalui `POST /api/v1/telegram/test-alert`.
 
 ---
 

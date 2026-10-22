@@ -372,6 +372,18 @@ export const api = {
     model?: string;
     api_key?: string;
   }) => request<any>('/chat/completions', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Telegram Public Bots & Community Alpha Signals
+  getTelegramBots: (category?: string) =>
+    request<any>(`/telegram/bots${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  getTelegramQueryLinks: (symbol: string, contract?: string) => {
+    const params = new URLSearchParams({ symbol });
+    if (contract) params.append('contract', contract);
+    return request<any>(`/telegram/query-links?${params.toString()}`);
+  },
+  getTelegramSignals: () => request<any>('/telegram/signals'),
+  sendTestTelegramAlert: (data: { token: string; chat_id: string; message?: string }) =>
+    request<any>('/telegram/test-alert', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 

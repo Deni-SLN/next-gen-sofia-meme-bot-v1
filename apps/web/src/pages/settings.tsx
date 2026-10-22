@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { LucideIcon } from '@/components/LucideIcon';
+import { api } from '@/lib/api';
 import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 export default function SettingsPage() {
@@ -27,6 +28,8 @@ export default function SettingsPage() {
   const [gmgnEndpoint, setGmgnEndpoint] = useState<string>('https://gmgn.ai/defi/quotation/v1/rank/sol');
   const [telegramToken, setTelegramToken] = useState<string>('');
   const [telegramChatId, setTelegramChatId] = useState<string>('');
+  const [testingTg, setTestingTg] = useState<boolean>(false);
+  const [tgNotice, setTgNotice] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // 3. Wallet Settings State
   const [solanaAddress, setSolanaAddress] = useState<string>('');
@@ -84,6 +87,26 @@ export default function SettingsPage() {
     if (!evmAddress) setEvmAddress('0x71C7656EC7ab88b098defB751B7401B5f6d8976F');
     setSaveNotice('Semua API Pasar berhasil diisi dengan Free Public Gateway!');
     setTimeout(() => setSaveNotice(''), 3500);
+  };
+
+  const handleTestTelegram = async () => {
+    if (!telegramToken.trim() || !telegramChatId.trim()) {
+      setTgNotice({ ok: false, msg: 'Masukkan Telegram Bot Token & Chat ID terlebih dahulu.' });
+      return;
+    }
+    setTestingTg(true);
+    setTgNotice(null);
+    try {
+      const res = await api.sendTestTelegramAlert({
+        token: telegramToken.trim(),
+        chat_id: telegramChatId.trim(),
+      });
+      setTgNotice({ ok: true, msg: res.message || 'Pesan Telegram berhasil dikirim!' });
+    } catch (err: any) {
+      setTgNotice({ ok: false, msg: err?.message || 'Gagal mengirim pesan ke Telegram.' });
+    } finally {
+      setTestingTg(false);
+    }
   };
 
   const handleSave = () => {
@@ -180,7 +203,7 @@ export default function SettingsPage() {
   return (
     <>
       <Head>
-        <title>Pengaturan Sistem &amp; Kredensial API — Sofia Trading System</title>
+        <title>Pengaturan Sistem &amp; Kredensial API — Sofia Market 3.9</title>
       </Head>
 
       <div className="space-y-5 pb-12">
@@ -194,7 +217,7 @@ export default function SettingsPage() {
                 Pengaturan Sistem &amp; Kredensial
               </h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
-                SOFIA v3.8
+                Sofia Market 3.9
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
@@ -620,6 +643,31 @@ export default function SettingsPage() {
                         className="w-full px-3.5 py-2.5 rounded-xl bg-obsidian-950 border border-obsidian-700 text-slate-100 text-xs focus:outline-none focus:border-sky-500"
                       />
                     </div>
+                  </div>
+
+                  {/* Telegram Test Button & Status */}
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-obsidian-800/80">
+                    <button
+                      type="button"
+                      disabled={testingTg}
+                      onClick={handleTestTelegram}
+                      className="px-3.5 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-60"
+                    >
+                      <LucideIcon name="send" className="w-3.5 h-3.5" />
+                      <span>{testingTg ? 'Mengirim Tes...' : '📡 Tes Kirim Pesan ke Telegram'}</span>
+                    </button>
+
+                    {tgNotice && (
+                      <span
+                        className={`text-xs px-2.5 py-1 rounded-md border font-mono ${
+                          tgNotice.ok
+                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                            : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                        }`}
+                      >
+                        {tgNotice.msg}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

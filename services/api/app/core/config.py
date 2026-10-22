@@ -22,8 +22,8 @@ def _normalize_db_url(url: str) -> str:
 
 
 class Settings(BaseSettings):
-    app_name: str = "NextGenTSofia Trade"
-    version: str = "1.0.0"
+    app_name: str = "Sofia Market 3.9"
+    version: str = "3.9.0"
     debug: bool = False
     database_url: str = _DEFAULT_NEON_URL
     admin_password: str = "changeme"

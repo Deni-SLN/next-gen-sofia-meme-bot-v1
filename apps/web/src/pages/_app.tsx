@@ -18,7 +18,7 @@ export default function App({ Component, pageProps }: AppProps) {
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
         />
-        <title>SOFIA Trenches v3.8 PRO — Meme Coin Sniper &amp; AI Trading</title>
+        <title>Sofia Market 3.9 — Multi-Asset Trading Terminal &amp; Sniper</title>
       </Head>
       <Layout>
         <Component {...pageProps} />

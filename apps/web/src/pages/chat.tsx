@@ -425,7 +425,7 @@ export default function ChatPage() {
   return (
     <>
       <Head>
-        <title>AI Chat &amp; Research Assistant | SOFIA Trading System</title>
+        <title>AI Chat &amp; Research Assistant | Sofia Market 3.9</title>
       </Head>
 
       <div className="flex flex-col h-[calc(100vh-4.5rem)] min-h-[600px] -m-4 md:-m-6 overflow-hidden bg-obsidian-950">

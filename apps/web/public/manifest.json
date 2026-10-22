@@ -1,7 +1,7 @@
 {
-  "name": "SOFIA Trenches v3.8 PRO — Meme Coin Sniper & AI Trading",
-  "short_name": "SOFIA PRO",
-  "description": "High-Speed Meme Coin Sniper Terminal, Jito 0-Slot Anti-MEV, Rug Shield, Paper & Live On-Chain Trading Engine.",
+  "name": "Sofia Market 3.9 — Multi-Asset Trading Terminal & Sniper",
+  "short_name": "Sofia Market 3.9",
+  "description": "Multi-Asset Quantitative Terminal, IDX Stocks, Crypto, Gold, Deposito & Autonomous Meme Coin Sniper.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

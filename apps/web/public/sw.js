@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sofia-trenches-v3.8-pro-v1';
+const CACHE_NAME = 'sofia-market-3.9-v1';
 const PRECACHE_URLS = [
   '/',
   '/login',

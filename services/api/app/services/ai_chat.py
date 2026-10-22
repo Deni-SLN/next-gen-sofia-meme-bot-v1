@@ -1,5 +1,5 @@
 """
-AI Chat, Multi-Session & Application Tool Calling Service for SOFIA Market Analyst v3.8.
+AI Chat, Multi-Session & Application Tool Calling Service for Sofia Market 3.9.
 Supports:
 - OpenRouter API (openrouter.ai)
 - 9Router API (9router.com)
@@ -412,6 +412,28 @@ APPLICATION_TOOLS_SPEC = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "lookup_telegram_analysis_bots",
+            "description": "Mencari bot Telegram publik terverifikasi (RickBurp, DexScreener, GMGN, EtherDrops, SahamIdxBot) untuk audit keamanan smart contract meme coin, pelacak whale wallet, live chart, dan bandarmologi saham BEI.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Simbol koin atau saham yang ingin dianalisa via Telegram bot (contoh: 'BONK', 'SOL', 'BBRI').",
+                    },
+                    "contract": {
+                        "type": "string",
+                        "description": "Mint address token Solana jika ada.",
+                    },
+                },
+                "required": ["symbol"],
+            },
+        },
+    },
+
 ]
 
 
@@ -736,6 +758,20 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
                 "explanation": res,
             }
 
+        elif name == "lookup_telegram_analysis_bots":
+            from app.services import telegram_radar
+            sym = str(arguments.get("symbol") or "SOL").strip().upper()
+            ca = arguments.get("contract")
+            links = telegram_radar.generate_bot_query_links(sym, ca)
+            return {
+                "tool": "lookup_telegram_analysis_bots",
+                "status": "success",
+                "symbol": sym,
+                "contract": ca,
+                "recommended_bots": links,
+                "summary": f"Ditemukan {len(links)} bot Telegram publik terverifikasi untuk analisa & pelacakan {sym}.",
+            }
+
         else:
             return {"tool": name, "status": "error", "message": f"Unknown tool: {name}"}
 
@@ -874,7 +910,7 @@ def run_chat_completion(
     wib_info = get_current_wib_info()
     default_system = (
         "Anda adalah SOFIA AI Quant & Research Assistant — asisten analis pasar keuangan multi-aset kuantitatif "
-        "yang cerdas, objektif, dan profesional di SOFIA Market Analyst v3.8.\n"
+        "yang cerdas, objektif, dan profesional di Sofia Market 3.9.\n"
         f"LOKASI & WAKTU PENGGUNA: Depok / Jawa Barat (Zona Waktu: Waktu Indonesia Barat / WIB, UTC+7).\n"
         f"WAKTU SISTEM SAAT INI: {wib_info['current_time_full']}.\n"
         f"STATUS BURSA EFEK INDONESIA (BEI): {wib_info['bei_status']}.\n\n"

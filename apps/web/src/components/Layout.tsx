@@ -367,7 +367,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   if (checking) {
     return (
       <div className="min-h-screen bg-obsidian-950 text-slate-400 flex items-center justify-center font-sans text-xs tracking-wide">
-        Memuat ruang kerja SOFIA Market...
+        Memuat ruang kerja Sofia Market 3.9...
       </div>
     );
   }
@@ -426,7 +426,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <span>SOFIA</span>
                   <span className="text-slate-400 font-normal">Market</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-obsidian-850 text-slate-400 border border-obsidian-700 font-mono">
-                    v3.8
+                    3.9
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 hidden sm:block">
@@ -631,7 +631,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <aside className="relative w-64 max-w-[82vw] bg-obsidian-900 border-r border-obsidian-700 h-full flex flex-col justify-between p-4 overflow-y-auto z-10">
             <div className="space-y-5">
               <div className="flex items-center justify-between border-b border-obsidian-800 pb-3">
-                <span className="font-semibold text-sm text-white">Navigasi SOFIA</span>
+                <span className="font-semibold text-sm text-white">Navigasi Sofia Market 3.9</span>
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(false)}

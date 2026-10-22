@@ -1,7 +1,7 @@
 # 📋 Product Requirements Document (PRD)
-## **SOFIA Multi-Asset Intelligence & Autonomous Meme Coin Sniper Platform**
+## **Sofia Market 3.9 — Multi-Asset Quantitative Terminal & Autonomous Sniper Platform**
 
-- **Versi Dokumen**: 4.0.0-PRO (Production Ready)
+- **Versi Dokumen**: 3.9.0-PRO (Production Ready)
 - **Status Sistem**: 100% Aktif, Teruji & Terverifikasi (Mode PAPER & Mode LIVE On-Chain)
 - **Database Cloud**: Neon Serverless PostgreSQL (`neondb`, AWS `ap-southeast-1` Singapore)
 - **Platform Target**: Desktop Web (termasuk Ultrawide 21:9), Mobile Responsive Web, & Installable Progressive Web App (PWA)
@@ -12,7 +12,7 @@
 
 ## 1. Ringkasan Eksekutif (Executive Summary)
 
-**SOFIA Platform v4.0 PRO** adalah ekosistem komprehensif *trading*, riset pasar finansial, dan *autonomous sniper bot* multi-aset. Platform ini menggabungkan eksekusi *on-chain* berlatensi rendah pada jaringan Solana & Base dengan analisa kuantitatif lintas instrumen:
+**Sofia Market 3.9** adalah ekosistem komprehensif *trading*, riset pasar finansial, dan *autonomous sniper bot* multi-aset. Platform ini menggabungkan eksekusi *on-chain* berlatensi rendah pada jaringan Solana & Base dengan analisa kuantitatif lintas instrumen:
 1. **Meme Coin Autonomous Sniper**: Mesin sniper terdesentralisasi dengan 3 mode strategi (*Safe*, *Default*, *Agresif*), filter likuiditas instan, relay Jito 0-slot anti-MEV, dan *autonomous background runner* di server yang berjalan 24/7 bahkan saat pengguna telah logout atau menutup browser.
 2. **Integritas Data Matematis Murni (Zero Dummy Policy)**: Seluruh metrik performa, *winrate*, keuntungan/kerugian (PnL), dan rekor transaksi dihitung 100% murni dari *database closed trades* riil. Dilarang keras menggunakan angka karangan, estimasi sintetik, atau pembobotan semu.
 3. **Analisa Pasar Multi-Aset**:
@@ -84,6 +84,12 @@ Pengguna dapat memilih salah satu dari 3 mode strategi yang disesuaikan dengan p
 - **Soft Daylight Workspace (Light Mode)**: Menggunakan standar visual *TradingView / Stockbit Pro Daylight* yang teduh di mata dengan latar lembut, teks kontras tajam, dan kartu netral.
 - **Obsidian Dark Mode**: Menggunakan palet gelap terkalibrasi untuk pemantauan terminal jangka panjang tanpa kelelahan mata.
 
+### 2.7. Radar Bot Telegram Publik & Sistem Notifikasi Telegram
+- **Katalog Bot Telegram Publik Terverifikasi**: Integrasi dengan bot-bot publik terkemuka (Rick Burp `@RickBurpBot`, DexScreener `@DexScreener_Bot`, GMGN Trench Radar `@GMGN_sol_alert_bot`, EtherDrops `@EtherDrops_bot`, Solana Tracker `@SolanaTrackerBot`, dan Saham IDX `@SahamIdxBot`).
+- **1-Click Command Generator**: Menghasilkan perintah instan (`/quick <CA>`, `/p <TOKEN>`, `/track <CA>`, `/broker <TICKER>`) yang siap disalin atau langsung membuka aplikasi Telegram dengan parameter koin terisi.
+- **Feed Radar Sinyal Komunitas**: Agregasi sinyal momentum, whale accumulation, dan audit keamanan live dari kanal Telegram publik.
+- **Sistem Notifikasi Telegram Personal**: Integrasi resmi via Telegram Bot API (`https://api.telegram.org/bot<TOKEN>/sendMessage`) untuk mengirimkan notifikasi instan eksekusi sniper, TP/SL, dan sinyal pasar langsung ke smartphone pengguna.
+
 ---
 
 ## 3. Matriks Modul & Rute Lengkap
@@ -101,7 +107,7 @@ Pengguna dapat memilih salah satu dari 3 mode strategi yang disesuaikan dengan p
 | 9 | **Portofolio Emas** | `/gold` | `GET /api/v1/gold` | Harga Antam/UBS/Galeri 24, kalkulator buyback, aset fisik |
 | 10 | **Kalkulator Investasi** | `/calculator` | N/A (Client Math + AI Tool) | Komparasi Deposito vs SBN Obligasi dengan pajak riil |
 | 11 | **News & Riset** | `/news` | `GET /api/v1/news` | Agregasi berita ekonomi & pasar finansial terkurasi |
-| 12 | **Alpha Signals** | `/signals` | `GET /api/v1/signals` | Feed sinyal beli/jual kuantitatif lintas instrumen |
+| 12 | **Alpha Signals & Telegram Radar** | `/signals` | `GET /api/v1/telegram/*`, `GET /api/v1/signals` | Feed sinyal Telegram publik, 1-click bot launcher & internal signals |
 | 13 | **Ensiklopedia Pasar** | `/encyclopedia` | `GET /api/v1/chat/tools` | Kamus SMC, Wyckoff, VSA, Indikator, dan Regulasi BEI |
 | 14 | **Portofolio Meme** | `/portfolio` | `GET/POST /api/v1/portfolio/*` | Monitoring kepemilikan koin meme & tombol reset Rp 150K |
 | 15 | **Jurnal Trading** | `/journal` | `GET/POST /api/v1/journal/*` | Rekapitulasi transaksi closed, fee breakdown, ekspor Excel |
@@ -109,7 +115,7 @@ Pengguna dapat memilih salah satu dari 3 mode strategi yang disesuaikan dengan p
 | 17 | **AI Degen Agents** | `/agents` | `GET /api/v1/ai/agents` | Pengelolaan sub-agen riset autonomous |
 | 18 | **Risk & Slippage** | `/risk` | `GET/PUT /api/v1/risk/config` | Proteksi drawdown, batas slippage, dan alokasi modal |
 | 19 | **Multi-Gate Wallets** | `/wallets` | `GET/POST /api/v1/wallets/*` | Manajemen 3 gate wallet, topup gas, settlement 05:00 WIB |
-| 20 | **Pengaturan Sistem** | `/settings` | `GET/PUT /api/v1/settings/*` | Konfigurasi API keys, RPC nodes, dan akun operator |
+| 20 | **Pengaturan Sistem** | `/settings` | `GET/PUT /api/v1/settings/*`, `POST /api/v1/telegram/test-alert` | Konfigurasi API keys, RPC nodes, notifikasi Telegram, sesi operator |
 
 ---
 

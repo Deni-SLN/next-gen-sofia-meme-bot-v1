@@ -382,7 +382,7 @@ export default function GoldPage() {
   return (
     <>
       <Head>
-        <title>Portofolio Emas &amp; Kalkulator Buyback | SOFIA Market</title>
+        <title>Portofolio Emas &amp; Kalkulator Buyback | Sofia Market 3.9</title>
       </Head>
 
       <div className="space-y-5 pb-12">

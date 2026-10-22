@@ -961,7 +961,7 @@ export default function EncyclopediaPage() {
   return (
     <>
       <Head>
-        <title>Ensiklopedia Pasar &amp; Glosarium — SOFIA Market Analyst</title>
+        <title>Ensiklopedia Pasar &amp; Glosarium — Sofia Market 3.9</title>
         <meta
           name="description"
           content="Glosarium finansial komprehensif: panduan menu SOFIA, istilah kripto web3, saham BEI IHSG, pasar emas XAU Antam, dan indikator teknikal."

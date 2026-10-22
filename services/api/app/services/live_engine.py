@@ -750,7 +750,7 @@ def get_live_engine_status(db: Session) -> dict:
     return {
         "live_ready": True,
         "paper_ready": True,
-        "execution_engine": "SOFIA v3.8 Dual-Engine (Paper Simulasi + Live On-Chain Hot Wallet)",
+        "execution_engine": "Sofia Market 3.9 Dual-Engine (Paper Simulasi + Live On-Chain Hot Wallet)",
         "solana_rpc": SOLANA_MAINNET_RPC,
         "base_rpc": BASE_MAINNET_RPC,
         "dex_aggregators": ["Jupiter v6 (Solana)", "Raydium AMM v4", "PumpSwap", "Uniswap v3 (Base)"],
