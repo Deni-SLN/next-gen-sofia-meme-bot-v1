@@ -233,6 +233,7 @@ export default function TradingPage() {
   const holdingsCount = holdingsList.length;
   const holdingsValUsd = Number(portfolioQuery.data?.net_holdings_value_usd || portfolioQuery.data?.total_value) || 0;
   const holdingsValIdr = Number(portfolioQuery.data?.net_holdings_value_idr || portfolioQuery.data?.total_value_idr) || 0;
+  const displayMaxSlots = maxOpenPositions || Number(configQuery.data?.max_open_positions) || 10;
 
   // Active Total Equity: In LIVE = Real On-Chain Wallets + Holdings; In PAPER = Paper Cash + Holdings
   const activeEquityUsd = isLive
@@ -1457,7 +1458,7 @@ export default function TradingPage() {
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-400 font-medium">Posisi Terbuka</span>
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-obsidian-850 text-cyan-300 border border-obsidian-700 font-bold">
-                  {holdingsCount}/5 SLOT
+                  {holdingsCount}/{displayMaxSlots} SLOT
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
