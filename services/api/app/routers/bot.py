@@ -21,7 +21,10 @@ def _row_to_dict(obj) -> dict:
 class StartBotRequest(BaseModel):
     mode: str = "PAPER"
     strategy_mode: str | None = None
-
+    buy_amount_usd: float | None = None
+    buy_amount_idr: float | None = None
+    max_open_positions: int | None = None
+    slippage_pct: float | None = None
 
 class SniperConfigUpdateRequest(BaseModel):
     strategy_mode: str | None = None
@@ -62,7 +65,7 @@ class SniperConfigUpdateRequest(BaseModel):
 def get_status(db: Session = Depends(get_db)):
     state = bot.get_bot_status(db)
     data = _row_to_dict(state)
-    cfg = bot.get_sniper_config(db)
+    cfg = bot.get_sniper_config(db, mode=state.mode)
     data["sniper_config"] = cfg
     data["strategy_mode"] = cfg.get("strategy_mode", "DEFAULT")
     data["strategy_stats"] = cfg.get("strategy_stats", {})
@@ -70,14 +73,14 @@ def get_status(db: Session = Depends(get_db)):
 
 
 @router.get("/config")
-def get_config(db: Session = Depends(get_db)):
-    return bot.get_sniper_config(db)
+def get_config(mode: str | None = None, db: Session = Depends(get_db)):
+    return bot.get_sniper_config(db, mode=mode)
 
 
 @router.put("/config")
 def update_config(body: SniperConfigUpdateRequest, db: Session = Depends(get_db)):
     try:
-        return bot.update_sniper_config(body.model_dump(exclude_unset=True), db=db)
+        return bot.update_sniper_config(body.model_dump(exclude_unset=True), db=db, allow_while_running=True)
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -97,7 +100,15 @@ def get_activity(
 @router.post("/start")
 def start(body: StartBotRequest, db: Session = Depends(get_db)):
     try:
-        state = bot.start_bot(db, body.mode, strategy_mode=body.strategy_mode)
+        state = bot.start_bot(
+            db,
+            body.mode,
+            strategy_mode=body.strategy_mode,
+            buy_amount_usd=body.buy_amount_usd,
+            buy_amount_idr=body.buy_amount_idr,
+            max_open_positions=body.max_open_positions,
+            slippage_pct=body.slippage_pct,
+        )
         data = _row_to_dict(state)
         cfg = bot.get_sniper_config()
         data["sniper_config"] = cfg

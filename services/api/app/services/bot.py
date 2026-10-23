@@ -44,13 +44,19 @@ def _append_log(badge: str, chain: str, token: str, message: str, detail_idr: st
 
 def clear_bot_logs() -> None:
     _BOT_ACTIVITY_LOGS.clear()
+    cap_idr = float(_SNIPER_CONFIG.get("paper_initial_capital_idr", 150000.0))
     _CURRENT_STAGE.update({
         "stage": "IDLE",
         "stage_index": 0,
         "target_token": None,
-        "detail": "Modal Paper telah di-reset ke Rp 150.000. Siap memindai market.",
+        "detail": f"Modal Paper telah di-reset ke Rp {cap_idr:,.0f}. Siap memindai market.",
     })
-    _append_log("SYSTEM", "SOL", "RESET", "Semua portofolio & posisi Paper dihapus. Modal kembali ke Rp 150.000.", "Rp 150.000", "info")
+    _append_log("SYSTEM", "SOL", "RESET", f"Semua portofolio & posisi Paper dihapus. Modal kembali ke Rp {cap_idr:,.0f}.", f"Rp {cap_idr:,.0f}", "info")
+
+
+def _trig_tag() -> str:
+    strat = str(_SNIPER_CONFIG.get("strategy_mode", "DEFAULT")).upper()
+    return f"[{strat}]"
 
 
 STRATEGY_PRESETS: dict[str, dict] = {
@@ -128,13 +134,13 @@ STRATEGY_PRESETS: dict[str, dict] = {
             "DexScreener Boosts v1",
             "GMGN.ai Sol Trench Radar",
         ],
-        "auto_tp_pct": 35.0,
+        "auto_tp_pct": 8.0,
         "auto_sl_pct": 12.0,
         "trailing_stop_enabled": True,
         "trailing_stop_pct": 6.0,
         "time_stop_minutes": 20,
         "max_open_positions": 5,
-        "tick_interval_ms": 2000,
+        "tick_interval_ms": 1200,
     },
 }
 
@@ -181,7 +187,7 @@ def _load_persisted_sniper_config() -> None:
             data = json.loads(_CONFIG_FILE_PATH.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 for k, v in data.items():
-                    if k in _SNIPER_CONFIG and v is not None:
+                    if (k in _SNIPER_CONFIG or k in _USER_OWNED_KEYS) and v is not None:
                         _SNIPER_CONFIG[k] = v
                 strat = str(_SNIPER_CONFIG.get("strategy_mode", "DEFAULT")).upper()
                 if strat in STRATEGY_PRESETS:
@@ -202,7 +208,18 @@ def _save_persisted_sniper_config() -> None:
 _load_persisted_sniper_config()
 
 
-def get_strategy_winrate_stats(db: Session | None = None) -> dict[str, dict]:
+_USER_OWNED_KEYS = (
+    "buy_amount_idr",
+    "snipe_amount_idr",
+    "max_open_positions",
+    "slippage_pct",
+    "max_slippage_pct",
+    "paper_initial_capital_idr",
+    "buy_amount_usd",
+)
+
+
+def get_strategy_winrate_stats(db: Session | None = None, mode: str | None = None) -> dict[str, dict]:
     """
     Return genuine winrate, trade counts, wins, losses, and realized PnL for each strategy mode
     (SAFE, DEFAULT, AGGRESSIVE) computed strictly from real closed trades.
@@ -239,9 +256,12 @@ def get_strategy_winrate_stats(db: Session | None = None) -> dict[str, dict]:
 
     if db is not None:
         try:
-            closed_sells = list(
-                db.execute(select(Trade).where(Trade.side == "sell", Trade.status == "closed")).scalars().all()
-            )
+            fx = market.get_fx_rate()
+            usd_idr = fx.get("usd_idr", 16300.0)
+            q = select(Trade).where(Trade.side == "sell", Trade.status == "closed")
+            if mode:
+                q = q.where(Trade.mode == mode.upper())
+            closed_sells = list(db.execute(q).scalars().all())
             for t in closed_sells:
                 notes_u = (t.notes or "").upper()
                 if "[SAFE]" in notes_u:
@@ -253,14 +273,15 @@ def get_strategy_winrate_stats(db: Session | None = None) -> dict[str, dict]:
                 else:
                     continue
                 stats[m_key]["trades_count"] += 1
-                pnl_val = float(t.pnl or 0.0)
-                stats[m_key]["realized_pnl_idr"] += pnl_val
-                if pnl_val >= 0:
+                pnl_val_usd = float(t.pnl or 0.0)
+                stats[m_key]["realized_pnl_idr"] += (pnl_val_usd * usd_idr)
+                if pnl_val_usd >= 0:
                     stats[m_key]["wins"] += 1
                 else:
                     stats[m_key]["losses"] += 1
 
             for m_key, s in stats.items():
+                s["realized_pnl_idr"] = round(s["realized_pnl_idr"], 0)
                 tc = s["trades_count"]
                 if tc > 0:
                     s["winrate_pct"] = round((s["wins"] / tc) * 100.0, 1)
@@ -270,14 +291,16 @@ def get_strategy_winrate_stats(db: Session | None = None) -> dict[str, dict]:
     return stats
 
 
-def get_sniper_config(db: Session | None = None) -> dict:
+def get_sniper_config(db: Session | None = None, mode: str | None = None) -> dict:
     _load_persisted_sniper_config()
     cfg = dict(_SNIPER_CONFIG)
+    fx = market.get_fx_rate()
+    usd_idr = fx.get("usd_idr", 16300.0)
+    cfg["buy_amount_usd"] = round(float(cfg.get("buy_amount_idr", 20000.0)) / usd_idr, 2)
     cfg["presets"] = STRATEGY_PRESETS
-    cfg["strategy_stats"] = get_strategy_winrate_stats(db)
+    cfg["strategy_stats"] = get_strategy_winrate_stats(db, mode=mode)
     cfg["legacy_blacklist"] = sorted(list(market.LEGACY_ESTABLISHED_TOKENS))
     return cfg
-
 
 def update_sniper_config(updates: dict, db: Session | None = None, allow_while_running: bool = False) -> dict:
     _load_persisted_sniper_config()
@@ -285,24 +308,17 @@ def update_sniper_config(updates: dict, db: Session | None = None, allow_while_r
     apply_preset = bool(updates.get("apply_preset", False))
     current_strat = str(_SNIPER_CONFIG.get("strategy_mode", "DEFAULT")).strip().upper()
 
-    if db is not None and not allow_while_running and req_strategy:
-        norm_req = str(req_strategy).strip().upper()
-        if norm_req != current_strat:
-            state = get_bot_status(db)
-            if state and state.status == "running":
-                raise ValueError(
-                    f"MODE_TERKUNCI: Mode Strategi ({current_strat}) tidak dapat diubah selama Bot sedang berjalan. "
-                    f"Hentikan Bot terlebih dahulu untuk mengganti mode."
-                )
-
     if req_strategy:
         norm_strat = str(req_strategy).strip().upper()
         if norm_strat in STRATEGY_PRESETS:
             preset = STRATEGY_PRESETS[norm_strat]
-            # If user clicked a mode preset button (or only sent strategy_mode), apply preset parameters
+            # Preserve user owned keys so strategy preset never clobbers operator trade size / positions / slippage
+            preserved_user = {k: _SNIPER_CONFIG[k] for k in _USER_OWNED_KEYS if k in _SNIPER_CONFIG}
             if apply_preset or len([k for k, v in updates.items() if v is not None and k not in ("strategy_mode", "apply_preset")]) == 0:
                 for pk, pv in preset.items():
                     _SNIPER_CONFIG[pk] = pv
+                for k, v in preserved_user.items():
+                    _SNIPER_CONFIG[k] = v
             else:
                 _SNIPER_CONFIG["strategy_mode"] = norm_strat
                 _SNIPER_CONFIG["strategy_label"] = preset["strategy_label"]
@@ -311,6 +327,8 @@ def update_sniper_config(updates: dict, db: Session | None = None, allow_while_r
                 _SNIPER_CONFIG["max_open_positions"] = preset["max_open_positions"]
                 _SNIPER_CONFIG["only_new_creations"] = preset["only_new_creations"]
                 _SNIPER_CONFIG["discovery_sources"] = preset["discovery_sources"]
+                for k, v in preserved_user.items():
+                    _SNIPER_CONFIG[k] = v
 
             if norm_strat != current_strat or apply_preset:
                 _append_log(
@@ -322,14 +340,19 @@ def update_sniper_config(updates: dict, db: Session | None = None, allow_while_r
                     "success" if norm_strat != "AGGRESSIVE" else "warn",
                 )
 
-    # Support frontend alias keys (max_slippage_pct -> slippage_pct, snipe_amount_idr -> buy_amount_idr)
+    # Support frontend alias keys and USD buy amounts
+    if updates.get("buy_amount_usd") is not None and float(updates["buy_amount_usd"]) > 0:
+        fx = market.get_fx_rate()
+        usd_idr = fx.get("usd_idr", 16300.0)
+        updates["buy_amount_idr"] = round(float(updates["buy_amount_usd"]) * usd_idr, 0)
+        _SNIPER_CONFIG["buy_amount_usd"] = float(updates["buy_amount_usd"])
     if updates.get("max_slippage_pct") is not None and updates.get("slippage_pct") is None:
         updates["slippage_pct"] = updates["max_slippage_pct"]
     if updates.get("snipe_amount_idr") is not None and updates.get("buy_amount_idr") is None:
         updates["buy_amount_idr"] = updates["snipe_amount_idr"]
 
     for k, v in updates.items():
-        if k in _SNIPER_CONFIG and v is not None and k not in ("strategy_mode",):
+        if (k in _SNIPER_CONFIG or k in _USER_OWNED_KEYS) and v is not None and k not in ("strategy_mode",):
             _SNIPER_CONFIG[k] = v
     _save_persisted_sniper_config()
     return get_sniper_config()
@@ -345,7 +368,15 @@ def get_bot_status(db: Session) -> BotState:
     return state
 
 
-def start_bot(db: Session, mode: str, strategy_mode: str | None = None) -> BotState:
+def start_bot(
+    db: Session,
+    mode: str,
+    strategy_mode: str | None = None,
+    buy_amount_usd: float | None = None,
+    buy_amount_idr: float | None = None,
+    max_open_positions: int | None = None,
+    slippage_pct: float | None = None,
+) -> BotState:
     from app.services import live_engine
 
     norm_mode = (mode or "PAPER").strip().upper()
@@ -362,6 +393,19 @@ def start_bot(db: Session, mode: str, strategy_mode: str | None = None) -> BotSt
             allow_while_running=True,
         )
 
+    # Apply operator pre-start parameters (dollar per trade, max positions, slippage)
+    runtime_updates: dict = {}
+    if buy_amount_usd is not None and float(buy_amount_usd) > 0:
+        runtime_updates["buy_amount_usd"] = float(buy_amount_usd)
+    elif buy_amount_idr is not None and float(buy_amount_idr) > 0:
+        runtime_updates["buy_amount_idr"] = float(buy_amount_idr)
+    if max_open_positions is not None and int(max_open_positions) > 0:
+        runtime_updates["max_open_positions"] = int(max_open_positions)
+    if slippage_pct is not None and float(slippage_pct) > 0:
+        runtime_updates["slippage_pct"] = float(slippage_pct)
+
+    if runtime_updates:
+        update_sniper_config(runtime_updates, db=db, allow_while_running=True)
     strat_mode = _SNIPER_CONFIG.get("strategy_mode", "DEFAULT")
     strat_label = _SNIPER_CONFIG.get("strategy_label", "DEFAULT")
 
@@ -761,10 +805,6 @@ def _run_bot_scan_tick_locked(
             has_enough_gas = True
             needed_gas_reserve_sol = 0.0
             sol_bal = 0.0
-            treasury.ensure_gas_reserve(db, paper_wallet, usd_idr, needed_gas_usd=0.015)
-            avail_cash_usd = float(paper_wallet.balance)
-            avail_cash_idr = avail_cash_usd * usd_idr
-            spendable_sol_idr = avail_cash_idr
 
         tp_target = float(_SNIPER_CONFIG.get("auto_tp_pct", 12.0))
         sl_target = -abs(float(_SNIPER_CONFIG.get("auto_sl_pct", 8.0)))
@@ -792,14 +832,13 @@ def _run_bot_scan_tick_locked(
                         pass
             if active_mode == "LIVE":
                 portfolio.sync_onchain_holdings_to_portfolio(db)
-            holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
+            holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == active_mode)).scalars().all())
             if active_mode != "LIVE":
                 db.refresh(paper_wallet)
                 avail_cash_usd = float(paper_wallet.balance)
                 avail_cash_idr = avail_cash_usd * usd_idr
 
-        # 1. Refresh live prices on existing holdings & check Auto TP / SL (or Fast Scalp Flip in AGGRESSIVE mode)
-        # Note: In LIVE mode, sync_onchain_holdings_to_portfolio already sets h.current_price from the exact on-chain mint address!
+        # 1. Refresh live prices on existing holdings & check Auto TP / SL
         sold_any = False
         for h in holdings:
             if active_mode != "LIVE":
@@ -815,9 +854,8 @@ def _run_bot_scan_tick_locked(
             net_pnl_pct = net_m["net_pnl_pct"]
             gross_pnl_pct = net_m["gross_pnl_pct"]
 
-            # In AGGRESSIVE mode, only trigger Quick Scalp Profit when net_pnl_pct >= 12.0% (never dump at a loss just to rotate slots)
-            fast_scalp_hit = (strat_mode == "AGGRESSIVE") and (net_pnl_pct >= 12.0)
-            should_exit = auto_trade and (net_pnl_pct >= tp_target or net_pnl_pct <= sl_target or fast_scalp_hit)
+            # AGGRESSIVE mode strictly obeys configured auto_tp_pct and auto_sl_pct
+            should_exit = auto_trade and (net_pnl_pct >= tp_target or net_pnl_pct <= sl_target)
 
             if should_exit:
                 try:
@@ -827,10 +865,6 @@ def _run_bot_scan_tick_locked(
                     db.commit()
                     if net_pnl_pct >= tp_target:
                         reason = f"AUTO TAKE-PROFIT [{strat_mode}]"
-                    elif fast_scalp_hit and net_pnl_pct >= 0:
-                        reason = "⚡ AGGRESSIVE FAST SCALP TAKE-PROFIT"
-                    elif fast_scalp_hit:
-                        reason = "⚡ AGGRESSIVE FAST ROTATION EXIT"
                     else:
                         reason = f"AUTO STOP-LOSS [{strat_mode}]"
 
@@ -870,7 +904,8 @@ def _run_bot_scan_tick_locked(
 
         # 2. Auto-Snipe new token if we have sufficient spendable Cash and open positions < max_positions
         score_threshold = (min_score - 15) if strat_mode == "AGGRESSIVE" else (min_score - 5)
-        min_cash_threshold = 2000.0 if active_mode == "LIVE" else 5000.0
+        cfg_buy_idr = float(_SNIPER_CONFIG.get("buy_amount_idr", 15000.0))
+        min_cash_threshold = max(2000.0, cfg_buy_idr)
         has_enough_cash = (spendable_sol_idr >= min_cash_threshold and has_enough_gas) if active_mode == "LIVE" else (avail_cash_idr >= min_cash_threshold)
 
         can_snipe = (
@@ -882,7 +917,6 @@ def _run_bot_scan_tick_locked(
         )
 
         if can_snipe:
-            cfg_buy_idr = float(_SNIPER_CONFIG.get("buy_amount_idr", 15000.0))
             if active_mode == "LIVE":
                 # Adapt buy size to available spendable SOL cash, bounded by cfg_buy_idr
                 snipe_idr = min(cfg_buy_idr, max(2000.0, spendable_sol_idr))

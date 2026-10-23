@@ -63,6 +63,7 @@ def _ensure_column_migrations() -> None:
         ("trades", "notes", "TEXT DEFAULT ''"),
         ("portfolio_holdings", "entry_costs_usd", "FLOAT DEFAULT 0.0"),
         ("portfolio_holdings", "liquidity_usd", "FLOAT DEFAULT 0.0"),
+        ("portfolio_holdings", "mode", "VARCHAR(10) DEFAULT 'PAPER'"),
     ]
     is_pg = not settings.database_url.startswith("sqlite")
     with engine.begin() as conn:
@@ -79,6 +80,18 @@ def _ensure_column_migrations() -> None:
             try:
                 conn.execute(text("ALTER TABLE settlements ALTER COLUMN trigger TYPE VARCHAR(100)"))
                 conn.execute(text("ALTER TABLE settlements ALTER COLUMN status TYPE VARCHAR(50)"))
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE portfolio_holdings DROP CONSTRAINT IF EXISTS portfolio_holdings_symbol_key"))
+                conn.execute(text("DROP INDEX IF EXISTS ix_portfolio_holdings_symbol"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_portfolio_holdings_symbol_mode ON portfolio_holdings (symbol, mode)"))
+            except Exception:
+                pass
+        else:
+            try:
+                conn.execute(text("DROP INDEX IF EXISTS ix_portfolio_holdings_symbol"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_portfolio_holdings_symbol_mode ON portfolio_holdings (symbol, mode)"))
             except Exception:
                 pass
 

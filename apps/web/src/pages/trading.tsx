@@ -12,8 +12,9 @@ import {
 import { QueryState } from '@/components/QueryState';
 import { BotActivityCard } from '@/components/BotActivityCard';
 import { LucideIcon } from '@/components/LucideIcon';
+import { StartBotModal, StartBotParams } from '@/components/StartBotModal';
+import { ResetPaperModal } from '@/components/ResetPaperModal';
 import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
-
 const RELAY_OPTIONS = [
   { id: 'JITO_0SLOT', label: '⚡ Jito 0-Slot Bundle (Anti-MEV)', desc: 'Inklusi blok-0 langsung ke validator Jito' },
   { id: 'HELIUS_STAKED', label: '🚀 Helius Staked SwQoS', desc: 'Jalur RPC staked prioritas tinggi' },
@@ -90,8 +91,9 @@ export default function TradingPage() {
   const [trailingPct, setTrailingPct] = useState<number>(5);
   const [multiWalletRot, setMultiWalletRot] = useState<boolean>(true);
   const [snipeAmountIdr, setSnipeAmountIdr] = useState<number>(20000);
-
-  // 1-Click Terminal Snipe Bar State (defaults to newest creation from DexScreener/GMGN instead of BONK)
+  const [maxOpenPositions, setMaxOpenPositions] = useState<number>(3);
+  const [showStartBotModal, setShowStartBotModal] = useState<boolean>(false);
+  const [showResetPaperModal, setShowResetPaperModal] = useState<boolean>(false);
   const [terminalSymbol, setTerminalSymbol] = useState<string>('');
   const [terminalContract, setTerminalContract] = useState<string>('');
   const [terminalAmountIdr, setTerminalAmountIdr] = useState<number>(25000);
@@ -124,8 +126,11 @@ export default function TradingPage() {
     }
   }, [botQuery.data]);
 
+  const configHydratedRef = React.useRef(false);
+
   useEffect(() => {
-    if (configQuery.data) {
+    if (configQuery.data && !configHydratedRef.current) {
+      configHydratedRef.current = true;
       const c = configQuery.data;
       if (c.strategy_mode && ['SAFE', 'DEFAULT', 'AGGRESSIVE'].includes(c.strategy_mode)) {
         setStrategyMode(c.strategy_mode);
@@ -147,6 +152,7 @@ export default function TradingPage() {
       if (c.multi_wallet_rotation !== undefined) setMultiWalletRot(Boolean(c.multi_wallet_rotation));
       const buyVal = c.buy_amount_idr !== undefined ? c.buy_amount_idr : c.snipe_amount_idr;
       if (buyVal !== undefined) setSnipeAmountIdr(Number(buyVal));
+      if (c.max_open_positions !== undefined) setMaxOpenPositions(Number(c.max_open_positions));
     }
   }, [configQuery.data]);
 
@@ -218,9 +224,11 @@ export default function TradingPage() {
   const liveGasUsd = primaryLiveTradingWallet?.gas_fee_usd ?? Math.max(0, (Number(primaryLiveTradingWallet?.balance_usd) || 0) - liveUsdcUsd);
   const liveGasIdr = primaryLiveTradingWallet?.gas_fee_idr ?? (liveGasUsd * usdIdr);
 
-  const paperCashUsd = Number(portfolioQuery.data?.paper_cash_usd) || (150000 / usdIdr);
-  const paperCashIdr = Number(portfolioQuery.data?.paper_cash_idr) || 150000;
-
+  const d = portfolioQuery.data;
+  const paperInitialIdr = Number(d?.paper_initial_idr) || 150000;
+  const paperInitialUsd = Number(d?.paper_initial_usd) || (paperInitialIdr / usdIdr);
+  const paperCashUsd = Number(d?.paper_cash_usd) || paperInitialUsd;
+  const paperCashIdr = Number(d?.paper_cash_idr) || paperInitialIdr;
   const holdingsList: any[] = portfolioQuery.data?.holdings || [];
   const holdingsCount = holdingsList.length;
   const holdingsValUsd = Number(portfolioQuery.data?.net_holdings_value_usd || portfolioQuery.data?.total_value) || 0;
@@ -311,32 +319,70 @@ export default function TradingPage() {
   const handlePowerButton = async () => {
     setActionError('');
     setActionSuccess('');
-    try {
-      if (isRunning) {
+    if (isRunning) {
+      try {
         await api.stopBot();
         setActionSuccess('⏹ Mesin PumpSniper Bot berhasil dihentikan.');
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: false } }));
         }
-      } else {
-        await api.startBot(selectedMode, strategyMode);
-        setActionSuccess(
-          selectedMode === 'PAPER'
-            ? `🟢 Mesin PumpSniper Bot berjalan dalam Mode PAPER • Strategi ${strategyMode} (${
-                strategyMode === 'AGGRESSIVE' ? 'DexScreener+GMGN New-Meme Sniper 1.2s' : strategyMode === 'SAFE' ? 'Token Lulus & Aman' : 'Seimbang'
-              }).`
-            : `🔴 Mesin PumpSniper Bot berjalan dalam Mode LIVE ON-CHAIN • Strategi ${strategyMode} (${relayMode})!`
-        );
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: true } }));
+        botQuery.refetch();
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setActionError(err.message);
+        } else {
+          setActionError('Gagal menghentikan bot.');
         }
       }
-      botQuery.refetch();
-    } catch (err: any) {
-      setActionError(`${err.code || 'ERROR'}: ${err.message}`);
+    } else {
+      setShowStartBotModal(true);
     }
   };
 
+  const handleConfirmStartBot = async (params: StartBotParams) => {
+    setActionError('');
+    setActionSuccess('');
+    await api.startBot(selectedMode, strategyMode, {
+      buy_amount_usd: params.buy_amount_usd,
+      max_open_positions: params.max_open_positions,
+      slippage_pct: params.slippage_pct,
+    });
+    setSnipeAmountIdr(params.buy_amount_usd * usdIdr);
+    setMaxOpenPositions(params.max_open_positions);
+    setSlippage(params.slippage_pct);
+    setActionSuccess(
+      selectedMode === 'PAPER'
+        ? `🟢 Mesin PumpSniper Bot berjalan dalam Mode PAPER • $${params.buy_amount_usd.toFixed(2)}/trade • Maks ${params.max_open_positions} posisi • Slip ${params.slippage_pct}%.`
+        : `🔴 Mesin PumpSniper Bot berjalan dalam Mode LIVE ON-CHAIN • $${params.buy_amount_usd.toFixed(2)}/trade • Maks ${params.max_open_positions} posisi • Slip ${params.slippage_pct}% (${relayMode})!`
+    );
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: true } }));
+    }
+    botQuery.refetch();
+    configQuery.refetch();
+  };
+
+  const handleConfirmResetPaper = async (initialUsd: number) => {
+    setActionError('');
+    setActionSuccess('');
+    try {
+      const freshOverview = await api.resetPaperAccount({ initial_capital_usd: initialUsd });
+      portfolioQuery.setData(freshOverview);
+      await walletsQuery.refetch();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sofia-paper-reset', { detail: freshOverview }));
+      }
+      setActionSuccess(
+        `🔄 Modal awal Paper berhasil diatur ke $${initialUsd.toLocaleString()} (≈ ${formatIdr(initialUsd * usdIdr)}). Portofolio simulasi telah diatur ulang!`
+      );
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError('Gagal mereset modal simulasi.');
+      }
+    }
+  };
   const handleSaveConfig = async () => {
     setActionError('');
     setActionSuccess('');
@@ -360,11 +406,11 @@ export default function TradingPage() {
         multi_wallet_rotation: multiWalletRot,
         buy_amount_idr: snipeAmountIdr,
         snipe_amount_idr: snipeAmountIdr,
+        buy_amount_usd: Number((snipeAmountIdr / usdIdr).toFixed(2)),
+        max_open_positions: maxOpenPositions,
       });
       setActionSuccess(
-        `✅ Konfigurasi [${strategyMode}] tersimpan! Max Umur Koin: ${maxTokenAgeMinutes}m • Max MCap: $${Number(
-          maxMarketCapUsd
-        ).toLocaleString()} • Auto TP: +${autoTpPct}% • SL: -${autoSlPct}%`
+        `✅ Konfigurasi [${strategyMode}] tersimpan! $${(snipeAmountIdr / usdIdr).toFixed(2)}/trade • Maks ${maxOpenPositions} posisi • Slip ${slippage}%`
       );
       configQuery.refetch();
     } catch (err: any) {
@@ -569,7 +615,7 @@ export default function TradingPage() {
                     selectedMode === 'PAPER' ? 'text-emerald-400' : 'text-slate-500'
                   }`}
                 >
-                  PAPER (Rp 150rb)
+                  PAPER ({formatIdr(paperInitialIdr)})
                 </span>
                 <button
                   type="button"
@@ -607,6 +653,112 @@ export default function TradingPage() {
                 {isRunning
                   ? '⏹ HENTIKAN BOT SEKARANG'
                   : `▶️ JALANKAN BOT (${selectedMode} • ${strategyMode})`}
+              </button>
+            </div>
+          </div>
+
+          {/* TOP CARD DIRECT PARAMETERS: Modal per Trade, Batas Posisi, Slippage, Modal Paper */}
+          <div className="p-3.5 rounded-xl bg-obsidian-950 border border-obsidian-800 space-y-3 font-mono text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-obsidian-800/80 pb-2.5">
+              <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-200 flex items-center gap-1.5">
+                <LucideIcon name="sliders" className="w-3.5 h-3.5 text-cyan-400" />
+                Pengaturan Langsung: Modal per Trade, Batas Posisi &amp; Slippage
+              </span>
+              {!isLive ? (
+                <button
+                  type="button"
+                  onClick={() => setShowResetPaperModal(true)}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold transition flex items-center gap-1"
+                >
+                  <span>⚙️ Atur Modal Paper:</span>
+                  <span className="text-white underline">{formatIdr(paperInitialIdr)}</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="text-slate-400">Kas Siap:</span>
+                  <span className="text-cyan-300 font-bold">{liveUsdcBal.toFixed(4)} USDC</span>
+                  <span className="text-slate-500">•</span>
+                  <span className="text-amber-300 font-bold">{Number(liveGasBal).toFixed(4)} SOL Gas</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Parameter 1: Dolar per Trade */}
+              <div className="space-y-1 p-2.5 rounded-lg bg-obsidian-900 border border-obsidian-800">
+                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between">
+                  <span>1. Dolar per Trade ($ USD)</span>
+                  <span className="text-emerald-400 font-bold">≈ {formatIdr(snipeAmountIdr)}</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    value={Number((snipeAmountIdr / usdIdr).toFixed(2))}
+                    onChange={(e) => {
+                      const usd = parseFloat(e.target.value) || 0;
+                      setSnipeAmountIdr(Math.round(usd * usdIdr));
+                    }}
+                    className="w-full pl-6 pr-2 py-1.5 rounded bg-obsidian-950 border border-obsidian-700 text-emerald-300 font-extrabold text-xs"
+                    placeholder="1.00"
+                  />
+                </div>
+                <span className="text-[9px] text-slate-500 block">Nominal beli setiap order bot</span>
+              </div>
+
+              {/* Parameter 2: Maksimal Posisi Terbuka */}
+              <div className="space-y-1 p-2.5 rounded-lg bg-obsidian-900 border border-obsidian-800">
+                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between">
+                  <span>2. Maks Posisi Terbuka</span>
+                  <span className="text-cyan-400 font-bold">{maxOpenPositions} Koin</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="20"
+                    value={maxOpenPositions}
+                    onChange={(e) => setMaxOpenPositions(parseInt(e.target.value, 10) || 1)}
+                    className="w-full px-2.5 py-1.5 rounded bg-obsidian-950 border border-obsidian-700 text-cyan-300 font-extrabold text-xs"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">Slot</span>
+                </div>
+                <span className="text-[9px] text-slate-500 block">Batas koin di-hold bersamaan</span>
+              </div>
+
+              {/* Parameter 3: Toleransi Slippage */}
+              <div className="space-y-1 p-2.5 rounded-lg bg-obsidian-900 border border-obsidian-800">
+                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between">
+                  <span>3. Toleransi Slippage (%)</span>
+                  <span className="text-amber-400 font-bold">{slippage}%</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    max="25"
+                    value={slippage}
+                    onChange={(e) => setSlippage(parseFloat(e.target.value) || 0)}
+                    className="w-full px-2.5 pr-6 py-1.5 rounded bg-obsidian-950 border border-obsidian-700 text-amber-300 font-extrabold text-xs"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">%</span>
+                </div>
+                <span className="text-[9px] text-slate-500 block">Batas pergeseran harga swap</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500">
+              <span>* Parameter di atas otomatis diterapkan saat bot memindai &amp; mengeksekusi DEX.</span>
+              <button
+                type="button"
+                onClick={handleSaveConfig}
+                className="px-3 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-obsidian-950 border border-cyan-500/40 font-extrabold text-[11px] transition"
+              >
+                💾 Simpan Parameter
               </button>
             </div>
           </div>
@@ -1027,7 +1179,7 @@ export default function TradingPage() {
           </div>
 
           {/* Bottom Row: Trailing Stop, Multi-Wallet Rotation, Only New Creations, and Save Config Button */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-obsidian-800 font-mono text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-obsidian-800 font-mono text-xs">
             <div className="flex flex-wrap items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer text-amber-300">
                 <input
@@ -1036,9 +1188,7 @@ export default function TradingPage() {
                   onChange={(e) => setOnlyNewCreations(e.target.checked)}
                   className="rounded border-obsidian-700 bg-obsidian-950 text-amber-500"
                 />
-                <span>
-                  🔥 Wajib Koin Baru (Blokir BONK/PEPE/WIF)
-                </span>
+                <span>🔥 Wajib Koin Baru (Blokir BONK/PEPE/WIF)</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer text-slate-300">
@@ -1048,9 +1198,7 @@ export default function TradingPage() {
                   onChange={(e) => setTrailingStop(e.target.checked)}
                   className="rounded border-obsidian-700 bg-obsidian-950 text-emerald-500"
                 />
-                <span>
-                  📈 Trailing Stop-Loss ({trailingPct}%)
-                </span>
+                <span>📈 Trailing Stop-Loss ({trailingPct}%)</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer text-slate-300">
@@ -1060,28 +1208,14 @@ export default function TradingPage() {
                   onChange={(e) => setMultiWalletRot(e.target.checked)}
                   className="rounded border-obsidian-700 bg-obsidian-950 text-cyan-500"
                 />
-                <span>
-                  🔄 Multi-Wallet Anti-Bubble Rotation
-                </span>
+                <span>🔄 Multi-Wallet Anti-Bubble Rotation</span>
               </label>
-
-              <div className="flex items-center gap-1.5 text-slate-400">
-                <span>Ukuran Auto-Snipe Bot:</span>
-                <input
-                  type="number"
-                  step="5000"
-                  value={snipeAmountIdr}
-                  onChange={(e) => setSnipeAmountIdr(Number(e.target.value))}
-                  className="w-24 px-2 py-1 rounded bg-obsidian-950 border border-obsidian-700 text-emerald-300 font-bold"
-                />
-                <span className="text-[10px]">({formatIdr(snipeAmountIdr)})</span>
-              </div>
             </div>
 
             <button
               type="button"
               onClick={handleSaveConfig}
-              className="px-3.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-obsidian-950 border border-cyan-500/40 font-extrabold text-xs transition"
+              className="px-4 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-obsidian-950 border border-cyan-500/40 font-extrabold text-xs transition shadow-sm"
             >
               💾 Simpan Konfigurasi Terminal
             </button>
@@ -1227,13 +1361,22 @@ export default function TradingPage() {
                 <span className="text-xs text-slate-400 font-mono">≈ {formatIdr(activeEquityIdr)}</span>
               </div>
               <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-1.5">
-                <span>{isLive ? `${liveWallets.length} Dompet On-Chain` : 'Modal Awal Rp 150.000'}</span>
-                <span className="font-mono text-cyan-400 text-[10px]">
-                  {isLive ? 'Solana Mainnet' : 'Paper Sandbox'}
-                </span>
+                <span>{isLive ? `${liveWallets.length} Dompet On-Chain` : `Modal Awal ${formatIdr(paperInitialIdr)}`}</span>
+                {isLive ? (
+                  <span className="font-mono text-cyan-400 text-[10px]">
+                    Solana Mainnet
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPaperModal(true)}
+                    className="font-mono text-cyan-400 hover:text-cyan-300 hover:underline text-[10px] font-bold"
+                  >
+                    ⚙️ Atur Modal
+                  </button>
+                )}
               </div>
             </div>
-
             {/* CARD 2: SALDO KAS TERSEDIA */}
             <div className="bg-obsidian-900 border border-obsidian-700/80 rounded-xl p-3.5 transition hover:border-obsidian-600 shadow-md">
               <div className="flex items-center justify-between text-xs mb-1.5">
@@ -1437,6 +1580,30 @@ export default function TradingPage() {
         );
       })()}
       </QueryState>
+
+      <StartBotModal
+        isOpen={showStartBotModal}
+        onClose={() => setShowStartBotModal(false)}
+        onConfirm={handleConfirmStartBot}
+        mode={selectedMode}
+        strategyMode={strategyMode}
+        initialBuyAmountUsd={Number(((configQuery.data?.buy_amount_usd) || (snipeAmountIdr / usdIdr)).toFixed(2)) || 1.0}
+        initialMaxPositions={maxOpenPositions || 3}
+        initialSlippagePct={slippage || 1.5}
+        usdIdr={usdIdr}
+        solPrice={liveGasBal > 0.0001 ? Math.round(liveGasUsd / liveGasBal) : 145}
+        liveUsdcBal={liveUsdcBal}
+        liveGasBal={liveGasBal}
+        liveGasToken={liveGasToken}
+      />
+
+      <ResetPaperModal
+        isOpen={showResetPaperModal}
+        onClose={() => setShowResetPaperModal(false)}
+        onConfirm={handleConfirmResetPaper}
+        currentInitialUsd={paperInitialUsd}
+        usdIdr={usdIdr}
+      />
     </div>
   );
 }

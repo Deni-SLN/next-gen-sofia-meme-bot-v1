@@ -34,7 +34,8 @@ def get_or_init_treasury(db: Session, usd_idr: float | None = None) -> TreasuryS
     if usd_idr is None:
         usd_idr = market.get_fx_rate()["usd_idr"]
     t = db.execute(select(TreasuryState).where(TreasuryState.id == 1)).scalar_one_or_none()
-    init_cap_usd = round(150000.0 / usd_idr, 6)
+    from app.services import portfolio as portfolio_svc
+    init_cap_usd = round(portfolio_svc.get_paper_initial_capital_idr() / usd_idr, 6)
     init_gas_usd = round(INITIAL_GAS_RESERVE_IDR / usd_idr, 6)
     if not t:
         t = TreasuryState(
@@ -64,16 +65,19 @@ def get_or_init_treasury(db: Session, usd_idr: float | None = None) -> TreasuryS
     return t
 
 
-def reset_treasury_for_paper(db: Session, usd_idr: float) -> TreasuryState:
-    """Reset treasury state when Paper Account is reset to Rp 150.000."""
+def reset_treasury_for_paper(db: Session, usd_idr: float, baseline_usd: float | None = None) -> TreasuryState:
+    """Reset treasury state when Paper Account is reset with custom or default capital."""
+    from app.services import portfolio as portfolio_svc
     db.execute(delete(Settlement))
     db.execute(delete(GasTopUp))
     db.execute(delete(EquitySnapshot))
     t = get_or_init_treasury(db, usd_idr)
+    configured_idr = portfolio_svc.get_paper_initial_capital_idr()
+    init_usd = float(baseline_usd) if (baseline_usd is not None and float(baseline_usd) > 0) else round(configured_idr / usd_idr, 6)
     t.gas_reserve_usd = round(INITIAL_GAS_RESERVE_IDR / usd_idr, 6)
     t.gas_min_idr = DEFAULT_GAS_MIN_IDR
     t.gas_target_idr = DEFAULT_GAS_TARGET_IDR
-    t.baseline_equity_usd = round(150000.0 / usd_idr, 6)
+    t.baseline_equity_usd = init_usd
     t.baseline_set_at = datetime.now(timezone.utc)
     t.profit_threshold_pct = 40.0
     t.main_share_pct = 40.0
@@ -330,7 +334,11 @@ def get_treasury_summary(db: Session) -> dict:
     paper_cash_usd = float(ov["paper_cash_usd"])
     holdings_net_usd = float(ov.get("net_holdings_value_usd", ov["total_value"]))
     net_equity_usd = paper_cash_usd + holdings_net_usd + (t.gas_reserve_usd - init_gas_usd)
-    baseline_usd = float(t.baseline_equity_usd or (150000.0 / usd_idr))
+    cfg_idr = portfolio.get_paper_initial_capital_idr()
+    cfg_baseline_usd = round(cfg_idr / usd_idr, 6)
+    baseline_usd = float(t.baseline_equity_usd or cfg_baseline_usd)
+    if baseline_usd < cfg_baseline_usd:
+        baseline_usd = cfg_baseline_usd
 
     net_profit_usd = net_equity_usd - baseline_usd
     net_profit_pct = (net_profit_usd / baseline_usd * 100.0) if baseline_usd > 0 else 0.0
@@ -458,7 +466,13 @@ def run_daily_settlement(
     paper_cash_usd = float(ov["paper_cash_usd"])
     holdings_net_usd = float(ov.get("net_holdings_value_usd", ov["total_value"]))
     net_equity_usd = paper_cash_usd + holdings_net_usd + (t.gas_reserve_usd - init_gas_usd)
-    baseline_usd = float(t.baseline_equity_usd or (150000.0 / usd_idr))
+    cfg_idr = portfolio.get_paper_initial_capital_idr()
+    cfg_baseline_usd = round(cfg_idr / usd_idr, 6)
+    current_baseline_usd = float(t.baseline_equity_usd or 0.0)
+    baseline_usd = max(current_baseline_usd, cfg_baseline_usd)
+    if baseline_usd > current_baseline_usd:
+        t.baseline_equity_usd = baseline_usd
+        db.commit()
 
     net_profit_usd = net_equity_usd - baseline_usd
     net_profit_pct = (net_profit_usd / baseline_usd * 100.0) if baseline_usd > 0 else 0.0
@@ -475,11 +489,11 @@ def run_daily_settlement(
         # Deduct (to_main_usd + to_gas_usd) from paper_wallet cash; if cash is partially in holdings, liquidate needed portion
         needed_cash_out = to_main_usd + to_gas_usd
         if float(paper_wallet.balance) < needed_cash_out:
-            holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
+            holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "PAPER")).scalars().all())
             for h in holdings:
                 if float(paper_wallet.balance) >= needed_cash_out:
                     break
-                portfolio.sell_holding(db, h.symbol, 100.0)
+                portfolio.sell_holding(db, h.symbol, 100.0, mode="PAPER")
             db.refresh(paper_wallet)
 
         paper_wallet.balance = max(0.0, round(float(paper_wallet.balance) - needed_cash_out, 6))

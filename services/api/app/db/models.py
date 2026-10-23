@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Any, List, Optional
-from sqlalchemy import String, Integer, Float, DateTime, JSON, ForeignKey, Text
+from sqlalchemy import String, Integer, Float, DateTime, JSON, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -62,9 +62,13 @@ class Signal(Base):
 
 class PortfolioHolding(Base):
     __tablename__ = "portfolio_holdings"
+    __table_args__ = (
+        UniqueConstraint("symbol", "mode", name="uq_portfolio_holdings_symbol_mode"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    symbol: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    symbol: Mapped[str] = mapped_column(String(30), index=True)
+    mode: Mapped[str] = mapped_column(String(10), default="PAPER", index=True)
     quantity: Mapped[float] = mapped_column(Float, default=0.0)
     avg_entry_price: Mapped[float] = mapped_column(Float, default=0.0)  # effective fill price (incl. slippage)
     current_price: Mapped[float] = mapped_column(Float, default=0.0)

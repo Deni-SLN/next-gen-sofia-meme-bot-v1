@@ -286,12 +286,30 @@ def _determine_market_and_feed_status(last_trade_ts: int, is_idx: bool) -> dict[
     }
 
 
+def _round_price(val: float | None, default_digits: int = 2) -> float | None:
+    """Magnitude-based price rounding: coins < $0.01 keep full precision (up to 8 decimals) instead of rounding to 0.0."""
+    if val is None or not _is_valid_num(val):
+        return None
+    v = float(val)
+    if v == 0.0:
+        return 0.0
+    abs_v = abs(v)
+    if abs_v >= 100:
+        return round(v, 2)
+    elif abs_v >= 1:
+        return round(v, 4)
+    elif abs_v >= 0.01:
+        return round(v, 6)
+    else:
+        return round(v, 8)
+
+
 def _compute_sma(values: list[float], period: int) -> Optional[float]:
     """Compute Simple Moving Average only when sufficient bars exist."""
     clean = [float(v) for v in values if _is_valid_num(v)]
     if len(clean) < period or period <= 0:
         return None
-    return round(sum(clean[-period:]) / period, 2)
+    return _round_price(sum(clean[-period:]) / period)
 
 
 def _compute_ema_series(values: list[float], span: int) -> list[float]:
@@ -310,7 +328,7 @@ def _compute_ema(values: list[float], span: int) -> Optional[float]:
     if len(clean) < span or span <= 0:
         return None
     series = _compute_ema_series(clean, span)
-    return round(series[-1], 2) if series else None
+    return _round_price(series[-1]) if series else None
 
 
 def _compute_rsi(closes: list[float], period: int = 14) -> float:
@@ -346,7 +364,7 @@ def _compute_macd(closes: list[float]) -> tuple[float, float, float]:
     macd_line = [a - b for a, b in zip(ema12, ema26)]
     signal_line = _compute_ema_series(macd_line, 9)
     hist = macd_line[-1] - signal_line[-1]
-    return round(macd_line[-1], 2), round(signal_line[-1], 2), round(hist, 2)
+    return _round_price(macd_line[-1]) or 0.0, _round_price(signal_line[-1]) or 0.0, _round_price(hist) or 0.0
 
 
 def _compute_bollinger_bands(closes: list[float], period: int = 20, std_dev: float = 2.0) -> dict[str, Optional[float]]:
@@ -358,13 +376,13 @@ def _compute_bollinger_bands(closes: list[float], period: int = 20, std_dev: flo
     variance = sum((x - mid) ** 2 for x in window) / period
     sd = math.sqrt(variance)
     upper = mid + std_dev * sd
-    lower = max(0.01, mid - std_dev * sd)
+    lower = max(0.0, mid - std_dev * sd)
     bw_pct = ((upper - lower) / mid * 100.0) if mid > 0 else 0.0
     pct_b = ((clean[-1] - lower) / (upper - lower) * 100.0) if (upper - lower) > 0 else 50.0
     return {
-        "upper": round(upper, 2),
-        "middle": round(mid, 2),
-        "lower": round(lower, 2),
+        "upper": _round_price(upper),
+        "middle": _round_price(mid),
+        "lower": _round_price(lower),
         "bandwidth_pct": round(bw_pct, 2),
         "percent_b": round(pct_b, 2),
     }
@@ -386,11 +404,11 @@ def _compute_true_atr(highs: list[float], lows: list[float], closes: list[float]
     if not trs:
         return closes[-1] * 0.02
     if len(trs) <= period:
-        return round(sum(trs) / len(trs), 2)
+        return _round_price(sum(trs) / len(trs)) or 0.0
     atr = sum(trs[:period]) / period
     for tr in trs[period:]:
         atr = (atr * (period - 1) + tr) / period
-    return round(atr, 2)
+    return _round_price(atr) or 0.0
 
 
 def _compute_vwap(candles: list[dict[str, Any]], is_intraday: bool) -> Optional[float]:

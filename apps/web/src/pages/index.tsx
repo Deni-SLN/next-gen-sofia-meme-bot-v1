@@ -11,8 +11,8 @@ import { QueryState } from '@/components/QueryState';
 import { PnLChart } from '@/components/PnLChart';
 import { BotActivityCard } from '@/components/BotActivityCard';
 import { LucideIcon } from '@/components/LucideIcon';
+import { StartBotModal, StartBotParams } from '@/components/StartBotModal';
 import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
-
 const AVATAR_THEMES = [
   {
     circle: 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400',
@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const [snipeMsg, setSnipeMsg] = useState<string>('');
   const [snipeErr, setSnipeErr] = useState<string>('');
   const [activeTarget, setActiveTarget] = useState<string>('SOL/USDC');
-
+  const [showStartBotModal, setShowStartBotModal] = useState<boolean>(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sofia_quickbuy_idr');
@@ -131,24 +131,41 @@ export default function DashboardPage() {
   const handleBotPower = async () => {
     setSnipeMsg('');
     setSnipeErr('');
-    try {
-      if (botQuery.data?.status === 'running') {
+    if (botQuery.data?.status === 'running') {
+      try {
         await api.stopBot();
         setSnipeMsg('Auto-Sniper Bot dihentikan.');
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: false } }));
         }
-      } else {
-        await api.startBot(snipeMode);
-        setSnipeMsg(`Auto-Sniper Bot diaktifkan (${snipeMode} Mode).`);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: true } }));
+        botQuery.refetch();
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setSnipeErr(err.message);
+        } else {
+          setSnipeErr('Gagal menghentikan bot.');
         }
       }
-      botQuery.refetch();
-    } catch (err: any) {
-      setSnipeErr(`${err?.code || 'ERROR'}: ${err?.message || 'Gagal mengubah status bot'}`);
+    } else {
+      setShowStartBotModal(true);
     }
+  };
+
+  const handleConfirmStartBot = async (params: StartBotParams) => {
+    setSnipeMsg('');
+    setSnipeErr('');
+    await api.startBot(snipeMode, botQuery.data?.strategy_mode || 'DEFAULT', {
+      buy_amount_usd: params.buy_amount_usd,
+      max_open_positions: params.max_open_positions,
+      slippage_pct: params.slippage_pct,
+    });
+    setSnipeMsg(
+      `🟢 Auto-Sniper Bot diaktifkan (${snipeMode} Mode • $${params.buy_amount_usd.toFixed(2)}/trade • Maks ${params.max_open_positions} posisi • Slip ${params.slippage_pct}%).`
+    );
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: true } }));
+    }
+    botQuery.refetch();
   };
 
   const handleInstantSnipe = async (e: React.FormEvent) => {
@@ -190,20 +207,23 @@ export default function DashboardPage() {
     }
   };
 
-  const paperCashUsd = portfolioQuery.data?.paper_cash_usd ?? 150000 / usdIdr;
-  const paperCashIdr = portfolioQuery.data?.paper_cash_idr ?? 150000;
-  const totalEquityUsd = portfolioQuery.data?.total_equity_usd ?? paperCashUsd;
-  const totalEquityIdr = portfolioQuery.data?.total_equity_idr ?? paperCashIdr;
-  const holdingsValUsd = portfolioQuery.data?.total_value ?? 0;
-  const holdingsValIdr = portfolioQuery.data?.total_value_idr ?? 0;
-  const holdingsCount = (portfolioQuery.data?.holdings || []).length;
+  const d = portfolioQuery.data;
+  const paperInitialIdr = Number(d?.paper_initial_idr) || 150000;
+  const paperInitialUsd = Number(d?.paper_initial_usd) || (paperInitialIdr / usdIdr);
+  const paperCashUsd = d?.paper_cash_usd ?? paperInitialUsd;
+  const paperCashIdr = d?.paper_cash_idr ?? paperInitialIdr;
+  const totalEquityUsd = d?.total_equity_usd ?? paperCashUsd;
+  const totalEquityIdr = d?.total_equity_idr ?? paperCashIdr;
+  const holdingsValUsd = d?.total_value ?? 0;
+  const holdingsValIdr = d?.total_value_idr ?? 0;
+  const holdingsCount = (d?.holdings || []).length;
   const realizedPnlUsd = perfQuery.data?.total_pnl ?? 0;
   const realizedPnlIdr = perfQuery.data?.total_pnl_idr ?? 0;
-  const unrealizedPnlUsd = portfolioQuery.data?.unrealized_pnl ?? 0;
-  const unrealizedPnlIdr = portfolioQuery.data?.unrealized_pnl_idr ?? 0;
+  const unrealizedPnlUsd = d?.unrealized_pnl ?? 0;
+  const unrealizedPnlIdr = d?.unrealized_pnl_idr ?? 0;
   const netPnlUsd = realizedPnlUsd + unrealizedPnlUsd;
   const netPnlIdr = realizedPnlIdr + unrealizedPnlIdr;
-  const netPnlPct = ((totalEquityIdr - 150000) / 150000) * 100;
+  const netPnlPct = paperInitialIdr > 0 ? ((totalEquityIdr - paperInitialIdr) / paperInitialIdr) * 100 : 0;
   const isBotRunning = botQuery.data?.status === 'running';
 
   const isLive = snipeMode === 'LIVE';
@@ -320,7 +340,7 @@ export default function DashboardPage() {
               <span>
                 {isLive
                   ? `${liveWallets.length} dompet terhubung`
-                  : 'Modal awal Rp 150.000'}
+                  : `Modal awal ${formatIdr(paperInitialIdr)}`}
               </span>
               <span
                 className={`font-mono font-medium ${
@@ -735,6 +755,22 @@ export default function DashboardPage() {
           );
         })()}
       </QueryState>
+
+      <StartBotModal
+        isOpen={showStartBotModal}
+        onClose={() => setShowStartBotModal(false)}
+        onConfirm={handleConfirmStartBot}
+        mode={snipeMode}
+        strategyMode={botQuery.data?.strategy_mode || 'DEFAULT'}
+        initialBuyAmountUsd={1.0}
+        initialMaxPositions={3}
+        initialSlippagePct={1.5}
+        usdIdr={usdIdr}
+        solPrice={liveGasBal > 0.0001 ? Math.round(liveGasUsd / liveGasBal) : 145}
+        liveUsdcBal={liveUsdcBal}
+        liveGasBal={liveGasBal}
+        liveGasToken={liveGasToken}
+      />
     </div>
   );
 }

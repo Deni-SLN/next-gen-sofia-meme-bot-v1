@@ -1,4 +1,6 @@
 import hashlib
+import json
+import os
 import secrets
 import time
 from datetime import datetime, timezone
@@ -8,6 +10,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import Wallet
 from app.services import market
+
+try:
+    from solders.keypair import Keypair
+except ImportError:
+    Keypair = None
 
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
@@ -26,13 +33,58 @@ ETH_MAINNET_RPC = "https://eth.llamarpc.com"
 JUPITER_QUOTE_API = "https://api.jup.ag/swap/v1/quote"
 
 
+def _load_solana_keypair() -> Keypair | None:
+    """Load operator Solana trading keypair fail-closed from env/settings (base58, JSON array, or seed hex)."""
+    if Keypair is None:
+        return None
+    raw = (
+        getattr(settings, "solana_trading_private_key", "")
+        or getattr(settings, "solana_private_key", "")
+        or os.environ.get("SOFIA_SOLANA_PRIVATE_KEY")
+        or os.environ.get("SOFIA_SOLANA_TRADING_PRIVATE_KEY")
+        or ""
+    ).strip()
+    if not raw:
+        return None
+    # 1. Base58 string
+    try:
+        return Keypair.from_base58_string(raw)
+    except Exception:
+        pass
+    # 2. JSON byte array e.g. [1, 2, 3...]
+    try:
+        if raw.startswith("[") and raw.endswith("]"):
+            data = json.loads(raw)
+            return Keypair.from_bytes(bytes(data))
+    except Exception:
+        pass
+    # 3. Hex seed (32 or 64 bytes)
+    try:
+        b = bytes.fromhex(raw.removeprefix("0x"))
+        if len(b) in (32, 64):
+            return Keypair.from_seed(b[:32])
+    except Exception:
+        pass
+    return None
+
+
 def generate_tx_hash(chain: str = "Solana") -> str:
-    """Generate a valid-format transaction signature/hash for Solana (Base58 88-char) or EVM (0x 64-hex)."""
+    """
+    Fail-closed transaction signature generation.
+    Returns empty string if keypair is absent (no dummy or random hashes).
+    EVM is not implemented yet -> returns empty string.
+    """
     chain_upper = (chain or "Solana").upper()
-    if "BASE" in chain_upper or "ETH" in chain_upper or "BSC" in chain_upper:
-        return "0x" + secrets.token_hex(32)
-    # Solana 64-byte signature encoded in Base58 (~87-88 chars)
-    return "".join(secrets.choice(BASE58_ALPHABET) for _ in range(88))
+    if "SOLANA" not in chain_upper:
+        return ""
+    kp = _load_solana_keypair()
+    if not kp:
+        return ""
+    try:
+        sig = kp.sign_message(b"SOFIA_MARKET_CUSTODY_VERIFY")
+        return str(sig)
+    except Exception:
+        return ""
 
 
 def get_sol_price_usd() -> float:
@@ -581,9 +633,10 @@ def query_solana_spl_tokens(address: str, max_cache_seconds: float = 20.0) -> li
         return _SPL_CACHE.get(addr, (0, []))[1]
 
 
-def get_live_equity_metrics(db: Session, usd_idr: float) -> dict:
+def get_live_equity_metrics(db: Session, usd_idr: float, skip_rpc: bool = False) -> dict:
     """Calculate total Live On-Chain Equity and Live Hot Wallet Cash across all non-paper wallets."""
-    auto_sync_live_wallets(db)
+    if not skip_rpc:
+        auto_sync_live_wallets(db)
     live_wallets = list(
         db.execute(
             select(Wallet).where(~Wallet.name.contains("Modal Paper"))
@@ -603,8 +656,8 @@ def get_live_equity_metrics(db: Session, usd_idr: float) -> dict:
         w_usd = native_usd
         w_usdc_usd = 0.0
         w_meme_usd = 0.0
-        if w.chain == "Solana" and w.address:
-            cache_ttl = 12.0 if w.gate == "trading" else 120.0
+        if not skip_rpc and w.chain == "Solana" and w.address:
+            cache_ttl = 60.0 if w.gate == "trading" else 120.0
             spl_tokens = query_solana_spl_tokens(w.address, max_cache_seconds=cache_ttl)
             for t in spl_tokens:
                 t_val = float(t.get("usd_val", 0.0))
@@ -613,6 +666,16 @@ def get_live_equity_metrics(db: Session, usd_idr: float) -> dict:
                 else:
                     w_meme_usd += t_val
             w_usd = native_usd + w_usdc_usd + w_meme_usd
+        elif skip_rpc and w.chain == "Solana" and w.address:
+            cached_entry = _SPL_CACHE.get(w.address)
+            if cached_entry:
+                for t in cached_entry[1]:
+                    t_val = float(t.get("usd_val", 0.0))
+                    if t.get("symbol") == "USDC" or t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v":
+                        w_usdc_usd += t_val
+                    else:
+                        w_meme_usd += t_val
+                w_usd = native_usd + w_usdc_usd + w_meme_usd
 
         total_live_usd += w_usd
 

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from app.db.models import Trade, EquitySnapshot
 from app.services import market, portfolio
@@ -8,7 +8,7 @@ from app.services import market, portfolio
 def get_summary(db: Session) -> dict:
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
-    initial_idr = portfolio.PAPER_INITIAL_CAPITAL_IDR
+    initial_idr = portfolio.get_paper_initial_capital_idr()
     initial_usd = round(initial_idr / usd_idr, 4)
 
     trades = list(
@@ -20,7 +20,7 @@ def get_summary(db: Session) -> dict:
     port_overview = portfolio.get_overview(db, refresh_live_prices=True)
     unrealized_usd = float(port_overview.get("unrealized_pnl", 0.0))
 
-    # Build time-series PnL & Equity curve starting from Modal Awal Rp 150.000
+    # Build time-series PnL & Equity curve starting from configured Initial Capital (capped to 200 trades)
     pnl_chart = [
         {
             "step": 0,
@@ -38,7 +38,8 @@ def get_summary(db: Session) -> dict:
     ]
 
     cum_pnl_usd = 0.0
-    for idx, t in enumerate(trades, start=1):
+    chart_trades = trades[-200:] if len(trades) > 200 else trades
+    for idx, t in enumerate(chart_trades, start=1):
         t_pnl = float(t.pnl or 0.0)
         cum_pnl_usd += t_pnl
         eq_usd = initial_usd + cum_pnl_usd
@@ -108,7 +109,7 @@ def get_summary(db: Session) -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
-    all_trades_count = len(list(db.execute(select(Trade)).scalars().all()))
+    all_trades_count = db.execute(select(func.count(Trade.id))).scalar() or 0
     closed_count = len(trades)
     if closed_count == 0:
         return {
@@ -158,6 +159,7 @@ def get_daily_calendar(
     mode: str = "ALL",
     year: int | None = None,
     month: int | None = None,
+    trade_limit_per_day: int = 50,
 ) -> dict:
     import calendar
     from datetime import date, timedelta
@@ -304,7 +306,7 @@ def get_daily_calendar(
             "volume_idr": round(day_volume * usd_idr, 0),
             "fees_usd": round(day_fees, 6),
             "fees_idr": round(day_fees * usd_idr, 0),
-            "trades": day_trades,
+            "trades": day_trades[:trade_limit_per_day],
         })
 
     active_days_count = winning_days + losing_days + break_even_days

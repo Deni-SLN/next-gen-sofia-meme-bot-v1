@@ -3,6 +3,7 @@ import { api, useApiQuery, formatIdr, formatUsd, getTradingMode, setTradingMode 
 import { QueryState } from '@/components/QueryState';
 import { PnLChart } from '@/components/PnLChart';
 import { LucideIcon } from '@/components/LucideIcon';
+import { ResetPaperModal } from '@/components/ResetPaperModal';
 import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 export default function PortfolioPage() {
@@ -14,7 +15,7 @@ export default function PortfolioPage() {
   const [actionMsg, setActionMsg] = useState<string>('');
   const [actionErr, setActionErr] = useState<string>('');
   const [sellingKey, setSellingKey] = useState<string | null>(null);
-
+  const [showResetModal, setShowResetModal] = useState<boolean>(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setMode(getTradingMode());
@@ -77,13 +78,14 @@ export default function PortfolioPage() {
   const liveGasUsd = primaryLiveTradingWallet?.gas_fee_usd ?? Math.max(0, (Number(primaryLiveTradingWallet?.balance_usd) || 0) - liveUsdcUsd);
   const liveGasIdr = primaryLiveTradingWallet?.gas_fee_idr ?? (liveGasUsd * usdIdr);
   const d = portfolioQuery.data;
+  const paperInitialIdr = Number(d?.paper_initial_idr) || 150000;
+  const paperInitialUsd = Number(d?.paper_initial_usd) || (paperInitialIdr / usdIdr);
   const holdingsValUsd = Number(d?.net_holdings_value_usd || d?.total_value) || 0;
   const holdingsValIdr = Number(d?.net_holdings_value_idr || d?.total_value_idr) || 0;
   const activeEquityUsd = isLive ? (liveTotalEquityUsd + holdingsValUsd) : (d?.total_equity_usd ?? 0);
   const activeEquityIdr = isLive ? (liveTotalEquityIdr + holdingsValIdr) : (d?.total_equity_idr ?? 0);
   const activeCashUsd = isLive ? liveCashUsd : (d?.paper_cash_usd ?? 0);
   const activeCashIdr = isLive ? liveCashIdr : (d?.paper_cash_idr ?? 0);
-
   const handleSell = async (symbol: string, pct: number) => {
     setActionMsg('');
     setActionErr('');
@@ -138,19 +140,30 @@ export default function PortfolioPage() {
     }
   };
 
-  const handleReset = async () => {
+  const handleReset = () => {
+    setShowResetModal(true);
+  };
+
+  const handleConfirmResetPaper = async (initialUsd: number) => {
     setActionMsg('');
     setActionErr('');
     try {
-      const freshOverview = await api.resetPaperAccount();
+      const freshOverview = await api.resetPaperAccount({ initial_capital_usd: initialUsd });
       portfolioQuery.setData(freshOverview);
       await perfQuery.refetch();
       await walletsQuery.refetch();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sofia-paper-reset', { detail: freshOverview }));
+      }
       setActionMsg(
-        '🔄 Semua portofolio & posisi meme coin pada mode Paper telah dihapus! Saldo kembali utuh ke Rp 150.000.'
+        `🔄 Modal awal Paper berhasil diatur ke $${initialUsd.toLocaleString()} (≈ ${formatIdr(initialUsd * usdIdr)}). Portofolio simulasi telah siap!`
       );
-    } catch (err: any) {
-      setActionErr(err?.message || 'Gagal mereset akun Paper');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setActionErr(err.message);
+      } else {
+        setActionErr('Gagal mereset akun Paper');
+      }
     }
   };
 
@@ -159,7 +172,7 @@ export default function PortfolioPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80">
         <div>
           <h1 className="text-sm font-extrabold text-slate-100 uppercase tracking-wide font-mono">
-            {isLive ? '💼 Live On-Chain Portfolio & Multi-Gate Vaults' : '💼 Meme Portfolio & Paper Account (Rp 150.000)'}
+            {isLive ? '💼 Live On-Chain Portfolio & Multi-Gate Vaults' : `💼 Meme Portfolio & Paper Account (${formatIdr(paperInitialIdr)})`}
           </h1>
           <p className="text-xs text-slate-400">
             {isLive ? (
@@ -206,9 +219,9 @@ export default function PortfolioPage() {
             <button
               type="button"
               onClick={handleReset}
-              className="px-3 py-1.5 rounded-lg bg-obsidian-800 border border-obsidian-600 hover:border-emerald-500/50 text-slate-200 font-bold text-[11px]"
+              className="px-3 py-1.5 rounded-lg bg-obsidian-800 border border-obsidian-600 hover:border-emerald-500/50 text-slate-200 font-bold text-[11px] transition hover:bg-obsidian-750"
             >
-              🔄 Reset Paper (Rp 150.000)
+              ⚙️ Atur Modal Paper ({formatIdr(paperInitialIdr)})
             </button>
           ) : (
             <span className="px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-bold text-[11px]">
@@ -242,7 +255,7 @@ export default function PortfolioPage() {
             <div className="text-xs font-mono text-emerald-400 mt-0.5">
               ≈ {formatIdr(activeEquityIdr)}{' '}
               <span className="text-slate-500">
-                {isLive ? `(${liveWallets.length} Dompet Vault)` : '(Modal: Rp 150.000)'}
+                {isLive ? `(${liveWallets.length} Dompet Vault)` : `(Modal: ${formatIdr(paperInitialIdr)})`}
               </span>
             </div>
           </div>
@@ -339,6 +352,8 @@ export default function PortfolioPage() {
             <PnLChart
               points={perfQuery.data?.pnl_chart || []}
               usdIdr={usdIdr}
+              initialCapitalIdr={paperInitialIdr}
+              initialCapitalUsd={paperInitialUsd}
               totalTrades={perfQuery.data?.total_trades ?? 0}
               realizedIdr={perfQuery.data?.total_pnl_idr ?? 0}
               floatingIdr={d?.unrealized_pnl_idr ?? 0}
@@ -399,7 +414,7 @@ export default function PortfolioPage() {
                       ) : (
                         <>
                           Belum ada posisi meme coin aktif (0 koin). Saldo kas Paper Anda utuh{' '}
-                          <strong className="text-emerald-300">Rp 150.000</strong>.
+                          <strong className="text-emerald-300">{formatIdr(activeCashIdr || paperInitialIdr)}</strong>.
                         </>
                       )}
                     </td>
@@ -482,6 +497,14 @@ export default function PortfolioPage() {
         );
       })()}
       </QueryState>
+
+      <ResetPaperModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        onConfirm={handleConfirmResetPaper}
+        currentInitialUsd={paperInitialUsd}
+        usdIdr={usdIdr}
+      />
     </div>
   );
 }

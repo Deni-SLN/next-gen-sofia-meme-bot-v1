@@ -218,10 +218,15 @@ def execute_snipe(db: Session, data: dict) -> dict:
     gas_fee_usd = exec_costs["gas_fee_usd"]
 
     t_state = treasury.get_or_init_treasury(db, usd_idr)
-    tx_hash = live_engine.generate_tx_hash(target_chain)
+    tx_hash = ""
     wallet_used_name = paper_wallet.name
 
     if snipe_mode == "LIVE":
+        from app.services import solana_trader
+        kp = solana_trader.get_trading_keypair()
+        if not kp:
+            raise ValueError("LIVE_SIGNING_UNAVAILABLE: Private Key wallet trading belum disetel. Signing transaksi live tidak tersedia.")
+
         live_wallet, _, _ = live_engine.get_live_trading_wallet(db, target_chain, create_if_missing=False)
         if not live_wallet:
             raise ValueError(
@@ -229,6 +234,19 @@ def execute_snipe(db: Session, data: dict) -> dict:
                 "Silakan Connect Wallet Chrome atau tambahkan Wallet Live terlebih dahulu."
             )
         wallet_used_name = live_wallet.name
+
+        kp_pubkey = str(kp.pubkey()) if kp else ""
+        is_real_onchain = (
+            bool(kp)
+            and bool(live_wallet.address)
+            and live_wallet.address == kp_pubkey
+            and not live_wallet.address.startswith("11111111111111111111111111111111")
+        )
+        if not is_real_onchain:
+            raise ValueError(
+                "KEYPAIR_LIVE_TIDAK_COCOK: Private Key wallet trading tidak cocok dengan alamat wallet live yang aktif. "
+                "Eksekusi dummy dinonaktifkan (100% Real On-Chain Mode)."
+            )
 
         # Pre-Flight Gas & Cash Safety Guard: Transaksi beli hanya dieksekusi jika kas & gas SOL benar-benar cukup,
         # termasuk mencadangkan gas agar koin nantinya DAPAT DIJUAL (tidak gantung).
@@ -251,21 +269,6 @@ def execute_snipe(db: Session, data: dict) -> dict:
         needed_gas_sol = priority_fee_sol + 0.00204 + 0.0020  # Priority fee + ATA sewa akun + cadangan gas jual
         total_sol_needed = spend_sol + needed_gas_sol
         current_sol_bal = float(live_wallet.balance or 0.0)
-
-        from app.services import solana_trader
-        kp = solana_trader.get_trading_keypair()
-        kp_pubkey = str(kp.pubkey()) if kp else ""
-        is_real_onchain = (
-            bool(kp)
-            and bool(live_wallet.address)
-            and live_wallet.address == kp_pubkey
-            and not live_wallet.address.startswith("11111111111111111111111111111111")
-        )
-        if not is_real_onchain:
-            raise ValueError(
-                "KEYPAIR_LIVE_TIDAK_COCOK: Private Key wallet trading tidak cocok dengan alamat wallet live yang aktif. "
-                "Eksekusi dummy dinonaktifkan (100% Real On-Chain Mode)."
-            )
 
         if not resolved_contract or len(resolved_contract) < 32:
             raise ValueError(f"KONTRAK_TIDAK_VALID: Alamat kontrak meme coin '{symbol}' tidak valid ({resolved_contract}).")
@@ -340,7 +343,7 @@ def execute_snipe(db: Session, data: dict) -> dict:
         onchain_out_raw = None
         # PAPER MODE: Check against Paper Cash balance
         available_usd = float(paper_wallet.balance)
-        initial_usd = round(portfolio.PAPER_INITIAL_CAPITAL_IDR / usd_idr, 4)
+        initial_usd = round(portfolio.get_paper_initial_capital_idr() / usd_idr, 4)
         if amount_usd <= initial_usd * 1.05:
             if amount_usd > available_usd + 0.0001:
                 avail_idr = round(available_usd * usd_idr, 0)
@@ -375,6 +378,7 @@ def execute_snipe(db: Session, data: dict) -> dict:
         current_price=live_price,
         entry_costs_usd=gas_fee_usd,
         liquidity_usd=liq_usd,
+        mode=snipe_mode,
     )
 
     trade = Trade(

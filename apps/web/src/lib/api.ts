@@ -141,8 +141,20 @@ export const api = {
     request<any>('/bot/config', { method: 'PUT', body: JSON.stringify(data) }),
   getBotActivity: (tick: boolean = true, forceTrade: boolean = false) =>
     request<any>(`/bot/activity?tick=${tick ? 'true' : 'false'}${forceTrade ? '&force_trade=true' : ''}`),
-  startBot: (mode: string, strategy_mode?: string) =>
-    request<any>('/bot/start', { method: 'POST', body: JSON.stringify({ mode, strategy_mode }) }),
+  startBot: (
+    mode: string,
+    strategy_mode?: string,
+    params?: {
+      buy_amount_usd?: number;
+      buy_amount_idr?: number;
+      max_open_positions?: number;
+      slippage_pct?: number;
+    }
+  ) =>
+    request<Record<string, unknown>>('/bot/start', {
+      method: 'POST',
+      body: JSON.stringify({ mode, strategy_mode, ...(params || {}) }),
+    }),
   stopBot: () => request<any>('/bot/stop', { method: 'POST' }),
   getPortfolio: (mode?: string) =>
     request<any>(`/portfolio/overview${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`),
@@ -152,8 +164,18 @@ export const api = {
     request<any>('/portfolio/sell', { method: 'POST', body: JSON.stringify({ symbol, sell_pct, mode }) }),
   panicSellAll: (mode?: string) =>
     request<any>('/portfolio/sell-all', { method: 'POST', body: JSON.stringify({ mode }) }),
-  resetPaperAccount: () =>
-    request<any>('/portfolio/reset-paper', { method: 'POST' }),
+  resetPaperAccount: (params?: { initial_capital_usd?: number; initial_capital_idr?: number }) =>
+    request<Record<string, unknown>>('/portfolio/reset-paper', {
+      method: 'POST',
+      body: JSON.stringify(params || {}),
+    }),
+  getPaperCapital: () =>
+    request<{ paper_initial_capital_idr: number; paper_initial_capital_usd: number; usd_idr: number }>('/portfolio/paper-capital'),
+  setPaperCapital: (params: { initial_capital_idr?: number; initial_capital_usd?: number }) =>
+    request<any>('/portfolio/paper-capital', {
+      method: 'PUT',
+      body: JSON.stringify(params),
+    }),
   getSignals: (status?: string) =>
     request<any>(`/signals${status ? `?status=${encodeURIComponent(status)}` : ''}`),
   createSignal: (data: any) =>
@@ -180,6 +202,7 @@ export const api = {
       body: JSON.stringify({ trigger: 'manual_check_0500_wib', simulate_net_profit_idr }),
     }),
   getWallets: () => request<any>('/wallets'),
+  getLiveWalletStatus: () => request<any>('/wallets/live-status'),
   createWallet: (data: any) =>
     request<any>('/wallets', { method: 'POST', body: JSON.stringify(data) }),
   updateWallet: (walletId: number, data: any) =>

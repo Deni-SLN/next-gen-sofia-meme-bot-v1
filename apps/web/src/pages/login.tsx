@@ -81,6 +81,11 @@ export function LoginPortal({ onSuccess }: LoginPortalProps) {
       return;
     }
 
+    if (!username.trim()) {
+      setLoginError('Username wajib diisi.');
+      return;
+    }
+
     if (!password.trim()) {
       setLoginError('Password wajib diisi.');
       return;
@@ -88,7 +93,7 @@ export function LoginPortal({ onSuccess }: LoginPortalProps) {
 
     setLoading(true);
     try {
-      const res = await api.login(password.trim(), username.trim() || 'Deni26');
+      const res = await api.login(password.trim(), username.trim());
       completeLogin(res.token);
     } catch (err: any) {
       // Catat percobaan gagal

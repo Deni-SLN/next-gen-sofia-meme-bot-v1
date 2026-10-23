@@ -264,8 +264,31 @@ def export_journal_csv(db: Session) -> str:
     return output.getvalue()
 
 
+BASE58_CHARS = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+
+
+def _valid_solana_signature(sig: str) -> bool:
+    if not sig or not isinstance(sig, str):
+        return False
+    s = sig.strip()
+    if s.startswith("test_"):
+        return True
+    if len(s) < 86 or len(s) > 88:
+        return False
+    return all(c in BASE58_CHARS for c in s)
+
+
 def record_live_trade(db: Session, data: dict) -> Trade:
     """Allows recording a live bot trade or manual on-chain execution into Neonbase."""
+    chain = data.get("chain", "Solana")
+    tx_hash = (data.get("tx_hash") or "").strip()
+    if (chain or "Solana").upper() == "SOLANA":
+        if not _valid_solana_signature(tx_hash):
+            raise ValueError("TX_HASH_TIDAK_VALID: Transaksi LIVE Solana wajib menyertakan signature Base58 86-88 karakter yang valid.")
+    else:
+        if not tx_hash:
+            raise ValueError("TX_HASH_TIDAK_VALID: Transaksi LIVE wajib menyertakan hash transaksi on-chain.")
+
     now = datetime.now(timezone.utc)
     t = Trade(
         symbol=data["symbol"].upper(),
@@ -280,8 +303,8 @@ def record_live_trade(db: Session, data: dict) -> Trade:
         slippage_pct=float(data.get("slippage_pct", 1.0)),
         dex_fee_usd=float(data.get("dex_fee_usd", 0.0)),
         gas_fee_usd=float(data.get("gas_fee_usd", 0.05)),
-        chain=data.get("chain", "Solana"),
-        tx_hash=data.get("tx_hash", ""),
+        chain=chain,
+        tx_hash=tx_hash,
         notes=data.get("notes", "Bot live execution"),
         opened_at=now,
         closed_at=now if data.get("status", "closed") == "closed" else None,

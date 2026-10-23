@@ -19,13 +19,14 @@ export interface PnLPoint {
 interface PnLChartProps {
   points: PnLPoint[];
   usdIdr: number;
+  initialCapitalIdr?: number;
+  initialCapitalUsd?: number;
   totalTrades?: number;
   realizedIdr?: number;
   floatingIdr?: number;
   liveEquityUsd?: number;
   liveEquityIdr?: number;
 }
-
 interface InspectionState {
   index: number;
   svgX: number;
@@ -42,6 +43,8 @@ interface InspectionState {
 export function PnLChart({
   points,
   usdIdr,
+  initialCapitalIdr,
+  initialCapitalUsd,
   totalTrades = 0,
   realizedIdr = 0,
   floatingIdr = 0,
@@ -53,9 +56,8 @@ export function PnLChart({
   const chartWrapperRef = useRef<HTMLDivElement>(null);
 
   const rate = usdIdr || 17960;
-  const initialIdr = 150000;
-  const initialUsd = initialIdr / rate;
-
+  const initialIdr = initialCapitalIdr ?? 150000;
+  const initialUsd = initialCapitalUsd ?? (initialIdr / rate);
   const basePoint: PnLPoint = {
     step: 0,
     label: 'Modal Awal',

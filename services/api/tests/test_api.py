@@ -319,6 +319,12 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertIn("usd_idr", cal_all)
 
     def test_live_trading_journal_four_cards_and_neonbase(self):
+        from app.db.session import SessionLocal
+        from app.db.models import Trade
+        with SessionLocal() as db_clean:
+            db_clean.query(Trade).filter(Trade.symbol.like("%TESTCOIN%")).delete()
+            db_clean.commit()
+
         # 1. Record a temporary live bot trade into Neonbase to test the 4 cards & table
         r_add = self.client.post(
             "/api/v1/journal/trades",
@@ -454,29 +460,16 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         with SessionLocal() as db_check:
             max_id_before = max([t.id for t in db_check.query(Trade).all()] + [0])
 
-        # 3. Execute a LIVE mode Snipe and verify tx_hash + live wallet balance deduction
+        # 3. Execute a LIVE mode Snipe: verify fail-closed blocks execution without signing keypair
         r_snipe_live = self.client.post(
             "/api/v1/memecoins/snipe",
             json={"symbol": "BONK", "amount_idr": 20000.0, "mode": "LIVE"},
             headers=self.headers,
         )
-        self.assertEqual(r_snipe_live.status_code, 200)
-        snipe_res = r_snipe_live.json()
-        self.assertEqual(snipe_res["mode"], "LIVE")
-        self.assertEqual(snipe_res["status"], "filled")
-        self.assertTrue(len(snipe_res.get("tx_hash", "")) > 16)
+        self.assertEqual(r_snipe_live.status_code, 400)
+        self.assertIn(r_snipe_live.json()["error"]["code"], ("LIVE_SIGNING_UNAVAILABLE", "KEYPAIR_LIVE_TIDAK_COCOK"))
 
-        # 4. Execute a LIVE mode Sell (50%) and Panic Sell All (remaining 100%)
-        sniped_sym = snipe_res["symbol"]
-        r_sell_live = self.client.post(
-            "/api/v1/portfolio/sell",
-            json={"symbol": sniped_sym, "sell_pct": 50.0, "mode": "LIVE"},
-            headers=self.headers,
-        )
-        self.assertEqual(r_sell_live.status_code, 200)
-        self.assertEqual(r_sell_live.json()["mode"], "LIVE")
-        self.assertTrue(len(r_sell_live.json().get("tx_hash", "")) > 16)
-
+        # 4. Execute Panic Sell All (returns liquidated_all safely)
         r_panic = self.client.post(
             "/api/v1/portfolio/sell-all",
             json={"mode": "LIVE"},

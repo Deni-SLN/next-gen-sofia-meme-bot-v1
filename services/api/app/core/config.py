@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str = _DEFAULT_NEON_URL
     admin_password: str = "changeme"
+    primary_username: str = ""
+    primary_password: str = ""
     jwt_secret: str = "sofia-super-secret-key-change-in-production-12345"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
@@ -38,6 +40,7 @@ class Settings(BaseSettings):
 
     # Solana On-Chain Trading & Multi-Gate Wallets (Updated for Solana Mainnet & Alpenglow v4.3+)
     solana_rpc_url: str = "https://api.mainnet.solana.com"
+    solana_private_key: str = ""
     solana_trading_private_key: str = ""
     solana_trading_address: str = ""
     solana_main_private_key: str = ""
@@ -66,6 +69,13 @@ class Settings(BaseSettings):
             self.database_url = _normalize_db_url(env_db)
         else:
             self.database_url = _normalize_db_url(self.database_url)
+        return self
+
+    @model_validator(mode="after")
+    def resolve_wallet_aliases(self) -> "Settings":
+        legacy_priv = (self.solana_private_key or os.environ.get("SOFIA_SOLANA_PRIVATE_KEY") or "").strip()
+        if legacy_priv and not self.solana_trading_private_key:
+            self.solana_trading_private_key = legacy_priv
         return self
 
 

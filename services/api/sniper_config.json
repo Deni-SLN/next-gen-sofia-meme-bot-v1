@@ -1,13 +1,13 @@
 {
   "strategy_mode": "SAFE",
-  "strategy_label": "🛡️ SAFE (Konservatif • Token Lulus & Likuiditas Tinggi)",
-  "strategy_desc": "Hanya membeli token yang sudah Migrated (Raydium/PumpSwap) dengan likuiditas > $20K & Safety Score ≥ 82.",
+  "strategy_label": "\ud83d\udee1\ufe0f SAFE (Konservatif \u2022 Token Lulus & Likuiditas Tinggi)",
+  "strategy_desc": "Hanya membeli token yang sudah Migrated (Raydium/PumpSwap) dengan likuiditas > $20K & Safety Score \u2265 82.",
   "relay_mode": "JITO_0SLOT",
-  "slippage_pct": 0.8,
+  "slippage_pct": 2.5,
   "priority_fee_sol": 0.0005,
   "jito_bribe_sol": 0.0005,
   "anti_mev": true,
-  "buy_amount_idr": 15000.0,
+  "buy_amount_idr": 35000.0,
   "min_safety_score": 82,
   "min_liquidity_usd": 20000.0,
   "min_bonding_curve_pct": 85.0,
@@ -32,6 +32,7 @@
   "trailing_stop_pct": 5.0,
   "time_stop_minutes": 45,
   "multi_wallet_rotation": true,
-  "max_open_positions": 3,
-  "tick_interval_ms": 4000
+  "max_open_positions": 8,
+  "tick_interval_ms": 4000,
+  "paper_initial_capital_idr": 150000.0
 }

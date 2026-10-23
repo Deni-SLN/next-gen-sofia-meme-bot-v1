@@ -1,30 +1,61 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, delete, or_, func
+from sqlalchemy import select, delete, or_, func, case
 from sqlalchemy.orm import Session
-from app.db.models import PortfolioHolding, Wallet, Trade, EquitySnapshot
+from app.db.models import PortfolioHolding, Wallet, Trade, EquitySnapshot, TreasuryState
 from app.services import market, treasury
 
 PAPER_INITIAL_CAPITAL_IDR = 150000.0
 PAPER_WALLET_NAME = "Modal Paper Simulasi (Rp 150.000)"
 
 
+def get_paper_initial_capital_idr() -> float:
+    try:
+        from app.services import bot
+        val = bot._SNIPER_CONFIG.get("paper_initial_capital_idr")
+        if val is not None and float(val) > 0:
+            return float(val)
+    except Exception:
+        pass
+    return PAPER_INITIAL_CAPITAL_IDR
+
+
+def set_paper_initial_capital_idr(amount_idr: float) -> float:
+    val = float(amount_idr)
+    if val <= 0:
+        raise ValueError("Nominal modal awal harus lebih besar dari 0")
+    try:
+        from app.services import bot
+        bot.update_sniper_config({"paper_initial_capital_idr": val}, allow_while_running=True)
+    except Exception:
+        pass
+    return val
+
+
 def get_or_create_paper_wallet(db: Session) -> tuple[Wallet, float]:
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
-    rows = db.execute(select(Wallet).where(Wallet.name == PAPER_WALLET_NAME)).scalars().all()
+    configured_idr = get_paper_initial_capital_idr()
+    rows = db.execute(
+        select(Wallet).where(
+            or_(
+                Wallet.name.contains("Modal Paper"),
+                Wallet.address.contains("SIMULATION-PAPER"),
+            )
+        )
+    ).scalars().all()
     if len(rows) > 1:
         for extra in rows[1:]:
             db.delete(extra)
         db.commit()
     w = rows[0] if rows else None
     if not w:
-        initial_usd = round(PAPER_INITIAL_CAPITAL_IDR / usd_idr, 4)
+        initial_usd = round(configured_idr / usd_idr, 4)
         w = Wallet(
-            name=PAPER_WALLET_NAME,
-            address="SIMULATION-PAPER-WALLET-150K-IDR",
+            name=f"Modal Paper Simulasi (Rp {configured_idr:,.0f})",
+            address="SIMULATION-PAPER-WALLET",
             chain="Solana",
             balance=initial_usd,
-            token="USD (Eq. Rp 150rb)",
+            token="USD (Paper Simulasi)",
             gate="trading",
             updated_at=datetime.now(timezone.utc),
         )
@@ -35,42 +66,76 @@ def get_or_create_paper_wallet(db: Session) -> tuple[Wallet, float]:
     return w, usd_idr
 
 
-def reset_paper_account(db: Session) -> dict:
-    """Reset paper trading simulation back to Rp 150.000 initial capital and clear all simulated holdings/trades."""
+def reset_paper_account(
+    db: Session,
+    initial_capital_usd: float | None = None,
+    initial_capital_idr: float | None = None,
+) -> dict:
+    """Reset paper trading simulation to custom (or default) initial capital and clear all simulated holdings/trades."""
     from app.services import bot
 
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
-    initial_usd = round(PAPER_INITIAL_CAPITAL_IDR / usd_idr, 6)
 
-    db.execute(delete(PortfolioHolding))
+    if initial_capital_usd is not None and float(initial_capital_usd) > 0:
+        initial_usd = round(float(initial_capital_usd), 4)
+        initial_idr = round(initial_usd * usd_idr, 0)
+        set_paper_initial_capital_idr(initial_idr)
+    elif initial_capital_idr is not None and float(initial_capital_idr) > 0:
+        initial_idr = round(float(initial_capital_idr), 0)
+        initial_usd = round(initial_idr / usd_idr, 4)
+        set_paper_initial_capital_idr(initial_idr)
+    else:
+        initial_idr = get_paper_initial_capital_idr()
+        initial_usd = round(initial_idr / usd_idr, 4)
+
+    # CRITICAL: Isolate modes. Only wipe PAPER holdings, NEVER delete live on-chain positions!
+    db.execute(delete(PortfolioHolding).where(PortfolioHolding.mode == "PAPER"))
     db.execute(delete(Trade).where(Trade.mode == "PAPER"))
 
-    rows = db.execute(select(Wallet).where(Wallet.name == PAPER_WALLET_NAME)).scalars().all()
+    rows = db.execute(
+        select(Wallet).where(
+            or_(
+                Wallet.name.contains("Modal Paper"),
+                Wallet.address.contains("SIMULATION-PAPER"),
+            )
+        )
+    ).scalars().all()
     if len(rows) > 1:
         for extra in rows[1:]:
             db.delete(extra)
     w = rows[0] if rows else None
+
+    wallet_name = f"Modal Paper Simulasi (${initial_usd:,.2f} / Rp {initial_idr:,.0f})"
     if not w:
         w = Wallet(
-            name=PAPER_WALLET_NAME,
-            address="SIMULATION-PAPER-WALLET-150K-IDR",
+            name=wallet_name,
+            address="SIMULATION-PAPER-WALLET",
             chain="Solana",
             balance=initial_usd,
-            token="USD (Eq. Rp 150rb)",
+            token="USD (Paper Simulasi)",
             gate="trading",
             updated_at=datetime.now(timezone.utc),
         )
         db.add(w)
     else:
+        w.name = wallet_name
         w.balance = initial_usd
+        w.token = "USD (Paper Simulasi)"
         w.updated_at = datetime.now(timezone.utc)
 
     db.commit()
-    treasury.reset_treasury_for_paper(db, usd_idr)
+    treasury.reset_treasury_for_paper(db, usd_idr, baseline_usd=initial_usd)
     bot.clear_bot_logs()
-    return get_overview(db, refresh_live_prices=False, mode="PAPER")
-
+    bot._append_log(
+        "SYSTEM",
+        "SOL",
+        "RESET",
+        f"Simulasi Paper direset. Modal awal baru: ${initial_usd:,.2f} (≈ Rp {initial_idr:,.0f}).",
+        f"Rp {initial_idr:,.0f}",
+        "success",
+    )
+    return get_overview(db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
 
 def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
     """
@@ -83,13 +148,11 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
 
     live_w, _, _ = live_engine.get_live_trading_wallet(db, "Solana")
     if not live_w or not live_w.address or live_w.address.startswith("SIMULATION"):
-        return list(db.execute(select(PortfolioHolding)).scalars().all())
+        return list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
 
     onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=20.0)
-    # Safety Guard: If RPC was temporarily rate-limited (429) and returned empty list,
-    # retain existing DB holdings rather than wiping them out!
     if not onchain_tokens:
-        return list(db.execute(select(PortfolioHolding)).scalars().all())
+        return list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
     seen_symbols = set()
     now = datetime.now(timezone.utc)
     is_fresh_rpc = live_engine.is_spl_cache_fresh(live_w.address)
@@ -103,18 +166,16 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
             continue
         liq = float(tok.get("liquidity", 0.0))
         usd_val = float(tok.get("usd_val", 0.0))
-        # Skip dead / rugged tokens with < $50 liquidity or $0 value so terminal matches wallet 100%
         if liq < 50.0 or usd_val <= 0.0001:
             continue
         sym = tok.get("symbol") or mint[:6]
         seen_symbols.add(sym.upper())
         valid_tokens.append(tok)
 
-    # 2. Delete any DB holdings that are no longer present on-chain, ONLY when RPC response is 100% fresh
-    # (never delete based on a stale 429 cache fallback, and protect newly bought tokens for 60s against RPC indexing lag)
+    # 2. Delete any LIVE DB holdings that are no longer present on-chain, ONLY when RPC response is 100% fresh
     if is_fresh_rpc:
-        existing_all = list(db.execute(select(PortfolioHolding)).scalars().all())
-        for h in existing_all:
+        existing_live = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
+        for h in existing_live:
             if h.symbol.upper() not in seen_symbols:
                 upd_dt = h.updated_at if (h.updated_at and h.updated_at.tzinfo) else (h.updated_at.replace(tzinfo=timezone.utc) if h.updated_at else None)
                 if upd_dt and (now - upd_dt).total_seconds() < 60.0:
@@ -122,7 +183,7 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
                 db.delete(h)
         db.commit()
 
-    # 3. Upsert active on-chain holdings into PortfolioHolding
+    # 3. Upsert active on-chain holdings into PortfolioHolding with mode="LIVE"
     for tok in valid_tokens:
         sym = tok.get("symbol") or tok.get("mint", "")[:6]
         amt = float(tok.get("amount", 0.0))
@@ -131,7 +192,12 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
             live_price = float(tok["usd_val"]) / amt
         liq = float(tok.get("liquidity", 1800.0))
 
-        existing = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == sym)).scalar_one_or_none()
+        existing = db.execute(
+            select(PortfolioHolding).where(
+                PortfolioHolding.symbol == sym,
+                PortfolioHolding.mode == "LIVE",
+            )
+        ).scalar_one_or_none()
         if existing:
             existing.quantity = amt
             if live_price > 0:
@@ -144,7 +210,7 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
             recent_buy = (
                 db.execute(
                     select(Trade)
-                    .where(Trade.symbol.ilike(f"%{base_sym}%"), Trade.side == "buy")
+                    .where(Trade.symbol.ilike(f"%{base_sym}%"), Trade.side == "buy", Trade.mode == "LIVE")
                     .order_by(Trade.id.desc())
                     .limit(1)
                 )
@@ -154,6 +220,7 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
 
             new_h = PortfolioHolding(
                 symbol=sym,
+                mode="LIVE",
                 quantity=amt,
                 avg_entry_price=entry_px,
                 current_price=live_price or entry_px,
@@ -164,15 +231,23 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
             db.add(new_h)
         db.commit()
 
-    return list(db.execute(select(PortfolioHolding)).scalars().all())
+    return list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
 
 
-def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None = None) -> dict:
+def get_overview(
+    db: Session,
+    refresh_live_prices: bool = True,
+    mode: str | None = None,
+    skip_rpc: bool | None = None,
+) -> dict:
     paper_wallet, usd_idr = get_or_create_paper_wallet(db)
     t_state = treasury.get_or_init_treasury(db, usd_idr)
 
     active_mode = (mode or "PAPER").upper()
     is_live = active_mode == "LIVE"
+
+    if skip_rpc is None:
+        skip_rpc = not is_live
 
     if is_live:
         # In LIVE mode, holdings are the real on-chain SPL tokens from Phantom Trading Wallet
@@ -180,8 +255,8 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
         holdings = live_holdings
         refresh_live_prices = False
     else:
-        # In PAPER mode, holdings are simulated paper holdings from PortfolioHolding
-        holdings = db.execute(select(PortfolioHolding)).scalars().all()
+        # In PAPER mode, holdings are simulated paper holdings from PortfolioHolding (strictly PAPER)
+        holdings = db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "PAPER")).scalars().all()
     total_value = 0.0
     total_net_value = 0.0
     total_cost = 0.0
@@ -241,7 +316,8 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
     unrealized_pnl_pct = (unrealized_pnl / total_cost * 100.0) if total_cost > 0 else 0.0
     paper_cash_usd = float(paper_wallet.balance)
     paper_cash_idr = round(paper_cash_usd * usd_idr, 0)
-    initial_capital_usd = round(PAPER_INITIAL_CAPITAL_IDR / usd_idr, 4)
+    initial_capital_usd = float(t_state.baseline_equity_usd or round(get_paper_initial_capital_idr() / usd_idr, 4))
+    initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
     total_equity_usd = paper_cash_usd + total_net_value
     total_equity_idr = round(total_equity_usd * usd_idr, 0)
 
@@ -273,7 +349,7 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
             )
 
     from app.services import live_engine
-    live_eq = live_engine.get_live_equity_metrics(db, usd_idr)
+    live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=skip_rpc)
 
     active_mode = (mode or "PAPER").upper()
     is_live = active_mode == "LIVE"
@@ -282,24 +358,30 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
     active_cash_usd = live_eq["live_cash_usd"] if is_live else paper_cash_usd
     active_cash_idr = round(active_cash_usd * usd_idr, 0)
 
-    # All-time winrate from every closed sell trade in the active mode (PAPER / LIVE)
-    alltime_wins = 0
-    alltime_losses = 0
-    alltime_realized_usd = 0.0
+    # 1 SQL aggregate query for winrate stats
     try:
-        closed_sells = db.execute(
-            select(Trade).where(Trade.side == "sell", Trade.status == "closed", Trade.mode == active_mode)
-        ).scalars().all()
-        for t in closed_sells:
-            pnl_val = float(t.pnl or 0.0)
-            alltime_realized_usd += pnl_val
-            if pnl_val > 0:
-                alltime_wins += 1
-            else:
-                alltime_losses += 1
+        stmt = (
+            select(
+                func.count(Trade.id).label("total_trades"),
+                func.coalesce(func.sum(case((Trade.pnl > 0, 1), else_=0)), 0).label("wins"),
+                func.coalesce(func.sum(case((Trade.pnl <= 0, 1), else_=0)), 0).label("losses"),
+                func.coalesce(func.sum(Trade.pnl), 0.0).label("realized_usd"),
+            )
+            .where(Trade.side == "sell", Trade.status == "closed", Trade.mode == active_mode)
+        )
+        row = db.execute(stmt).first()
+        if row:
+            alltime_total = int(row.total_trades or 0)
+            alltime_wins = int(row.wins or 0)
+            alltime_losses = int(row.losses or 0)
+            alltime_realized_usd = float(row.realized_usd or 0.0)
+        else:
+            alltime_total = alltime_wins = alltime_losses = 0
+            alltime_realized_usd = 0.0
     except Exception:
-        pass
-    alltime_total = alltime_wins + alltime_losses
+        alltime_total = alltime_wins = alltime_losses = 0
+        alltime_realized_usd = 0.0
+
     alltime_winrate_pct = round((alltime_wins / alltime_total) * 100.0, 1) if alltime_total > 0 else 0.0
 
     return {
@@ -310,8 +392,8 @@ def get_overview(db: Session, refresh_live_prices: bool = True, mode: str | None
         "active_total_equity_idr": active_total_equity_idr,
         "active_cash_usd": round(active_cash_usd, 4),
         "active_cash_idr": active_cash_idr,
-        "paper_initial_idr": PAPER_INITIAL_CAPITAL_IDR,
-        "paper_initial_usd": initial_capital_usd,
+        "paper_initial_idr": round(initial_capital_idr, 0),
+        "paper_initial_usd": round(initial_capital_usd, 4),
         "paper_cash_usd": round(paper_cash_usd, 4),
         "paper_cash_idr": paper_cash_idr,
         "live_cash_usd": live_eq["live_cash_usd"],
@@ -358,8 +440,14 @@ def add_holding(
     current_price: float | None = None,
     entry_costs_usd: float = 0.0,
     liquidity_usd: float = 25000.0,
+    mode: str = "PAPER",
 ) -> PortfolioHolding:
-    existing = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == symbol)).scalar_one_or_none()
+    existing = db.execute(
+        select(PortfolioHolding).where(
+            PortfolioHolding.symbol == symbol,
+            PortfolioHolding.mode == mode,
+        )
+    ).scalar_one_or_none()
     now = datetime.now(timezone.utc)
     if existing:
         total_qty = existing.quantity + quantity
@@ -378,6 +466,7 @@ def add_holding(
 
     holding = PortfolioHolding(
         symbol=symbol,
+        mode=mode,
         quantity=quantity,
         avg_entry_price=avg_entry_price,
         current_price=current_price if current_price is not None else avg_entry_price,
@@ -400,14 +489,15 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     from app.services import live_engine
 
     clean_sym = str(symbol or "").strip()
-    existing = db.execute(
-        select(PortfolioHolding).where(
-            or_(
-                PortfolioHolding.symbol == clean_sym,
-                func.upper(PortfolioHolding.symbol) == clean_sym.upper(),
-            )
+    q = select(PortfolioHolding).where(
+        or_(
+            PortfolioHolding.symbol == clean_sym,
+            func.upper(PortfolioHolding.symbol) == clean_sym.upper(),
         )
-    ).scalars().first()
+    )
+    if mode:
+        q = q.where(PortfolioHolding.mode == mode.upper())
+    existing = db.execute(q).scalars().first()
     if not existing or existing.quantity <= 0:
         raise ValueError(f"Holding {clean_sym} tidak ditemukan di portofolio.")
 
@@ -415,7 +505,7 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     open_buy = db.execute(
         select(Trade).where(Trade.symbol == symbol, Trade.side == "buy").order_by(Trade.id.desc()).limit(1)
     ).scalar_one_or_none()
-    trade_mode = (mode or (open_buy.mode if open_buy else "PAPER")).upper()
+    trade_mode = (mode or (existing.mode if existing else None) or (open_buy.mode if open_buy else "PAPER")).upper()
     if trade_mode not in ("PAPER", "LIVE"):
         trade_mode = "PAPER"
 
@@ -672,14 +762,16 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
 
 def sell_all_holdings(db: Session, mode: str | None = None) -> dict:
     """Emergency / Panic Sell 100% of all open holdings at live market prices."""
-    holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
+    active_mode = (mode or "PAPER").upper()
+    q = select(PortfolioHolding).where(PortfolioHolding.mode == active_mode)
+    holdings = list(db.execute(q).scalars().all())
     results = []
     total_proceeds_idr = 0.0
     total_pnl_idr = 0.0
 
     for h in holdings:
         if h.quantity > 0:
-            res = sell_holding(db, h.symbol, 100.0, mode=mode)
+            res = sell_holding(db, h.symbol, 100.0, mode=active_mode)
             results.append(res)
             total_proceeds_idr += float(res.get("proceeds_idr") or 0.0)
             total_pnl_idr += float(res.get("realized_pnl_idr") or 0.0)
@@ -693,8 +785,13 @@ def sell_all_holdings(db: Session, mode: str | None = None) -> dict:
     }
 
 
-def update_price(db: Session, symbol: str, price: float) -> PortfolioHolding:
-    existing = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == symbol)).scalar_one_or_none()
+def update_price(db: Session, symbol: str, price: float, mode: str = "PAPER") -> PortfolioHolding:
+    existing = db.execute(
+        select(PortfolioHolding).where(
+            PortfolioHolding.symbol == symbol,
+            PortfolioHolding.mode == mode,
+        )
+    ).scalar_one_or_none()
     if not existing:
         raise ValueError(f"Holding {symbol} not found")
     existing.current_price = price

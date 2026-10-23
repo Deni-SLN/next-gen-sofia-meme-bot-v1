@@ -52,10 +52,12 @@ def snipe_token(body: SnipeRequest, db: Session = Depends(get_db)):
         code = "RUG_SHIELD_BLOCKED"
         if "LEGACY_TOKEN_BLOCKED" in msg:
             code = "LEGACY_TOKEN_BLOCKED"
-        elif "LIVE_NOT_CONFIGURED" in msg:
-            code = "LIVE_NOT_CONFIGURED"
+        elif "LIVE_SIGNING_UNAVAILABLE" in msg or "KEYPAIR_LIVE_TIDAK_COCOK" in msg or "LIVE_NOT_CONFIGURED" in msg:
+            code = "LIVE_SIGNING_UNAVAILABLE"
         elif "SALDO_PAPER_TIDAK_CUKUP" in msg:
             code = "INSUFFICIENT_PAPER_BALANCE"
+        elif "SALDO_LIVE_TIDAK_CUKUP" in msg or "KAS_GAS_SOL_KURANG" in msg:
+            code = "INSUFFICIENT_LIVE_BALANCE"
         return JSONResponse(
             status_code=400,
             content={"error": {"code": code, "message": msg}},

@@ -1,5 +1,6 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.core.security import get_current_user
@@ -58,13 +59,19 @@ def export_journal_excel(db: Session = Depends(get_db)):
 @router.post("/trades")
 def add_journal_trade(body: TradeRecordRequest, db: Session = Depends(get_db)):
     """Record a live bot trade or verified transaction directly into Neonbase."""
-    trade = journal.record_live_trade(db, body.model_dump())
-    return {
-        "status": "success",
-        "trade_id": trade.id,
-        "symbol": trade.symbol,
-        "message": f"Transaksi live bot {trade.symbol} berhasil disimpan di Neonbase.",
-    }
+    try:
+        trade = journal.record_live_trade(db, body.model_dump())
+        return {
+            "status": "success",
+            "trade_id": trade.id,
+            "symbol": trade.symbol,
+            "message": f"Transaksi live bot {trade.symbol} berhasil disimpan di Neonbase.",
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": {"code": "INVALID_LIVE_TRADE", "message": str(e)}},
+        )
 
 
 @router.delete("/trades/{trade_id}")

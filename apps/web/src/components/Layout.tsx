@@ -163,14 +163,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const fetchLiveBalances = () => {
     api
-      .getWallets()
-      .then((res) => {
-        if (res?.wallets) {
-          const liveWallets = res.wallets.filter((w: any) => !w.name?.includes('Modal Paper'));
-          const totalUsd = liveWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_usd) || 0), 0);
-          const totalIdr = liveWallets.reduce((acc: number, w: any) => acc + (Number(w.balance_idr) || 0), 0);
-          setLiveBalanceUsd(totalUsd);
-          setLiveBalanceIdr(totalIdr);
+      .getLiveWalletStatus()
+      .then((res: any) => {
+        if (res) {
+          const cashUsd = Number(res.live_cash_usd ?? res.live_total_equity_usd ?? 0);
+          const cashIdr = Number(res.live_cash_idr ?? res.live_total_equity_idr ?? 0);
+          setLiveBalanceUsd(cashUsd);
+          setLiveBalanceIdr(cashIdr);
         }
       })
       .catch(() => {});

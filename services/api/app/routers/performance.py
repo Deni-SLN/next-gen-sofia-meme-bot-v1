@@ -17,6 +17,13 @@ def get_daily_calendar(
     mode: str = "ALL",
     year: int | None = None,
     month: int | None = None,
+    trade_limit_per_day: int = 50,
     db: Session = Depends(get_db),
 ):
-    return performance.get_daily_calendar(db, mode=mode, year=year, month=month)
+    return performance.get_daily_calendar(
+        db,
+        mode=mode,
+        year=year,
+        month=month,
+        trade_limit_per_day=trade_limit_per_day,
+    )

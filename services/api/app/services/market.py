@@ -261,6 +261,7 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     vol_1h = float(vol.get("h1") or 0.0)
     vol_24h = float(vol.get("h24") or 0.0)
     pc = pair.get("priceChange") or {}
+    change_1m = float(pc.get("m1") or pc.get("1m") or (float(pc.get("m5") or 0.0) / 5.0))
     change_5m = float(pc.get("m5") or 0.0)
     change_1h = float(pc.get("h1") or 0.0)
     change_24h = float(pc.get("h24") or 0.0)
@@ -333,6 +334,7 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "liquidity_idr": round(liq_usd * usd_idr, 0),
         "volume_5m": round(vol_5m if vol_5m > 0 else vol_1h / 12.0, 2),
         "volume_24h": round(vol_24h, 2),
+        "price_change_1m": round(change_1m, 2),
         "price_change_5m": change_5m,
         "price_change_1h": change_1h,
         "price_change_24h": change_24h,

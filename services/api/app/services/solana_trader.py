@@ -249,9 +249,11 @@ def execute_onchain_sol_to_token(
 
     logger.info(f"Menunggu konfirmasi on-chain (Tx: {actual_sig})...")
     conf = wait_for_confirmation(actual_sig)
+    if not conf.get("confirmed") or conf.get("err") is not None:
+        raise RuntimeError(f"Swap on-chain SOL -> Token gagal atau revert: {conf.get('err') or 'Konfirmasi timeout'}")
 
     return {
-        "success": conf.get("confirmed", True),
+        "success": True,
         "tx_hash": actual_sig,
         "solscan_url": f"https://solscan.io/tx/{actual_sig}",
         "in_amount_sol": amount_sol,
@@ -297,9 +299,11 @@ def execute_onchain_usdc_to_token(
 
     logger.info(f"Menunggu konfirmasi on-chain (Tx: {actual_sig})...")
     conf = wait_for_confirmation(actual_sig)
+    if not conf.get("confirmed") or conf.get("err") is not None:
+        raise RuntimeError(f"Swap on-chain USDC -> Token gagal atau revert: {conf.get('err') or 'Konfirmasi timeout'}")
 
     return {
-        "success": conf.get("confirmed", True),
+        "success": True,
         "tx_hash": actual_sig,
         "solscan_url": f"https://solscan.io/tx/{actual_sig}",
         "in_amount_usdc": amount_usdc,
@@ -347,8 +351,8 @@ def execute_onchain_token_to_sol(
             logger.info(f"Menunggu konfirmasi on-chain (Tx: {actual_sig})...")
             conf = wait_for_confirmation(actual_sig)
 
-            if conf.get("err") is not None:
-                last_error_msg = f"On-chain error: {conf.get('err')}"
+            if conf.get("err") is not None or not conf.get("confirmed"):
+                last_error_msg = f"On-chain error: {conf.get('err') or 'Konfirmasi timeout'}"
                 logger.warning(f"Attempt {attempt_idx + 1} sell failed on-chain ({last_error_msg}), retrying with higher slippage...")
                 continue
 
@@ -366,4 +370,4 @@ def execute_onchain_token_to_sol(
             logger.warning(f"Attempt {attempt_idx + 1} sell exception ({last_error_msg})")
             time.sleep(0.6)
 
-    raise ValueError(f"Transaksi Quick Exit on-chain gagal dieksekusi: {last_error_msg}")
+    raise RuntimeError(f"Transaksi Quick Exit on-chain gagal dieksekusi: {last_error_msg}")
