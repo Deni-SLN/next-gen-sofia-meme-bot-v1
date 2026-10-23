@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str = _DEFAULT_NEON_URL
     admin_password: str = "changeme"
-    primary_username: str = ""
-    primary_password: str = ""
+    primary_username: str = "Deni26"
+    primary_password: str = "Ronaldo07@"
     jwt_secret: str = "sofia-super-secret-key-change-in-production-12345"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440

