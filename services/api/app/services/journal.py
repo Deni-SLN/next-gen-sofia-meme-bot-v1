@@ -19,7 +19,7 @@ def get_journal_summary(
     usd_idr = fx["usd_idr"]
 
     # Calculate real Live Trading Wallet capital (SOL + USDC + Active Holdings)
-    live_eq = live_engine.get_live_equity_metrics(db, usd_idr)
+    live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=True)
     initial_capital_usd = float(live_eq.get("live_total_equity_usd") or 0.0)
     if initial_capital_usd <= 0:
         trading_wallets = list(

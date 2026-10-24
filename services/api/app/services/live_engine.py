@@ -422,7 +422,7 @@ def remove_spl_cache_token(address: str | None, symbol: str, sell_pct: float = 1
     _SPL_CACHE[addr] = (time.time(), filtered)
 
 
-def auto_sync_live_wallets(db: Session, max_age_seconds: float = 20.0) -> None:
+def auto_sync_live_wallets(db: Session, max_age_seconds: float = 60.0) -> None:
     """Automatically refresh real on-chain native balances for live wallets if stale."""
     global _LAST_ONCHAIN_SYNC
     now_ts = time.time()
@@ -656,8 +656,8 @@ def get_live_equity_metrics(db: Session, usd_idr: float, skip_rpc: bool = False)
         w_usd = native_usd
         w_usdc_usd = 0.0
         w_meme_usd = 0.0
-        if not skip_rpc and w.chain == "Solana" and w.address:
-            cache_ttl = 60.0 if w.gate == "trading" else 120.0
+        if not skip_rpc and w.chain == "Solana" and w.address and w.gate == "trading":
+            cache_ttl = 60.0
             spl_tokens = query_solana_spl_tokens(w.address, max_cache_seconds=cache_ttl)
             for t in spl_tokens:
                 t_val = float(t.get("usd_val", 0.0))
@@ -803,12 +803,12 @@ def query_onchain_wallet_balance(address: str, chain: str = "Solana") -> dict:
         }
 
 
-def get_live_engine_status(db: Session) -> dict:
+def get_live_engine_status(db: Session, skip_rpc: bool = False) -> dict:
     """Return complete status of the Live Trading Engine, RPC nodes, and Hot Wallets."""
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
     sol_wallet, sol_usd, _ = get_live_trading_wallet(db, "Solana", create_if_missing=False)
-    metrics = get_live_equity_metrics(db, usd_idr)
+    metrics = get_live_equity_metrics(db, usd_idr, skip_rpc=skip_rpc)
 
     return {
         "live_ready": True,

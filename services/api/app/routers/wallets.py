@@ -94,7 +94,7 @@ class SyncOnchainRequest(BaseModel):
 @router.get("/live-status")
 def get_live_status(db: Session = Depends(get_db)):
     from app.services import live_engine
-    return live_engine.get_live_engine_status(db)
+    return live_engine.get_live_engine_status(db, skip_rpc=True)
 
 
 @router.post("/{wallet_id}/sync-onchain")

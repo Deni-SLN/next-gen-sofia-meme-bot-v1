@@ -21,8 +21,8 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
     spl_tokens = []
     usdc_bal = 0.0
     usdc_usd = 0.0
-    if w.chain == "Solana" and w.address and "Modal Paper" not in (w.name or ""):
-        cache_ttl = _SPL_TTL_SECONDS if w.gate == "trading" else 120.0
+    if w.chain == "Solana" and w.address and w.gate == "trading" and "Modal Paper" not in (w.name or ""):
+        cache_ttl = _SPL_TTL_SECONDS
         spl_tokens = live_engine.query_solana_spl_tokens(w.address, max_cache_seconds=cache_ttl)
         for t in spl_tokens:
             if t.get("symbol") == "USDC" or t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v":
@@ -68,7 +68,7 @@ def list_wallets(db: Session) -> dict:
         "wallets": [_wallet_to_dict(w, usd_idr) for w in items],
         "gates": ["main", "trading", "reserve"],
         "treasury": treasury.get_treasury_summary(db),
-        "live_engine": live_engine.get_live_engine_status(db),
+        "live_engine": live_engine.get_live_engine_status(db, skip_rpc=True),
     }
 
 
