@@ -35,8 +35,10 @@ class SniperConfigUpdateRequest(BaseModel):
     priority_fee_sol: float | None = None
     jito_bribe_sol: float | None = None
     anti_mev: bool | None = None
+    buy_amount_usd: float | None = None
     buy_amount_idr: float | None = None
     snipe_amount_idr: float | None = None
+    paper_initial_capital_idr: float | None = None
     min_safety_score: int | None = None
     min_liquidity_usd: float | None = None
     min_bonding_curve_pct: float | None = None

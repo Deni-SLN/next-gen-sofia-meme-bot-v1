@@ -283,7 +283,10 @@ def get_overview(
                 current_price=float(h.current_price or 0.0),
             )
             if live_tok and live_tok.get("price", 0) > 0:
-                h.current_price = float(live_tok["price"])
+                new_px = float(live_tok["price"])
+                if h.avg_entry_price > 0 and new_px > (h.avg_entry_price * 2.0) and not market.get_pinned_contract(h.symbol):
+                    new_px = float(h.current_price or h.avg_entry_price)
+                h.current_price = new_px
                 if live_tok.get("liquidity", 0) > 0:
                     h.liquidity_usd = float(live_tok["liquidity"])
                 h.updated_at = datetime.now(timezone.utc)
@@ -373,31 +376,57 @@ def get_overview(
     active_cash_usd = live_eq["live_cash_usd"] if is_live else paper_cash_usd
     active_cash_idr = round(active_cash_usd * usd_idr, 0)
 
-    # 1 SQL aggregate query for winrate stats
+    # 1 SQL aggregate query grouped by mode for both PAPER and LIVE winrate stats
+    mode_stats = {
+        "PAPER": {"total": 0, "wins": 0, "losses": 0, "realized_usd": 0.0, "winrate_pct": 0.0},
+        "LIVE": {"total": 0, "wins": 0, "losses": 0, "realized_usd": 0.0, "winrate_pct": 0.0},
+    }
     try:
+        norm_mode_col = func.upper(func.coalesce(Trade.mode, "PAPER"))
         stmt = (
             select(
+                norm_mode_col.label("trade_mode"),
                 func.count(Trade.id).label("total_trades"),
                 func.coalesce(func.sum(case((Trade.pnl > 0, 1), else_=0)), 0).label("wins"),
                 func.coalesce(func.sum(case((Trade.pnl <= 0, 1), else_=0)), 0).label("losses"),
                 func.coalesce(func.sum(Trade.pnl), 0.0).label("realized_usd"),
             )
-            .where(Trade.side == "sell", Trade.status == "closed", Trade.mode == active_mode)
+            .where(
+                Trade.status == "closed",
+                or_(Trade.side == "sell", Trade.pnl != 0),
+                or_(Trade.result.is_(None), Trade.result != "ORPHAN_CLEARED"),
+            )
+            .group_by(norm_mode_col)
         )
-        row = db.execute(stmt).first()
-        if row:
-            alltime_total = int(row.total_trades or 0)
-            alltime_wins = int(row.wins or 0)
-            alltime_losses = int(row.losses or 0)
-            alltime_realized_usd = float(row.realized_usd or 0.0)
-        else:
-            alltime_total = alltime_wins = alltime_losses = 0
-            alltime_realized_usd = 0.0
+        rows = db.execute(stmt).all()
+        for r in rows:
+            m_key = str(r.trade_mode or "PAPER").upper()
+            if m_key not in mode_stats:
+                continue
+            tot = int(r.total_trades or 0)
+            w = int(r.wins or 0)
+            l = int(r.losses or 0)
+            realized = float(r.realized_usd or 0.0)
+            wr_pct = round((w / tot) * 100.0, 1) if tot > 0 else 0.0
+            mode_stats[m_key] = {
+                "total": tot,
+                "wins": w,
+                "losses": l,
+                "realized_usd": realized,
+                "winrate_pct": wr_pct,
+            }
     except Exception:
-        alltime_total = alltime_wins = alltime_losses = 0
-        alltime_realized_usd = 0.0
+        pass
 
-    alltime_winrate_pct = round((alltime_wins / alltime_total) * 100.0, 1) if alltime_total > 0 else 0.0
+    active_stat = mode_stats.get(active_mode, mode_stats["PAPER"])
+    paper_stat = mode_stats["PAPER"]
+    live_stat = mode_stats["LIVE"]
+
+    alltime_total = active_stat["total"]
+    alltime_wins = active_stat["wins"]
+    alltime_losses = active_stat["losses"]
+    alltime_realized_usd = active_stat["realized_usd"]
+    alltime_winrate_pct = active_stat["winrate_pct"]
 
     return {
         "usd_idr": usd_idr,
@@ -443,6 +472,18 @@ def get_overview(
         "alltime_trades": alltime_total,
         "alltime_realized_pnl_usd": round(alltime_realized_usd, 4),
         "alltime_realized_pnl_idr": round(alltime_realized_usd * usd_idr, 0),
+        "paper_winrate_pct": paper_stat["winrate_pct"],
+        "paper_wins": paper_stat["wins"],
+        "paper_losses": paper_stat["losses"],
+        "paper_trades": paper_stat["total"],
+        "paper_realized_pnl_usd": round(paper_stat["realized_usd"], 4),
+        "paper_realized_pnl_idr": round(paper_stat["realized_usd"] * usd_idr, 0),
+        "live_winrate_pct": live_stat["winrate_pct"],
+        "live_wins": live_stat["wins"],
+        "live_losses": live_stat["losses"],
+        "live_trades": live_stat["total"],
+        "live_realized_pnl_usd": round(live_stat["realized_usd"], 4),
+        "live_realized_pnl_idr": round(live_stat["realized_usd"] * usd_idr, 0),
         "holdings": items,
     }
 

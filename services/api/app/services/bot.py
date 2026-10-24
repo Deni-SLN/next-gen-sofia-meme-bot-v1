@@ -5,7 +5,7 @@ import threading
 import time
 from pathlib import Path
 from datetime import datetime, timezone
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
 from app.db.models import BotState, PortfolioHolding
 from app.services import market, portfolio, memecoins
@@ -236,69 +236,98 @@ _USER_OWNED_KEYS = (
 def get_strategy_winrate_stats(db: Session | None = None, mode: str | None = None) -> dict[str, dict]:
     """
     Return genuine winrate, trade counts, wins, losses, and realized PnL for each strategy mode
-    (SAFE, DEFAULT, AGGRESSIVE) computed strictly from real closed trades.
-    No dummy, estimated, or synthetic numbers.
+    (SAFE, DEFAULT, AGGRESSIVE) computed strictly from real closed trades, including separate
+    PAPER and LIVE breakdowns.
     """
     from app.db.models import Trade
 
+    def _empty_bucket(s_mode: str) -> dict:
+        return {
+            "strategy_mode": s_mode,
+            "winrate_pct": None,
+            "trades_count": 0,
+            "wins": 0,
+            "losses": 0,
+            "realized_pnl_idr": 0.0,
+            "paper_winrate_pct": 0.0,
+            "paper_trades_count": 0,
+            "paper_wins": 0,
+            "paper_losses": 0,
+            "paper_realized_pnl_idr": 0.0,
+            "live_winrate_pct": 0.0,
+            "live_trades_count": 0,
+            "live_wins": 0,
+            "live_losses": 0,
+            "live_realized_pnl_idr": 0.0,
+        }
+
     stats: dict[str, dict] = {
-        "SAFE": {
-            "strategy_mode": "SAFE",
-            "winrate_pct": None,
-            "trades_count": 0,
-            "wins": 0,
-            "losses": 0,
-            "realized_pnl_idr": 0.0,
-        },
-        "DEFAULT": {
-            "strategy_mode": "DEFAULT",
-            "winrate_pct": None,
-            "trades_count": 0,
-            "wins": 0,
-            "losses": 0,
-            "realized_pnl_idr": 0.0,
-        },
-        "AGGRESSIVE": {
-            "strategy_mode": "AGGRESSIVE",
-            "winrate_pct": None,
-            "trades_count": 0,
-            "wins": 0,
-            "losses": 0,
-            "realized_pnl_idr": 0.0,
-        },
+        "SAFE": _empty_bucket("SAFE"),
+        "DEFAULT": _empty_bucket("DEFAULT"),
+        "AGGRESSIVE": _empty_bucket("AGGRESSIVE"),
     }
 
     if db is not None:
         try:
             fx = market.get_fx_rate()
             usd_idr = fx.get("usd_idr", 16300.0)
-            q = select(Trade).where(Trade.side == "sell", Trade.status == "closed")
-            if mode:
-                q = q.where(Trade.mode == mode.upper())
+            q = select(Trade).where(
+                Trade.status == "closed",
+                or_(Trade.side == "sell", Trade.pnl != 0),
+            )
             closed_sells = list(db.execute(q).scalars().all())
             for t in closed_sells:
+                if getattr(t, "result", None) == "ORPHAN_CLEARED":
+                    continue
                 notes_u = (t.notes or "").upper()
                 if "[SAFE]" in notes_u:
                     m_key = "SAFE"
                 elif "[AGGRESSIVE]" in notes_u:
                     m_key = "AGGRESSIVE"
-                elif "[DEFAULT]" in notes_u:
+                else:
                     m_key = "DEFAULT"
-                else:
-                    continue
-                stats[m_key]["trades_count"] += 1
+
+                t_mode = str(t.mode or "PAPER").upper()
                 pnl_val_usd = float(t.pnl or 0.0)
-                stats[m_key]["realized_pnl_idr"] += (pnl_val_usd * usd_idr)
-                if pnl_val_usd >= 0:
-                    stats[m_key]["wins"] += 1
+                pnl_idr = pnl_val_usd * usd_idr
+                is_win = pnl_val_usd > 0
+
+                if t_mode == "LIVE":
+                    stats[m_key]["live_trades_count"] += 1
+                    stats[m_key]["live_realized_pnl_idr"] += pnl_idr
+                    if is_win:
+                        stats[m_key]["live_wins"] += 1
+                    else:
+                        stats[m_key]["live_losses"] += 1
                 else:
-                    stats[m_key]["losses"] += 1
+                    stats[m_key]["paper_trades_count"] += 1
+                    stats[m_key]["paper_realized_pnl_idr"] += pnl_idr
+                    if is_win:
+                        stats[m_key]["paper_wins"] += 1
+                    else:
+                        stats[m_key]["paper_losses"] += 1
+
+                if not mode or t_mode == mode.upper():
+                    stats[m_key]["trades_count"] += 1
+                    stats[m_key]["realized_pnl_idr"] += pnl_idr
+                    if is_win:
+                        stats[m_key]["wins"] += 1
+                    else:
+                        stats[m_key]["losses"] += 1
 
             for m_key, s in stats.items():
                 s["realized_pnl_idr"] = round(s["realized_pnl_idr"], 0)
+                s["paper_realized_pnl_idr"] = round(s["paper_realized_pnl_idr"], 0)
+                s["live_realized_pnl_idr"] = round(s["live_realized_pnl_idr"], 0)
                 tc = s["trades_count"]
                 if tc > 0:
                     s["winrate_pct"] = round((s["wins"] / tc) * 100.0, 1)
+                ptc = s["paper_trades_count"]
+                if ptc > 0:
+                    s["paper_winrate_pct"] = round((s["paper_wins"] / ptc) * 100.0, 1)
+                ltc = s["live_trades_count"]
+                if ltc > 0:
+                    s["live_winrate_pct"] = round((s["live_wins"] / ltc) * 100.0, 1)
         except Exception:
             pass
 
@@ -354,22 +383,50 @@ def update_sniper_config(updates: dict, db: Session | None = None, allow_while_r
                     "success" if norm_strat != "AGGRESSIVE" else "warn",
                 )
 
-    # Support frontend alias keys and USD buy amounts
+    # Support frontend alias keys and USD buy amounts (keep buy_amount_usd and buy_amount_idr 100% synced)
+    fx = market.get_fx_rate()
+    usd_idr = fx.get("usd_idr", 16300.0)
     if updates.get("buy_amount_usd") is not None and float(updates["buy_amount_usd"]) > 0:
-        fx = market.get_fx_rate()
-        usd_idr = fx.get("usd_idr", 16300.0)
-        updates["buy_amount_idr"] = round(float(updates["buy_amount_usd"]) * usd_idr, 0)
-        _SNIPER_CONFIG["buy_amount_usd"] = float(updates["buy_amount_usd"])
+        b_usd = round(float(updates["buy_amount_usd"]), 4)
+        b_idr = round(b_usd * usd_idr, 0)
+        updates["buy_amount_usd"] = b_usd
+        updates["buy_amount_idr"] = b_idr
+        updates["snipe_amount_idr"] = b_idr
+        _SNIPER_CONFIG["buy_amount_usd"] = b_usd
+    elif (updates.get("buy_amount_idr") is not None or updates.get("snipe_amount_idr") is not None):
+        raw_idr = float(updates.get("buy_amount_idr") or updates.get("snipe_amount_idr") or 0.0)
+        if raw_idr > 0:
+            b_usd = round(raw_idr / usd_idr, 4)
+            updates["buy_amount_idr"] = raw_idr
+            updates["snipe_amount_idr"] = raw_idr
+            updates["buy_amount_usd"] = b_usd
+            _SNIPER_CONFIG["buy_amount_usd"] = b_usd
+
     if updates.get("max_slippage_pct") is not None and updates.get("slippage_pct") is None:
         updates["slippage_pct"] = updates["max_slippage_pct"]
-    if updates.get("snipe_amount_idr") is not None and updates.get("buy_amount_idr") is None:
-        updates["buy_amount_idr"] = updates["snipe_amount_idr"]
 
     for k, v in updates.items():
         if (k in _SNIPER_CONFIG or k in _USER_OWNED_KEYS) and v is not None and k not in ("strategy_mode",):
             _SNIPER_CONFIG[k] = v
     _save_persisted_sniper_config()
-    return get_sniper_config()
+
+    # If db is provided and PAPER holdings exceed max_open_positions or buy_amount_usd, trim immediately
+    if db is not None:
+        try:
+            max_pos = max(1, int(_SNIPER_CONFIG.get("max_open_positions", 5)))
+            paper_holdings = list(
+                db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "PAPER")).scalars().all()
+            )
+            if len(paper_holdings) > max_pos:
+                for excess_h in paper_holdings[max_pos:]:
+                    try:
+                        portfolio.sell_holding(db, excess_h.symbol, 100.0, mode="PAPER")
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    return get_sniper_config(db)
 
 
 def get_bot_status(db: Session) -> BotState:
@@ -737,8 +794,10 @@ def _run_bot_scan_tick_locked(
             )[:6]
         pool_to_pick = eligible if eligible else [c for c in candidates if _not_held(c)][: min(8, len(candidates))]
 
+    unheld_candidates = [c for c in candidates if _not_held(c)]
+    has_unheld_candidate = len(unheld_candidates) > 0
     if not pool_to_pick:
-        pool_to_pick = candidates[: min(5, len(candidates))]
+        pool_to_pick = unheld_candidates[: min(5, len(unheld_candidates))] if unheld_candidates else candidates[:1]
 
     # Prioritize candidates with verified bullish orderflow (buys > sells & positive momentum) ranked by Alpha Score
     bullish_pool = [c for c in pool_to_pick if _has_bullish_orderflow(c)]
@@ -860,7 +919,14 @@ def _run_bot_scan_tick_locked(
         tp_target = float(_SNIPER_CONFIG.get("auto_tp_pct", 12.0))
         sl_target = -abs(float(_SNIPER_CONFIG.get("auto_sl_pct", 8.0)))
         tp_sell_pct = float(_SNIPER_CONFIG.get("auto_tp_sell_pct", 100.0))
-        max_positions = int(_SNIPER_CONFIG.get("max_open_positions", 5))
+        max_positions = max(1, int(_SNIPER_CONFIG.get("max_open_positions", 5)))
+        raw_buy_usd = _SNIPER_CONFIG.get("buy_amount_usd")
+        cfg_buy_idr = float(_SNIPER_CONFIG.get("buy_amount_idr", 15000.0))
+        if raw_buy_usd is not None and float(raw_buy_usd) > 0:
+            cfg_buy_usd = round(float(raw_buy_usd), 4)
+            cfg_buy_idr = round(cfg_buy_usd * usd_idr, 0)
+        else:
+            cfg_buy_usd = round(cfg_buy_idr / usd_idr, 4)
 
         # 0. In AGGRESSIVE mode, immediately liquidate any legacy/old coin (e.g., BONK, PEPE, WIF) left over in holdings
         # so capital is freed up to snipe genuine newly created meme coins!
@@ -884,10 +950,41 @@ def _run_bot_scan_tick_locked(
             if active_mode == "LIVE":
                 portfolio.sync_onchain_holdings_to_portfolio(db)
             holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == active_mode)).scalars().all())
-            if active_mode != "LIVE":
-                db.refresh(paper_wallet)
-                avail_cash_usd = float(paper_wallet.balance)
-                avail_cash_idr = avail_cash_usd * usd_idr
+
+        # 0b. Strictly enforce max_open_positions & per-trade dollar cap in PAPER simulation (and LIVE auto-trim)
+        if auto_trade and len(holdings) > max_positions:
+            for excess_h in list(holdings[max_positions:]):
+                try:
+                    trim_res = portfolio.sell_holding(db, excess_h.symbol, 100.0, mode=active_mode)
+                    state.total_trades = (state.total_trades or 0) + 1
+                    db.commit()
+                    _append_log(
+                        "SNIPE",
+                        "SOL",
+                        excess_h.symbol,
+                        f"[{active_mode} • SLOT LIMIT GUARD] Menjual 100% {excess_h.symbol} agar jumlah posisi aktif patuh batas maksimal ({max_positions} Koin)",
+                        f"Kas ({active_mode}): Rp {trim_res['cash_remaining_idr']:,.0f}",
+                        "info",
+                    )
+                except Exception:
+                    pass
+            holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == active_mode)).scalars().all())
+
+        if active_mode != "LIVE" and auto_trade and cfg_buy_usd > 0:
+            for h_chk in list(holdings):
+                cost_usd_chk = float(h_chk.quantity or 0.0) * float(h_chk.avg_entry_price or 0.0)
+                if cost_usd_chk > (cfg_buy_usd * 1.25):
+                    excess_pct = min(95.0, max(10.0, ((cost_usd_chk - cfg_buy_usd) / cost_usd_chk) * 100.0))
+                    try:
+                        portfolio.sell_holding(db, h_chk.symbol, excess_pct, mode="PAPER")
+                        db.commit()
+                    except Exception:
+                        pass
+            holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == active_mode)).scalars().all())
+            db.refresh(paper_wallet)
+            avail_cash_usd = float(paper_wallet.balance)
+            avail_cash_idr = avail_cash_usd * usd_idr
+            spendable_sol_idr = avail_cash_idr
 
         # 1. Refresh live prices on existing holdings & check Auto TP / Trailing Profit / SL
         trailing_enabled = bool(_SNIPER_CONFIG.get("trailing_stop_enabled", True))
@@ -906,16 +1003,9 @@ def _run_bot_scan_tick_locked(
                 )
                 if live_tok and live_tok.get("price", 0) > 0:
                     new_px = float(live_tok["price"])
-                    # When DexScreener 25s cache returns an unchanged price during fast ticks on an active orderflow token,
-                    # apply realistic micro-orderflow drift proportional to live 5m buy/sell pressure
-                    if abs(new_px - float(h.current_price or 0.0)) <= 1e-12 and not live_tok.get("collision_guarded"):
-                        buys_5m = int(live_tok.get("buys_5m", 8))
-                        sells_5m = int(live_tok.get("sells_5m", 4))
-                        chg_5m = float(live_tok.get("price_change_5m", 1.5))
-                        r_bs = buys_5m / max(1, sells_5m)
-                        if r_bs >= 1.15 and chg_5m >= -0.5:
-                            drift_pct = min(0.025, max(0.004, (r_bs - 1.0) * 0.008 + max(0.0, chg_5m) * 0.0008))
-                            new_px = float(h.current_price) * (1.0 + drift_pct)
+                    # Guard against unpinned ticker collision inflating a $1 position to $2.9+
+                    if h.avg_entry_price > 0 and new_px > (h.avg_entry_price * 2.0) and not market.get_pinned_contract(h.symbol):
+                        new_px = float(h.current_price or h.avg_entry_price)
                     h.current_price = new_px
                     if live_tok.get("liquidity", 0) > 0:
                         h.liquidity_usd = float(live_tok["liquidity"])
@@ -1002,13 +1092,19 @@ def _run_bot_scan_tick_locked(
 
         # 2. Auto-Snipe new token if we have sufficient spendable Cash and open positions < max_positions
         score_threshold = (min_score - 15) if strat_mode == "AGGRESSIVE" else (min_score - 5)
-        cfg_buy_idr = float(_SNIPER_CONFIG.get("buy_amount_idr", 15000.0))
         min_cash_threshold = max(2000.0, cfg_buy_idr)
         has_enough_cash = (spendable_sol_idr >= min_cash_threshold and has_enough_gas) if active_mode == "LIVE" else (avail_cash_idr >= min_cash_threshold)
+
+        # Re-verify that pick is NOT already held and open holdings count is strictly < max_positions
+        holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == active_mode)).scalars().all())
+        held_symbols = {h.symbol.upper() for h in holdings}
+        held_bases = {h.symbol.upper().split("/")[0] for h in holdings}
 
         can_snipe = (
             not sold_any
             and auto_trade
+            and has_unheld_candidate
+            and _not_held(pick)
             and has_enough_cash
             and len(holdings) < max_positions
             and score >= score_threshold
@@ -1022,6 +1118,7 @@ def _run_bot_scan_tick_locked(
             else:
                 # Obey operator configured buy amount, bounded by available paper cash
                 snipe_idr = min(cfg_buy_idr, avail_cash_idr)
+            snipe_usd = round(min(cfg_buy_usd, snipe_idr / usd_idr), 4)
             try:
                 snipe_res = memecoins.execute_snipe(
                     db,
@@ -1029,6 +1126,7 @@ def _run_bot_scan_tick_locked(
                         "symbol": sym,
                         "contract": contract_addr,
                         "price": price_usd,
+                        "amount_usd": snipe_usd,
                         "amount_idr": snipe_idr,
                         "slippage_pct": float(_SNIPER_CONFIG.get("slippage_pct", 1.0)),
                         "priority_fee_sol": float(_SNIPER_CONFIG.get("priority_fee_sol", 0.005)),
@@ -1036,6 +1134,8 @@ def _run_bot_scan_tick_locked(
                         "force_unsafe": strat_mode == "AGGRESSIVE",
                         "block_legacy_tokens": strat_mode == "AGGRESSIVE",
                         "mode": active_mode,
+                        "from_bot": True,
+                        "max_open_positions": max_positions,
                     },
                 )
                 state.total_trades = (state.total_trades or 0) + 1

@@ -76,27 +76,28 @@ export default function TradingPage() {
   const [actionError, setActionError] = useState<string>('');
   const [actionSuccess, setActionSuccess] = useState<string>('');
 
-  // PumpSniper Terminal Config State
+  // PumpSniper Terminal Config State (supports blank '' during typing so user can delete all characters)
   const [relayMode, setRelayMode] = useState<string>('JITO_0SLOT');
-  const [jitoTip, setJitoTip] = useState<number>(0.005);
-  const [slippage, setSlippage] = useState<number>(1.5);
-  const [minBondingPct, setMinBondingPct] = useState<number>(15);
-  const [maxDevHoldPct, setMaxDevHoldPct] = useState<number>(5);
+  const [jitoTip, setJitoTip] = useState<number | string>(0.005);
+  const [slippage, setSlippage] = useState<number | string>(1.5);
+  const [minBondingPct, setMinBondingPct] = useState<number | string>(15);
+  const [maxDevHoldPct, setMaxDevHoldPct] = useState<number | string>(5);
   const [onlyNewCreations, setOnlyNewCreations] = useState<boolean>(false);
-  const [maxTokenAgeMinutes, setMaxTokenAgeMinutes] = useState<number>(2880);
-  const [maxMarketCapUsd, setMaxMarketCapUsd] = useState<number>(50000000);
-  const [autoTpPct, setAutoTpPct] = useState<number>(25);
-  const [autoSlPct, setAutoSlPct] = useState<number>(8);
+  const [maxTokenAgeMinutes, setMaxTokenAgeMinutes] = useState<number | string>(2880);
+  const [maxMarketCapUsd, setMaxMarketCapUsd] = useState<number | string>(50000000);
+  const [autoTpPct, setAutoTpPct] = useState<number | string>(25);
+  const [autoSlPct, setAutoSlPct] = useState<number | string>(8);
   const [trailingStop, setTrailingStop] = useState<boolean>(true);
   const [trailingPct, setTrailingPct] = useState<number>(5);
   const [multiWalletRot, setMultiWalletRot] = useState<boolean>(true);
-  const [snipeAmountIdr, setSnipeAmountIdr] = useState<number>(20000);
-  const [maxOpenPositions, setMaxOpenPositions] = useState<number>(3);
+  const [snipeAmountIdr, setSnipeAmountIdr] = useState<number>(16300);
+  const [snipeUsdInput, setSnipeUsdInput] = useState<string>('1.00');
+  const [maxOpenPositions, setMaxOpenPositions] = useState<number | string>(5);
   const [showStartBotModal, setShowStartBotModal] = useState<boolean>(false);
   const [showResetPaperModal, setShowResetPaperModal] = useState<boolean>(false);
   const [terminalSymbol, setTerminalSymbol] = useState<string>('');
   const [terminalContract, setTerminalContract] = useState<string>('');
-  const [terminalAmountIdr, setTerminalAmountIdr] = useState<number>(25000);
+  const [terminalAmountIdr, setTerminalAmountIdr] = useState<number | string>(25000);
   const [isSniping, setIsSniping] = useState<boolean>(false);
   const [sellingKey, setSellingKey] = useState<string | null>(null);
   const [quickExitNotice, setQuickExitNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -152,6 +153,12 @@ export default function TradingPage() {
       if (c.multi_wallet_rotation !== undefined) setMultiWalletRot(Boolean(c.multi_wallet_rotation));
       const buyVal = c.buy_amount_idr !== undefined ? c.buy_amount_idr : c.snipe_amount_idr;
       if (buyVal !== undefined) setSnipeAmountIdr(Number(buyVal));
+      if (c.buy_amount_usd !== undefined && Number(c.buy_amount_usd) > 0) {
+        setSnipeUsdInput(String(Number(c.buy_amount_usd)));
+      } else if (buyVal !== undefined) {
+        const fxRate = portfolioQuery.data?.usd_idr || 16300;
+        setSnipeUsdInput(String(Number((Number(buyVal) / fxRate).toFixed(2))));
+      }
       if (c.max_open_positions !== undefined) setMaxOpenPositions(Number(c.max_open_positions));
     }
   }, [configQuery.data]);
@@ -233,7 +240,7 @@ export default function TradingPage() {
   const holdingsCount = holdingsList.length;
   const holdingsValUsd = Number(portfolioQuery.data?.net_holdings_value_usd || portfolioQuery.data?.total_value) || 0;
   const holdingsValIdr = Number(portfolioQuery.data?.net_holdings_value_idr || portfolioQuery.data?.total_value_idr) || 0;
-  const displayMaxSlots = maxOpenPositions || Number(configQuery.data?.max_open_positions) || 10;
+  const displayMaxSlots = Number(maxOpenPositions) || Number(configQuery.data?.max_open_positions) || 5;
 
   // Active Total Equity: In LIVE = Real On-Chain Wallets + Holdings; In PAPER = Paper Cash + Holdings
   const activeEquityUsd = isLive
@@ -283,14 +290,23 @@ export default function TradingPage() {
       setTerminalContract(newCreationsList[0].contract || '');
     }
     try {
+      const curBuyUsd = Math.max(0.1, Number(snipeUsdInput) || Number((snipeAmountIdr / usdIdr).toFixed(2)) || 1.0);
+      const curMaxPos = Math.max(1, Number(maxOpenPositions) || 5);
+      const curSlip = Math.max(0.1, Number(slippage) || 1.2);
       const updated = await api.updateSniperConfig({
         strategy_mode: newStrat,
         apply_preset: true,
+        buy_amount_usd: curBuyUsd,
+        buy_amount_idr: Math.round(curBuyUsd * usdIdr),
+        snipe_amount_idr: Math.round(curBuyUsd * usdIdr),
+        max_open_positions: curMaxPos,
+        slippage_pct: curSlip,
+        max_slippage_pct: curSlip,
       });
       if (updated) {
         setRelayMode(updated.relay_mode || 'JITO_0SLOT');
         setJitoTip(Number(updated.jito_bribe_sol || 0.005));
-        setSlippage(Number(updated.slippage_pct || 1.2));
+        setSlippage(Number(updated.slippage_pct || curSlip));
         setMinBondingPct(Number(updated.min_bonding_curve_pct || 15));
         setMaxDevHoldPct(Number(updated.max_dev_holding_pct || 10));
         setOnlyNewCreations(Boolean(updated.only_new_creations));
@@ -300,7 +316,10 @@ export default function TradingPage() {
         setAutoSlPct(Number(updated.auto_sl_pct || 8));
         setTrailingStop(Boolean(updated.trailing_stop_enabled));
         setTrailingPct(Number(updated.trailing_stop_pct || 5));
-        setSnipeAmountIdr(Number(updated.buy_amount_idr || 20000));
+        const newBuyUsd = Number(updated.buy_amount_usd || curBuyUsd);
+        setSnipeUsdInput(String(newBuyUsd));
+        setSnipeAmountIdr(Math.round(newBuyUsd * usdIdr));
+        setMaxOpenPositions(Number(updated.max_open_positions || curMaxPos));
       }
       setActionSuccess(
         newStrat === 'AGGRESSIVE'
@@ -348,7 +367,8 @@ export default function TradingPage() {
       max_open_positions: params.max_open_positions,
       slippage_pct: params.slippage_pct,
     });
-    setSnipeAmountIdr(params.buy_amount_usd * usdIdr);
+    setSnipeUsdInput(String(params.buy_amount_usd));
+    setSnipeAmountIdr(Math.round(params.buy_amount_usd * usdIdr));
     setMaxOpenPositions(params.max_open_positions);
     setSlippage(params.slippage_pct);
     setActionSuccess(
@@ -384,36 +404,73 @@ export default function TradingPage() {
       }
     }
   };
+  const syncQuickParamsSilently = async (overrideUsd?: number, overrideMaxPos?: number, overrideSlip?: number) => {
+    const numUsd = overrideUsd ?? (Number(snipeUsdInput) || Number((snipeAmountIdr / usdIdr).toFixed(2)) || 1.0);
+    const numPos = overrideMaxPos ?? (Number(maxOpenPositions) || 5);
+    const numSlip = overrideSlip ?? (Number(slippage) || 1.5);
+    if (numUsd <= 0 || numPos < 1 || numSlip <= 0) return;
+    try {
+      await api.updateSniperConfig({
+        buy_amount_usd: Number(numUsd.toFixed(4)),
+        buy_amount_idr: Math.round(numUsd * usdIdr),
+        snipe_amount_idr: Math.round(numUsd * usdIdr),
+        max_open_positions: Math.round(numPos),
+        slippage_pct: numSlip,
+        max_slippage_pct: numSlip,
+      });
+      configQuery.refetch();
+      portfolioQuery.refetch();
+    } catch {
+      // ignore silent sync error
+    }
+  };
+
   const handleSaveConfig = async () => {
     setActionError('');
     setActionSuccess('');
+    const numUsd = Math.max(0.1, Number(snipeUsdInput) || Number((snipeAmountIdr / usdIdr).toFixed(2)) || 1.0);
+    const numIdr = Math.round(numUsd * usdIdr);
+    const numPos = Math.max(1, Math.round(Number(maxOpenPositions) || 5));
+    const numSlip = Math.max(0.1, Number(slippage) || 1.5);
+    const numJito = Math.max(0.0001, Number(jitoTip) || 0.001);
+    const numBond = Math.max(0, Number(minBondingPct) || 15);
+    const numDev = Math.max(1, Number(maxDevHoldPct) || 10);
+    const numAge = Math.max(1, Number(maxTokenAgeMinutes) || 180);
+    const numMcap = Math.max(1000, Number(maxMarketCapUsd) || 500000);
+    const numTp = Math.max(1, Number(autoTpPct) || 15);
+    const numSl = Math.max(1, Number(autoSlPct) || 8);
+    setSnipeUsdInput(String(numUsd));
+    setSnipeAmountIdr(numIdr);
+    setMaxOpenPositions(numPos);
+    setSlippage(numSlip);
     try {
       await api.updateSniperConfig({
         strategy_mode: strategyMode,
         apply_preset: false,
         relay_mode: relayMode,
-        jito_bribe_sol: jitoTip,
-        slippage_pct: slippage,
-        max_slippage_pct: slippage,
-        min_bonding_curve_pct: minBondingPct,
-        max_dev_holding_pct: maxDevHoldPct,
+        jito_bribe_sol: numJito,
+        slippage_pct: numSlip,
+        max_slippage_pct: numSlip,
+        min_bonding_curve_pct: numBond,
+        max_dev_holding_pct: numDev,
         only_new_creations: onlyNewCreations,
-        max_token_age_minutes: maxTokenAgeMinutes,
-        max_market_cap_usd: maxMarketCapUsd,
-        auto_tp_pct: autoTpPct,
-        auto_sl_pct: autoSlPct,
+        max_token_age_minutes: numAge,
+        max_market_cap_usd: numMcap,
+        auto_tp_pct: numTp,
+        auto_sl_pct: numSl,
         trailing_stop_enabled: trailingStop,
         trailing_stop_pct: trailingPct,
         multi_wallet_rotation: multiWalletRot,
-        buy_amount_idr: snipeAmountIdr,
-        snipe_amount_idr: snipeAmountIdr,
-        buy_amount_usd: Number((snipeAmountIdr / usdIdr).toFixed(2)),
-        max_open_positions: maxOpenPositions,
+        buy_amount_idr: numIdr,
+        snipe_amount_idr: numIdr,
+        buy_amount_usd: Number(numUsd.toFixed(4)),
+        max_open_positions: numPos,
       });
       setActionSuccess(
-        `✅ Konfigurasi [${strategyMode}] tersimpan! $${(snipeAmountIdr / usdIdr).toFixed(2)}/trade • Maks ${maxOpenPositions} posisi • Slip ${slippage}%`
+        `✅ Konfigurasi [${strategyMode}] tersimpan! $${numUsd.toFixed(2)}/trade • Maks ${numPos} posisi • Slip ${numSlip}%`
       );
       configQuery.refetch();
+      portfolioQuery.refetch();
     } catch (err: any) {
       setActionError(err?.message || 'Gagal menyimpan konfigurasi');
     }
@@ -429,9 +486,9 @@ export default function TradingPage() {
       const res = await api.snipeToken({
         symbol: terminalSymbol.trim() || terminalContract.trim(),
         contract: terminalContract.trim() || undefined,
-        amount_idr: terminalAmountIdr,
-        slippage_pct: slippage,
-        priority_fee_sol: jitoTip,
+        amount_idr: Number(terminalAmountIdr) || 25000,
+        slippage_pct: Number(slippage) || 1.5,
+        priority_fee_sol: Number(jitoTip) || 0.005,
         anti_mev: relayMode !== 'MAINNET_STD',
         force_unsafe: strategyMode === 'AGGRESSIVE',
         block_legacy_tokens: strategyMode === 'AGGRESSIVE',
@@ -684,12 +741,20 @@ export default function TradingPage() {
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                   <input
                     type="number"
-                    step="0.1"
+                    step="any"
                     min="0.1"
-                    value={Number((snipeAmountIdr / usdIdr).toFixed(2))}
+                    value={snipeUsdInput}
                     onChange={(e) => {
-                      const usd = parseFloat(e.target.value) || 0;
-                      setSnipeAmountIdr(Math.round(usd * usdIdr));
+                      const raw = e.target.value;
+                      setSnipeUsdInput(raw);
+                      const usd = parseFloat(raw);
+                      setSnipeAmountIdr(!isNaN(usd) && usd >= 0 ? Math.round(usd * usdIdr) : 0);
+                    }}
+                    onBlur={() => {
+                      const usd = parseFloat(snipeUsdInput);
+                      if (!isNaN(usd) && usd > 0) {
+                        syncQuickParamsSilently(usd, undefined, undefined);
+                      }
                     }}
                     className="w-full pl-6 pr-2 py-1.5 rounded bg-obsidian-950 border border-obsidian-700 text-emerald-300 font-extrabold text-xs"
                     placeholder="1.00"
@@ -702,7 +767,7 @@ export default function TradingPage() {
               <div className="space-y-1.5 p-3 rounded-lg bg-obsidian-900 border border-obsidian-800 flex flex-col justify-between">
                 <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between gap-1">
                   <span>2. Maks Posisi</span>
-                  <span className="text-cyan-400 font-bold">{maxOpenPositions} Koin</span>
+                  <span className="text-cyan-400 font-bold">{Number(maxOpenPositions) || 0} Koin</span>
                 </label>
                 <div className="relative">
                   <input
@@ -711,10 +776,20 @@ export default function TradingPage() {
                     min="1"
                     max="20"
                     value={maxOpenPositions}
-                    onChange={(e) => setMaxOpenPositions(parseInt(e.target.value, 10) || 1)}
-                    className="w-full px-2.5 py-1.5 rounded bg-obsidian-950 border border-obsidian-700 text-cyan-300 font-extrabold text-xs"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMaxOpenPositions(val === '' ? '' : parseInt(val, 10));
+                    }}
+                    onBlur={() => {
+                      const pos = parseInt(String(maxOpenPositions), 10);
+                      if (!isNaN(pos) && pos >= 1) {
+                        syncQuickParamsSilently(undefined, pos, undefined);
+                      }
+                    }}
+                    placeholder="5"
+                    className="w-full px-2.5 pr-9 py-1.5 rounded bg-obsidian-950 border border-obsidian-700 text-cyan-300 font-extrabold text-xs"
                   />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">Slot</span>
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none">Slot</span>
                 </div>
                 <span className="text-[9px] text-slate-500 block">Batas koin di-hold bersamaan</span>
               </div>
@@ -723,19 +798,29 @@ export default function TradingPage() {
               <div className="space-y-1.5 p-3 rounded-lg bg-obsidian-900 border border-obsidian-800 flex flex-col justify-between">
                 <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between gap-1">
                   <span>3. Slippage (%)</span>
-                  <span className="text-amber-400 font-bold">{slippage}%</span>
+                  <span className="text-amber-400 font-bold">{slippage === '' ? 0 : slippage}%</span>
                 </label>
                 <div className="relative">
                   <input
                     type="number"
-                    step="0.1"
+                    step="any"
                     min="0.1"
                     max="25"
                     value={slippage}
-                    onChange={(e) => setSlippage(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSlippage(val === '' ? '' : val);
+                    }}
+                    onBlur={() => {
+                      const slp = parseFloat(String(slippage));
+                      if (!isNaN(slp) && slp > 0) {
+                        syncQuickParamsSilently(undefined, undefined, slp);
+                      }
+                    }}
+                    placeholder="1.5"
                     className="w-full px-2.5 pr-6 py-1.5 rounded bg-obsidian-950 border border-obsidian-700 text-amber-300 font-extrabold text-xs"
                   />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">%</span>
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold pointer-events-none">%</span>
                 </div>
                 <span className="text-[9px] text-slate-500 block">Batas pergeseran harga swap</span>
               </div>
@@ -1038,7 +1123,8 @@ export default function TradingPage() {
                 type="number"
                 step="5000"
                 value={terminalAmountIdr}
-                onChange={(e) => setTerminalAmountIdr(Number(e.target.value))}
+                onChange={(e) => setTerminalAmountIdr(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="25000"
                 className="w-28 px-2.5 py-1 rounded-lg bg-obsidian-900 border border-obsidian-700 text-emerald-400 font-bold"
               />
             </div>
@@ -1090,7 +1176,7 @@ export default function TradingPage() {
                     type="number"
                     step="15"
                     value={maxTokenAgeMinutes}
-                    onChange={(e) => setMaxTokenAgeMinutes(Number(e.target.value))}
+                    onChange={(e) => setMaxTokenAgeMinutes(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-amber-300 font-bold"
                   />
                   <span className="text-[9px] text-slate-400">Max Umur (Menit)</span>
@@ -1100,7 +1186,7 @@ export default function TradingPage() {
                     type="number"
                     step="50000"
                     value={maxMarketCapUsd}
-                    onChange={(e) => setMaxMarketCapUsd(Number(e.target.value))}
+                    onChange={(e) => setMaxMarketCapUsd(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-cyan-300 font-bold"
                   />
                   <span className="text-[9px] text-slate-400">Max MCap ($)</span>
@@ -1119,7 +1205,7 @@ export default function TradingPage() {
                     type="number"
                     step="0.001"
                     value={jitoTip}
-                    onChange={(e) => setJitoTip(Number(e.target.value))}
+                    onChange={(e) => setJitoTip(e.target.value === '' ? '' : e.target.value)}
                     className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-cyan-400 font-bold"
                   />
                   <span className="text-[9px] text-slate-500">Bribe (SOL)</span>
@@ -1129,7 +1215,7 @@ export default function TradingPage() {
                     type="number"
                     step="0.5"
                     value={slippage}
-                    onChange={(e) => setSlippage(Number(e.target.value))}
+                    onChange={(e) => setSlippage(e.target.value === '' ? '' : e.target.value)}
                     className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-emerald-400 font-bold"
                   />
                   <span className="text-[9px] text-slate-500">Slippage (%)</span>
@@ -1148,7 +1234,7 @@ export default function TradingPage() {
                     type="number"
                     step="5"
                     value={minBondingPct}
-                    onChange={(e) => setMinBondingPct(Number(e.target.value))}
+                    onChange={(e) => setMinBondingPct(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-amber-300 font-bold"
                   />
                   <span className="text-[9px] text-slate-500">Min Curve (%)</span>
@@ -1158,7 +1244,7 @@ export default function TradingPage() {
                     type="number"
                     step="1"
                     value={maxDevHoldPct}
-                    onChange={(e) => setMaxDevHoldPct(Number(e.target.value))}
+                    onChange={(e) => setMaxDevHoldPct(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-emerald-300 font-bold"
                   />
                   <span className="text-[9px] text-slate-500">Max Dev (%)</span>
@@ -1177,7 +1263,7 @@ export default function TradingPage() {
                     type="number"
                     step="5"
                     value={autoTpPct}
-                    onChange={(e) => setAutoTpPct(Number(e.target.value))}
+                    onChange={(e) => setAutoTpPct(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-emerald-400 font-bold"
                   />
                   <span className="text-[9px] text-emerald-400/80">Take Profit +%</span>
@@ -1187,7 +1273,7 @@ export default function TradingPage() {
                     type="number"
                     step="1"
                     value={autoSlPct}
-                    onChange={(e) => setAutoSlPct(Number(e.target.value))}
+                    onChange={(e) => setAutoSlPct(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-2.5 py-1.5 rounded bg-obsidian-900 border border-obsidian-700 text-rose-400 font-bold"
                   />
                   <span className="text-[9px] text-rose-400/80">Stop Loss -%</span>
@@ -1323,10 +1409,14 @@ export default function TradingPage() {
                         <div className="text-[10px] text-slate-400">≈ {formatIdr(h.value * usdIdr)}</div>
                       </td>
                       <td className="p-2.5">
-                        <span className={`font-bold ${h.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <div className={`font-bold ${h.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                           {h.pnl >= 0 ? '+' : ''}
-                          {formatUsd(h.pnl)} ({h.pnl_pct}%)
-                        </span>
+                          {formatUsd(h.pnl)} ({h.pnl >= 0 ? '+' : ''}{h.pnl_pct}%)
+                        </div>
+                        <div className={`text-[10px] font-semibold ${h.pnl >= 0 ? 'text-emerald-400/90' : 'text-rose-400/90'}`}>
+                          {h.pnl >= 0 ? '+' : ''}
+                          {formatIdr(h.pnl_idr ?? h.pnl * usdIdr)}
+                        </div>
                       </td>
                       <td className="p-2.5 text-right">
                         <div className="inline-flex gap-1">
@@ -1542,37 +1632,76 @@ export default function TradingPage() {
                 </span>
               </div>
 
-              {/* All-Time Winrate (closed trades in active mode) */}
+              {/* All-Time Winrate: WR PAPER & WR MODE LIVE side-by-side */}
               {(() => {
-                const wr = Number(portfolioQuery.data?.alltime_winrate_pct ?? 0);
-                const wins = Number(portfolioQuery.data?.alltime_wins ?? 0);
-                const losses = Number(portfolioQuery.data?.alltime_losses ?? 0);
-                const total = Number(portfolioQuery.data?.alltime_trades ?? 0);
-                const realizedIdr = Number(portfolioQuery.data?.alltime_realized_pnl_idr ?? 0);
-                const wrColor = wr >= 60 ? 'text-emerald-400' : wr >= 45 ? 'text-amber-400' : 'text-rose-400';
-                const barColor = wr >= 60 ? 'bg-emerald-400' : wr >= 45 ? 'bg-amber-400' : 'bg-rose-400';
+                const d = portfolioQuery.data;
+                const paperWr = Number(d?.paper_winrate_pct ?? (selectedMode === 'PAPER' ? d?.alltime_winrate_pct : 0) ?? 0);
+                const paperWins = Number(d?.paper_wins ?? (selectedMode === 'PAPER' ? d?.alltime_wins : 0) ?? 0);
+                const paperLosses = Number(d?.paper_losses ?? (selectedMode === 'PAPER' ? d?.alltime_losses : 0) ?? 0);
+                const paperTotal = Number(d?.paper_trades ?? (selectedMode === 'PAPER' ? d?.alltime_trades : 0) ?? 0);
+                const paperRealizedIdr = Number(d?.paper_realized_pnl_idr ?? (selectedMode === 'PAPER' ? d?.alltime_realized_pnl_idr : 0) ?? 0);
+
+                const liveWr = Number(d?.live_winrate_pct ?? (selectedMode === 'LIVE' ? d?.alltime_winrate_pct : 0) ?? 0);
+                const liveWins = Number(d?.live_wins ?? (selectedMode === 'LIVE' ? d?.alltime_wins : 0) ?? 0);
+                const liveLosses = Number(d?.live_losses ?? (selectedMode === 'LIVE' ? d?.alltime_losses : 0) ?? 0);
+                const liveTotal = Number(d?.live_trades ?? (selectedMode === 'LIVE' ? d?.alltime_trades : 0) ?? 0);
+                const liveRealizedIdr = Number(d?.live_realized_pnl_idr ?? (selectedMode === 'LIVE' ? d?.alltime_realized_pnl_idr : 0) ?? 0);
+
+                const paperWrColor = paperWr >= 60 ? 'text-emerald-400' : paperWr >= 45 ? 'text-amber-400' : 'text-slate-300';
+                const paperBarColor = paperWr >= 60 ? 'bg-emerald-400' : paperWr >= 45 ? 'bg-amber-400' : 'bg-cyan-400';
+                const liveWrColor = liveWr >= 60 ? 'text-emerald-400' : liveWr >= 45 ? 'text-amber-400' : 'text-slate-300';
+                const liveBarColor = liveWr >= 60 ? 'bg-emerald-400' : liveWr >= 45 ? 'bg-amber-400' : 'bg-rose-400';
+
                 return (
-                  <div className="mt-2 pt-1.5 border-t border-obsidian-800/80 space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">🎯 Winrate All-Time ({selectedMode})</span>
-                      <span className={`font-mono font-extrabold ${wrColor}`}>
-                        {total > 0 ? `${wr.toFixed(1)}%` : '—'}
-                      </span>
+                  <div className="mt-2 pt-1.5 border-t border-obsidian-800/80 grid grid-cols-2 gap-2 font-mono">
+                    {/* WR PAPER */}
+                    <div className={`p-1.5 rounded-lg border ${selectedMode === 'PAPER' ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-obsidian-950/70 border-obsidian-800/70'} space-y-1`}>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-emerald-300 font-bold">🟢 WR PAPER</span>
+                        <span className={`font-extrabold ${paperWrColor}`}>
+                          {paperWr.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1 rounded-full bg-obsidian-950 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${paperBarColor}`}
+                          style={{ width: `${paperTotal > 0 ? Math.min(100, Math.max(4, paperWr)) : 0}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-slate-400">
+                        <span>
+                          <span className="text-emerald-400 font-bold">{paperWins}W</span>/
+                          <span className="text-rose-400 font-bold">{paperLosses}L</span> ({paperTotal})
+                        </span>
+                        <span className={`truncate max-w-[65px] ${paperRealizedIdr >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {paperRealizedIdr >= 0 ? '+' : ''}{formatIdr(paperRealizedIdr)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="w-full h-1.5 rounded-full bg-obsidian-950 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-                        style={{ width: `${total > 0 ? Math.min(100, Math.max(3, wr)) : 0}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                      <span>
-                        <span className="text-emerald-400 font-bold">{wins}W</span> /{' '}
-                        <span className="text-rose-400 font-bold">{losses}L</span> ({total} trade)
-                      </span>
-                      <span className={realizedIdr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                        Realized {realizedIdr >= 0 ? '+' : ''}{formatIdr(realizedIdr)}
-                      </span>
+
+                    {/* WR MODE LIVE */}
+                    <div className={`p-1.5 rounded-lg border ${selectedMode === 'LIVE' ? 'bg-rose-500/10 border-rose-500/40' : 'bg-obsidian-950/70 border-obsidian-800/70'} space-y-1`}>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-rose-300 font-bold">🔴 WR LIVE</span>
+                        <span className={`font-extrabold ${liveWrColor}`}>
+                          {liveWr.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1 rounded-full bg-obsidian-950 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${liveBarColor}`}
+                          style={{ width: `${liveTotal > 0 ? Math.min(100, Math.max(4, liveWr)) : 0}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-slate-400">
+                        <span>
+                          <span className="text-emerald-400 font-bold">{liveWins}W</span>/
+                          <span className="text-rose-400 font-bold">{liveLosses}L</span> ({liveTotal})
+                        </span>
+                        <span className={`truncate max-w-[65px] ${liveRealizedIdr >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {liveRealizedIdr >= 0 ? '+' : ''}{formatIdr(liveRealizedIdr)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1607,9 +1736,9 @@ export default function TradingPage() {
         onConfirm={handleConfirmStartBot}
         mode={selectedMode}
         strategyMode={strategyMode}
-        initialBuyAmountUsd={Number(((configQuery.data?.buy_amount_usd) || (snipeAmountIdr / usdIdr)).toFixed(2)) || 1.0}
-        initialMaxPositions={maxOpenPositions || 3}
-        initialSlippagePct={slippage || 1.5}
+        initialBuyAmountUsd={Number(((configQuery.data?.buy_amount_usd) || Number(snipeUsdInput) || (snipeAmountIdr / usdIdr)).toFixed(2)) || 1.0}
+        initialMaxPositions={Number(maxOpenPositions) || 5}
+        initialSlippagePct={Number(slippage) || 1.5}
         usdIdr={usdIdr}
         solPrice={liveGasBal > 0.0001 ? Math.round(liveGasUsd / liveGasBal) : 145}
         liveUsdcBal={liveUsdcBal}

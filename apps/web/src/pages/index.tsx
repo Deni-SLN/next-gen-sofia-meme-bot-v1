@@ -48,7 +48,7 @@ export default function DashboardPage() {
   const walletsQuery = useApiQuery(() => api.getWallets(), []);
 
   const [quickTicker, setQuickTicker] = useState<string>('PEPE');
-  const [quickAmountIdr, setQuickAmountIdr] = useState<number>(15000);
+  const [quickAmountIdr, setQuickAmountIdr] = useState<number | string>(15000);
   const [snipeMode, setSnipeMode] = useState<'PAPER' | 'LIVE'>('PAPER');
   const [snipeMsg, setSnipeMsg] = useState<string>('');
   const [snipeErr, setSnipeErr] = useState<string>('');
@@ -175,7 +175,7 @@ export default function DashboardPage() {
     try {
       const res = await api.snipeToken({
         symbol: quickTicker,
-        amount_idr: quickAmountIdr,
+        amount_idr: Number(quickAmountIdr) || 15000,
         slippage_pct: 1.0,
         priority_fee_sol: 0.005,
         anti_mev: true,
@@ -475,6 +475,20 @@ export default function DashboardPage() {
               </span>
               <span className="text-slate-500 font-sans">Realized + Floating</span>
             </div>
+            <div className="mt-2 pt-1.5 border-t border-obsidian-800/80 grid grid-cols-2 gap-2 text-[10px] font-mono">
+              <div className="flex items-center justify-between bg-obsidian-950/70 px-2 py-1 rounded border border-obsidian-800/70">
+                <span className="text-emerald-300 font-bold">🟢 WR PAPER</span>
+                <span className="text-white font-extrabold">
+                  {Number(d?.paper_winrate_pct ?? 0).toFixed(1)}% ({Number(d?.paper_wins ?? 0)}W/{Number(d?.paper_losses ?? 0)}L)
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-obsidian-950/70 px-2 py-1 rounded border border-obsidian-800/70">
+                <span className="text-rose-300 font-bold">🔴 WR LIVE</span>
+                <span className="text-white font-extrabold">
+                  {Number(d?.live_winrate_pct ?? 0).toFixed(1)}% ({Number(d?.live_wins ?? 0)}W/{Number(d?.live_losses ?? 0)}L)
+                </span>
+              </div>
+            </div>
           </div>
         </section>
         {/* END: Clean 4-Metric KPI Cards */}
@@ -571,7 +585,8 @@ export default function DashboardPage() {
                     type="number"
                     step="1000"
                     value={quickAmountIdr}
-                    onChange={(e) => setQuickAmountIdr(Number(e.target.value))}
+                    onChange={(e) => setQuickAmountIdr(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="15000"
                     required
                   />
                 </div>
@@ -616,7 +631,7 @@ export default function DashboardPage() {
               >
                 <LucideIcon name="zap" className="w-4 h-4" />
                 <span>
-                  Beli Sekarang ({snipeMode}) • {formatIdr(quickAmountIdr)}
+                  Beli Sekarang ({snipeMode}) • {formatIdr(Number(quickAmountIdr) || 0)}
                 </span>
               </button>
             </div>

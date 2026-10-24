@@ -158,6 +158,29 @@ def execute_snipe(db: Session, data: dict) -> dict:
     if snipe_mode not in ("PAPER", "LIVE"):
         snipe_mode = "PAPER"
 
+    if data.get("from_bot"):
+        from sqlalchemy import select as sa_select
+        from app.db.models import PortfolioHolding
+        from app.services import bot as bot_svc
+
+        max_pos = int(data.get("max_open_positions") or bot_svc._SNIPER_CONFIG.get("max_open_positions", 5))
+        open_holdings = list(
+            db.execute(sa_select(PortfolioHolding).where(PortfolioHolding.mode == snipe_mode)).scalars().all()
+        )
+        if len(open_holdings) >= max_pos:
+            raise ValueError(
+                f"MAX_POSITIONS_REACHED: Batas maksimal {max_pos} posisi aktif bersamaan telah penuh ({len(open_holdings)}/{max_pos})."
+            )
+        req_sym_u = symbol.upper()
+        req_base_u = req_sym_u.split("/")[0]
+        for h_open in open_holdings:
+            h_u = str(h_open.symbol or "").upper()
+            h_base_u = h_u.split("/")[0]
+            if h_u == req_sym_u or h_base_u == req_base_u:
+                raise ValueError(
+                    f"POSISI_SUDAH_ADA: Token {symbol} sudah aktif di portofolio ({snipe_mode}). Bot tidak menumpuk (double-buy) koin yang sama."
+                )
+
     if data.get("block_legacy_tokens") and market.is_legacy_token(symbol):
         raise ValueError(
             f"LEGACY_TOKEN_BLOCKED: Mode AGRESIF hanya membeli koin meme BARU (New Creations dari DexScreener/GMGN.ai). Koin lama '{symbol}' diblokir."
@@ -194,13 +217,46 @@ def execute_snipe(db: Session, data: dict) -> dict:
     is_evm_contract = str(resolved_contract).startswith("0x")
     target_chain = "Solana" if (snipe_mode == "LIVE" or not is_evm_contract) else "Base"
 
-    # Determine buy amount in USD (supports amount_idr or amount_usd)
-    if data.get("amount_idr") is not None and float(data["amount_idr"]) > 0:
+    # Determine buy amount in USD (prioritize explicit amount_usd so "$1 per trade" is strictly $1.00)
+    if data.get("amount_usd") is not None and float(data["amount_usd"]) > 0:
+        amount_usd = round(float(data["amount_usd"]), 4)
+        amount_idr = round(amount_usd * usd_idr, 0)
+    elif data.get("amount_idr") is not None and float(data["amount_idr"]) > 0:
         amount_idr = float(data["amount_idr"])
         amount_usd = round(amount_idr / usd_idr, 4)
     else:
-        amount_usd = float(data.get("amount_usd", 1.5))
+        amount_usd = 1.0
         amount_idr = round(amount_usd * usd_idr, 0)
+
+    # Strict Bot Guards: never exceed max_open_positions and never pyramid/stack onto an already open holding
+    if data.get("from_bot"):
+        from sqlalchemy import select as sa_select
+        from app.db.models import PortfolioHolding
+        from app.services import bot as bot_svc
+
+        max_pos = int(data.get("max_open_positions") or bot_svc._SNIPER_CONFIG.get("max_open_positions", 5))
+        open_holdings = list(
+            db.execute(sa_select(PortfolioHolding).where(PortfolioHolding.mode == snipe_mode)).scalars().all()
+        )
+        if len(open_holdings) >= max_pos:
+            raise ValueError(
+                f"MAX_POSITIONS_REACHED: Batas maksimal {max_pos} posisi aktif bersamaan telah penuh ({len(open_holdings)}/{max_pos})."
+            )
+        res_sym_u = resolved_symbol.upper()
+        res_base_u = res_sym_u.split("/")[0]
+        req_sym_u = symbol.upper()
+        req_base_u = req_sym_u.split("/")[0]
+        for h_open in open_holdings:
+            h_u = str(h_open.symbol or "").upper()
+            h_base_u = h_u.split("/")[0]
+            if h_u in (res_sym_u, req_sym_u) or h_base_u in (res_base_u, req_base_u):
+                raise ValueError(
+                    f"POSISI_SUDAH_ADA: Token {resolved_symbol} sudah aktif di portofolio ({snipe_mode}). Bot tidak menumpuk (double-buy) koin yang sama."
+                )
+        cfg_max_usd = float(bot_svc._SNIPER_CONFIG.get("buy_amount_usd") or 0.0)
+        if cfg_max_usd > 0 and amount_usd > cfg_max_usd:
+            amount_usd = round(cfg_max_usd, 4)
+            amount_idr = round(amount_usd * usd_idr, 0)
 
     user_slippage_pct = float(data.get("slippage_pct", 1.0))
     priority_fee_sol = float(data.get("priority_fee_sol", 0.005))

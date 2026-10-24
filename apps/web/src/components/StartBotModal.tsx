@@ -39,9 +39,9 @@ export function StartBotModal({
   liveGasBal = 0,
   liveGasToken = 'SOL',
 }: StartBotModalProps) {
-  const [buyAmountUsd, setBuyAmountUsd] = useState<number>(initialBuyAmountUsd);
-  const [maxPositions, setMaxPositions] = useState<number>(initialMaxPositions);
-  const [slippagePct, setSlippagePct] = useState<number>(initialSlippagePct);
+  const [buyAmountUsd, setBuyAmountUsd] = useState<number | string>(initialBuyAmountUsd);
+  const [maxPositions, setMaxPositions] = useState<number | string>(initialMaxPositions);
+  const [slippagePct, setSlippagePct] = useState<number | string>(initialSlippagePct);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -58,8 +58,11 @@ export function StartBotModal({
   if (!isOpen) return null;
 
   const isLive = mode === 'LIVE';
-  const buyIdrEquiv = buyAmountUsd * usdIdr;
-  const buySolEquiv = solPrice > 0 ? buyAmountUsd / solPrice : 0;
+  const numBuyUsd = Number(buyAmountUsd) || 0;
+  const numMaxPos = Number(maxPositions) || 0;
+  const numSlipPct = Number(slippagePct) || 0;
+  const buyIdrEquiv = numBuyUsd * usdIdr;
+  const buySolEquiv = solPrice > 0 ? numBuyUsd / solPrice : 0;
 
   const quickUsdPresets = [0.5, 1.0, 1.5, 2.0, 3.0, 5.0];
   const quickPositionPresets = [1, 2, 3, 5, 8];
@@ -69,15 +72,15 @@ export function StartBotModal({
     e.preventDefault();
     setErrorMsg('');
 
-    if (buyAmountUsd <= 0 || isNaN(buyAmountUsd)) {
+    if (numBuyUsd <= 0 || isNaN(numBuyUsd)) {
       setErrorMsg('Nominal beli per trade harus lebih besar dari $0.');
       return;
     }
-    if (maxPositions < 1 || isNaN(maxPositions)) {
+    if (numMaxPos < 1 || isNaN(numMaxPos)) {
       setErrorMsg('Maksimal posisi terbuka minimal 1 koin.');
       return;
     }
-    if (slippagePct <= 0 || isNaN(slippagePct)) {
+    if (numSlipPct <= 0 || isNaN(numSlipPct)) {
       setErrorMsg('Toleransi slippage harus lebih besar dari 0%.');
       return;
     }
@@ -85,9 +88,9 @@ export function StartBotModal({
     try {
       setLoading(true);
       await onConfirm({
-        buy_amount_usd: Number(buyAmountUsd),
-        max_open_positions: Math.round(Number(maxPositions)),
-        slippage_pct: Number(slippagePct),
+        buy_amount_usd: Number(numBuyUsd),
+        max_open_positions: Math.round(Number(numMaxPos)),
+        slippage_pct: Number(numSlipPct),
       });
       onClose();
     } catch (err: unknown) {
@@ -180,12 +183,12 @@ export function StartBotModal({
               </span>
               <input
                 type="number"
-                step="0.1"
+                step="any"
                 min="0.1"
                 max="1000"
                 value={buyAmountUsd}
-                onChange={(e) => setBuyAmountUsd(parseFloat(e.target.value) || 0)}
-                className="w-full pl-7 pr-4 py-2 rounded-lg bg-obsidian-900 border border-obsidian-700 focus:border-cyan-500 text-white font-extrabold text-sm focus:outline-none transition"
+                onChange={(e) => setBuyAmountUsd(e.target.value === '' ? '' : e.target.value)}
+                className="w-full pl-7 pr-24 py-2 rounded-lg bg-obsidian-900 border border-obsidian-700 focus:border-cyan-500 text-white font-extrabold text-sm focus:outline-none transition"
                 placeholder="1.00"
                 required
               />
@@ -235,8 +238,9 @@ export function StartBotModal({
               min="1"
               max="20"
               value={maxPositions}
-              onChange={(e) => setMaxPositions(parseInt(e.target.value, 10) || 1)}
+              onChange={(e) => setMaxPositions(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
               className="w-full px-3 py-2 rounded-lg bg-obsidian-900 border border-obsidian-700 focus:border-cyan-500 text-white font-extrabold text-sm focus:outline-none transition"
+              placeholder="3"
               required
             />
 
@@ -278,11 +282,11 @@ export function StartBotModal({
             <div className="relative">
               <input
                 type="number"
-                step="0.1"
+                step="any"
                 min="0.1"
                 max="25"
                 value={slippagePct}
-                onChange={(e) => setSlippagePct(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setSlippagePct(e.target.value === '' ? '' : e.target.value)}
                 className="w-full px-3 pr-8 py-2 rounded-lg bg-obsidian-900 border border-obsidian-700 focus:border-cyan-500 text-white font-extrabold text-sm focus:outline-none transition"
                 placeholder="1.5"
                 required

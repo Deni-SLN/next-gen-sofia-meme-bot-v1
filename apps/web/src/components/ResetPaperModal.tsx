@@ -17,7 +17,7 @@ export function ResetPaperModal({
   currentInitialUsd = 10.0,
   usdIdr = 16300,
 }: ResetPaperModalProps) {
-  const [amountUsd, setAmountUsd] = useState<number>(currentInitialUsd);
+  const [amountUsd, setAmountUsd] = useState<number | string>(currentInitialUsd);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -31,7 +31,8 @@ export function ResetPaperModal({
 
   if (!isOpen) return null;
 
-  const amountIdr = amountUsd * usdIdr;
+  const numAmountUsd = Number(amountUsd) || 0;
+  const amountIdr = numAmountUsd * usdIdr;
 
   const quickPresets = [
     { label: '$10 (~Rp 160rb)', value: 10 },
@@ -47,14 +48,14 @@ export function ResetPaperModal({
     e.preventDefault();
     setErrorMsg('');
 
-    if (amountUsd <= 0 || isNaN(amountUsd)) {
+    if (numAmountUsd <= 0 || isNaN(numAmountUsd)) {
       setErrorMsg('Modal awal simulasi harus lebih besar dari $0.');
       return;
     }
 
     try {
       setLoading(true);
-      await onConfirm(Number(amountUsd));
+      await onConfirm(Number(numAmountUsd));
       onClose();
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -129,11 +130,11 @@ export function ResetPaperModal({
               </span>
               <input
                 type="number"
-                step="1"
+                step="any"
                 min="1"
                 max="1000000"
                 value={amountUsd}
-                onChange={(e) => setAmountUsd(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setAmountUsd(e.target.value === '' ? '' : e.target.value)}
                 className="w-full pl-7 pr-4 py-2.5 rounded-lg bg-obsidian-900 border border-obsidian-700 focus:border-emerald-500 text-white font-extrabold text-base focus:outline-none transition"
                 placeholder="100"
                 required

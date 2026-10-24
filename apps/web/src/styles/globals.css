@@ -32,6 +32,17 @@ h1, h2, h3, h4 {
   letter-spacing: -0.025em;
 }
 
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -74,45 +85,53 @@ h1, h2, h3, h4 {
 
 /* =========================================================================
    LIGHT MODE THEME OVERRIDES (html.light-theme)
-   Eye-Friendly Soft Daylight Workspace (TradingView / Stockbit Daylight Pro)
-   - Soft slate canvas (#eef2f6) to eliminate white glare
-   - Crisp white elevated cards (#ffffff) with clear slate borders (#cbd5e1)
-   - Tinted recessed sub-panels (#f1f5f9) for clear visual hierarchy
-   - Deep high-contrast typography & preserved white text on solid buttons
+   Premium Institutional Daylight Theme (Linear / TradingView / Stockbit Pro)
+   - Soft architectural alabaster-slate canvas (#f3f5f9) to eliminate glare
+   - Pure white primary cards (#ffffff) with refined subtle borders (#e2e8f0)
+   - Clean recessed sub-panels (#f8fafc) for clear visual hierarchy without gray mud
+   - Universal attribute selectors so NO dark-mode /950 or /900 tints ever leak through
+   - Crisp tabular typography & rich daylight semantic badges
    ========================================================================= */
 html.light-theme {
-  --am-bg: #eef2f6;
+  --am-bg: #f3f5f9;
   --am-panel: #ffffff;
   --am-panel-2: #f8fafc;
   --am-panel-3: #f1f5f9;
-  --am-line: #cbd5e1;
-  --am-line-strong: #94a3b8;
+  --am-line: #e2e8f0;
+  --am-line-strong: #cbd5e1;
   --am-text: #0f172a;
-  --am-muted: #475569;
-  --am-dim: #64748b;
+  --am-muted: #334155;
+  --am-dim: #475569;
 }
 
 html.light-theme body,
 html.light-theme #__next > div.bg-obsidian-950 {
-  background-color: #eef2f6 !important;
+  background-color: #f3f5f9 !important;
   color: #0f172a !important;
 }
 
 html.light-theme main,
 html.light-theme main.bg-obsidian-950 {
-  background-color: #eef2f6 !important;
+  background-color: #f3f5f9 !important;
   color: #0f172a !important;
+}
+
+/* Make monospace text in Light Mode crisp, legible, and eye-friendly (no spindly pixelated text) */
+html.light-theme .font-mono {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: -0.01em !important;
 }
 
 html.light-theme footer,
 html.light-theme footer.bg-obsidian-950 {
   background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
+  border-color: #e2e8f0 !important;
   color: #475569 !important;
 }
 
 html.light-theme ::-webkit-scrollbar-track {
-  background: #eef2f6;
+  background: #f3f5f9;
 }
 
 html.light-theme ::-webkit-scrollbar-thumb {
@@ -136,26 +155,25 @@ html.light-theme ::-webkit-scrollbar-thumb:hover {
 /* Subtle Daylight Ambient Lighting */
 html.light-theme .grid-bg-overlay {
   background-image:
-    radial-gradient(circle at 12% 0%, rgba(16, 185, 129, 0.045), transparent 42%),
-    radial-gradient(circle at 88% 0%, rgba(59, 130, 246, 0.045), transparent 42%) !important;
+    radial-gradient(circle at 12% 0%, rgba(16, 185, 129, 0.04), transparent 42%),
+    radial-gradient(circle at 88% 0%, rgba(14, 165, 233, 0.04), transparent 42%) !important;
 }
 
 /* Topbar & Header Navigation */
 html.light-theme header,
-html.light-theme header.bg-obsidian-950\/90 {
-  background-color: rgba(255, 255, 255, 0.96) !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06) !important;
+html.light-theme header[class*="bg-obsidian-"] {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04) !important;
 }
 
 /* Sidebar & Mobile Navigation */
 html.light-theme aside,
-html.light-theme aside.bg-obsidian-900\/70,
-html.light-theme aside.bg-obsidian-900,
-html.light-theme nav.bg-obsidian-900\/95 {
+html.light-theme aside[class*="bg-obsidian-"],
+html.light-theme nav[class*="bg-obsidian-"] {
   background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 1px 0 3px 0 rgba(15, 23, 42, 0.03) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 1px 0 4px 0 rgba(15, 23, 42, 0.03) !important;
 }
 
 /* Active Navigation Item (Emerald indicator) */
@@ -164,7 +182,7 @@ html.light-theme aside nav a.bg-obsidian-850 {
   background-color: #ecfdf5 !important;
   border-color: #6ee7b7 !important;
   color: #065f46 !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   box-shadow: 0 1px 2px rgba(5, 150, 105, 0.08) !important;
 }
 
@@ -178,14 +196,9 @@ html.light-theme aside nav a.bg-obsidian-850 svg {
   color: #059669 !important;
 }
 
-/* Primary Cards & Outer Containers (Crisp White with Defined Border & Soft Shadow) */
-html.light-theme .bg-obsidian-900,
-html.light-theme .bg-obsidian-900\/95,
-html.light-theme .bg-obsidian-900\/90,
-html.light-theme .bg-obsidian-900\/80,
-html.light-theme .bg-obsidian-900\/70,
-html.light-theme .bg-obsidian-900\/60,
-html.light-theme .bg-obsidian-900\/50,
+/* Primary Cards & Outer Containers (Pure White with Refined Border & Soft Shadow) */
+html.light-theme [class*="bg-obsidian-900"],
+html.light-theme [class*="bg-slate-900"],
 html.light-theme .bg-\[\#0B0E14\],
 html.light-theme .bg-\[\#0b0e14\],
 html.light-theme .bg-\[\#0b0f17\],
@@ -197,66 +210,32 @@ html.light-theme .bg-\[\#0c1322\],
 html.light-theme .bg-\[\#0d1326\],
 html.light-theme .bg-\[\#111927\],
 html.light-theme .bg-\[\#111827\],
-html.light-theme .bg-\[\#0f172a\],
-html.light-theme .bg-slate-900,
-html.light-theme .bg-slate-900\/95,
-html.light-theme .bg-slate-900\/90,
-html.light-theme .bg-slate-900\/80,
-html.light-theme .bg-slate-900\/70,
-html.light-theme .bg-slate-900\/60,
-html.light-theme .bg-slate-900\/50,
-html.light-theme .bg-slate-900\/40 {
+html.light-theme .bg-\[\#0f172a\] {
   background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.06), 0 1px 3px -1px rgba(15, 23, 42, 0.04) !important;
+  border-color: #dce3ec !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.03) !important;
 }
 
-/* Nested Sub-Panels, Inner Wells, Stat Boxes & Pills (Soft Recessed Slate #f1f5f9) */
-html.light-theme :not(main).bg-obsidian-950,
-html.light-theme .bg-obsidian-950\/90,
-html.light-theme .bg-obsidian-950\/85,
-html.light-theme .bg-obsidian-950\/80,
-html.light-theme .bg-obsidian-950\/70,
-html.light-theme .bg-obsidian-950\/60,
-html.light-theme .bg-obsidian-950\/50,
-html.light-theme .bg-obsidian-950\/40,
-html.light-theme .bg-obsidian-850,
-html.light-theme .bg-obsidian-850\/90,
-html.light-theme .bg-obsidian-850\/80,
-html.light-theme .bg-obsidian-850\/60,
-html.light-theme .bg-obsidian-800,
-html.light-theme .bg-obsidian-800\/80,
-html.light-theme .bg-obsidian-800\/60,
-html.light-theme .bg-obsidian-750,
-html.light-theme .bg-slate-950,
-html.light-theme .bg-slate-950\/95,
-html.light-theme .bg-slate-950\/90,
-html.light-theme .bg-slate-950\/85,
-html.light-theme .bg-slate-950\/80,
-html.light-theme .bg-slate-950\/70,
-html.light-theme .bg-slate-950\/60,
-html.light-theme .bg-slate-950\/50,
-html.light-theme .bg-slate-950\/40,
-html.light-theme .bg-slate-800,
-html.light-theme .bg-slate-800\/90,
-html.light-theme .bg-slate-800\/80,
-html.light-theme .bg-slate-800\/70,
-html.light-theme .bg-slate-800\/60,
-html.light-theme .bg-slate-800\/50,
-html.light-theme .bg-slate-800\/40,
-html.light-theme .bg-slate-750,
+/* Nested Sub-Panels, Inner Wells, Stat Boxes & Pills (Clean #f8fafc Surface) */
+html.light-theme :not(main):not(body):not(header):not(footer)[class*="bg-obsidian-950"],
+html.light-theme [class*="bg-obsidian-850"],
+html.light-theme [class*="bg-obsidian-800"],
+html.light-theme [class*="bg-obsidian-750"],
+html.light-theme :not(main)[class*="bg-slate-950"],
+html.light-theme [class*="bg-slate-800"],
+html.light-theme [class*="bg-slate-750"],
 html.light-theme .bg-black\/20,
 html.light-theme .bg-black\/30,
 html.light-theme .bg-black\/40,
 html.light-theme [data-purpose="terminal-feed-box"] {
-  background-color: #f1f5f9 !important;
-  border-color: #cbd5e1 !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
 }
 
 /* Segmented Switches & Topbar Controls */
 html.light-theme [data-purpose="network-selector"],
 html.light-theme [data-purpose="trading-mode-toggle"] {
-  background-color: #e2e8f0 !important;
+  background-color: #f1f5f9 !important;
   border-color: #cbd5e1 !important;
 }
 
@@ -271,59 +250,33 @@ html.light-theme [data-purpose="network-selector"] button.bg-obsidian-800 {
 html.light-theme .bg-gradient-to-r,
 html.light-theme .bg-gradient-to-br,
 html.light-theme .bg-gradient-to-b {
-  background-image: linear-gradient(135deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%) !important;
+  background-image: linear-gradient(135deg, #ffffff 0%, #f8fafc 60%, #f1f5f9 100%) !important;
   background-color: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.06) !important;
+  border-color: #dce3ec !important;
+  box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.05) !important;
 }
 
 /* Hover States for Interactive Rows & Buttons */
 html.light-theme .hover\:bg-\[\#0f172a\]:hover,
-html.light-theme .hover\:bg-obsidian-800:hover,
-html.light-theme .hover\:bg-obsidian-800\/80:hover,
-html.light-theme .hover\:bg-obsidian-850:hover,
-html.light-theme .hover\:bg-obsidian-850\/80:hover,
-html.light-theme .hover\:bg-obsidian-850\/70:hover,
-html.light-theme .hover\:bg-obsidian-850\/60:hover,
-html.light-theme .hover\:bg-obsidian-750:hover,
-html.light-theme .hover\:bg-slate-800\/70:hover,
-html.light-theme .hover\:bg-slate-800:hover,
-html.light-theme .hover\:bg-slate-700:hover,
-html.light-theme .hover\:bg-slate-900:hover {
-  background-color: #e2e8f0 !important;
+html.light-theme [class*="hover:bg-obsidian-"]:hover,
+html.light-theme [class*="hover:bg-slate-8"]:hover,
+html.light-theme [class*="hover:bg-slate-7"]:hover,
+html.light-theme [class*="hover:bg-slate-9"]:hover {
+  background-color: #f1f5f9 !important;
   color: #0f172a !important;
 }
 
 /* Universal Clean Divider Borders */
-html.light-theme .border-obsidian-600,
-html.light-theme .border-obsidian-700,
-html.light-theme .border-obsidian-700\/70,
-html.light-theme .border-obsidian-700\/80,
-html.light-theme .border-obsidian-700\/60,
-html.light-theme .border-obsidian-750,
-html.light-theme .border-obsidian-800,
-html.light-theme .border-obsidian-800\/80,
-html.light-theme .border-obsidian-800\/60,
-html.light-theme .border-obsidian-800\/50,
-html.light-theme .border-obsidian-850,
-html.light-theme .border-slate-800,
-html.light-theme .border-slate-800\/90,
-html.light-theme .border-slate-800\/80,
-html.light-theme .border-slate-800\/60,
-html.light-theme .border-slate-800\/50,
-html.light-theme .border-slate-800\/40,
-html.light-theme .border-slate-700,
-html.light-theme .border-slate-700\/80,
-html.light-theme .border-slate-700\/70,
-html.light-theme .border-slate-700\/60,
-html.light-theme .border-slate-750,
+html.light-theme [class*="border-obsidian-"],
+html.light-theme [class*="border-slate-8"],
+html.light-theme [class*="border-slate-7"],
 html.light-theme .divide-obsidian-800\/60 > :not([hidden]) ~ :not([hidden]),
 html.light-theme .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
 html.light-theme .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #cbd5e1 !important;
+  border-color: #e2e8f0 !important;
 }
 
-/* Primary & Secondary Typography Contrast */
+/* Primary & Secondary Typography Contrast (Sharp & Deep on White) */
 html.light-theme .text-white,
 html.light-theme .text-slate-50,
 html.light-theme .text-slate-100,
@@ -336,33 +289,58 @@ html.light-theme .text-slate-300 {
 }
 
 html.light-theme .text-slate-400 {
-  color: #475569 !important;
+  color: #334155 !important;
 }
 
-html.light-theme .text-slate-500 {
-  color: #64748b !important;
-}
-
+html.light-theme .text-slate-500,
 html.light-theme .text-slate-600 {
   color: #475569 !important;
 }
 
-/* PRESERVE WHITE TEXT ON SOLID COLORED ACTION BUTTONS & BADGES */
+/* SOLID COLORED ACTION BUTTONS & BADGES (Rich Daylight Saturation + Crisp White Text) */
 html.light-theme .bg-emerald-600,
-html.light-theme .bg-emerald-500,
+html.light-theme .bg-emerald-500 {
+  background-color: #059669 !important;
+  border-color: #047857 !important;
+  color: #ffffff !important;
+}
+
 html.light-theme .bg-rose-600,
 html.light-theme .bg-rose-500,
-html.light-theme .bg-red-600,
+html.light-theme .bg-red-600 {
+  background-color: #e11d48 !important;
+  border-color: #be123c !important;
+  color: #ffffff !important;
+}
+
 html.light-theme .bg-indigo-600,
 html.light-theme .bg-indigo-500,
 html.light-theme .bg-blue-600,
-html.light-theme .bg-blue-500,
+html.light-theme .bg-blue-500 {
+  background-color: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+
 html.light-theme .bg-cyan-600,
 html.light-theme .bg-cyan-500,
+html.light-theme .bg-teal-500 {
+  background-color: #0284c7 !important;
+  border-color: #0369a1 !important;
+  color: #ffffff !important;
+}
+
 html.light-theme .bg-purple-600,
-html.light-theme .bg-purple-500,
+html.light-theme .bg-purple-500 {
+  background-color: #7c3aed !important;
+  border-color: #6d28d9 !important;
+  color: #ffffff !important;
+}
+
 html.light-theme .bg-amber-600,
 html.light-theme .bg-amber-500 {
+  background-color: #d97706 !important;
+  border-color: #b45309 !important;
   color: #ffffff !important;
 }
 
@@ -374,13 +352,16 @@ html.light-theme .bg-indigo-600 span,
 html.light-theme .bg-indigo-500 span,
 html.light-theme .bg-blue-600 span,
 html.light-theme .bg-cyan-600 span,
+html.light-theme .bg-cyan-500 span,
+html.light-theme .bg-teal-500 span,
+html.light-theme .bg-amber-500 span,
 html.light-theme .bg-purple-600 span {
   color: #ffffff !important;
 }
 
 /* =========================================================================
-   DAYLIGHT FINANCIAL SEMANTIC COLOR SYSTEM
-   Crisp, eye-friendly, high-contrast colors on white/slate surfaces
+   DAYLIGHT FINANCIAL SEMANTIC COLOR SYSTEM (UNIVERSAL SELECTORS)
+   Prevents any dark /950 or /900 tint from rendering as muddy brown/gray!
    ========================================================================= */
 
 /* 1. EMERALD & GREEN (Bullish, Gain, Buy, Profit) */
@@ -395,23 +376,18 @@ html.light-theme .text-green-500 {
   color: #047857 !important;
 }
 
-html.light-theme .bg-emerald-500\/5,
-html.light-theme .bg-emerald-500\/10,
-html.light-theme .bg-emerald-500\/15,
-html.light-theme .bg-emerald-500\/20,
-html.light-theme .bg-emerald-500\/25,
-html.light-theme .bg-emerald-500\/30,
-html.light-theme .bg-emerald-950\/50,
-html.light-theme .bg-emerald-950\/40,
-html.light-theme .bg-emerald-950\/30,
-html.light-theme .bg-emerald-900\/30,
-html.light-theme .bg-emerald-900\/20 {
+html.light-theme [class*="bg-emerald-950"],
+html.light-theme [class*="bg-emerald-900"],
+html.light-theme [class*="bg-emerald-500/"],
+html.light-theme [class*="bg-emerald-400/"],
+html.light-theme [class*="bg-green-950"],
+html.light-theme [class*="bg-green-500/"] {
   background-color: #ecfdf5 !important;
   border-color: #6ee7b7 !important;
   color: #065f46 !important;
 }
 
-/* 2. ROSE & RED (Bearish, Loss, Sell, Stop Loss) */
+/* 2. ROSE & RED (Bearish, Loss, Sell, Stop Loss, Rug Danger) */
 html.light-theme .text-rose-400,
 html.light-theme .text-rose-300,
 html.light-theme .text-rose-500,
@@ -423,21 +399,13 @@ html.light-theme .text-red-500 {
   color: #be123c !important;
 }
 
-html.light-theme .bg-rose-500\/5,
-html.light-theme .bg-rose-500\/10,
-html.light-theme .bg-rose-500\/15,
-html.light-theme .bg-rose-500\/20,
-html.light-theme .bg-rose-500\/25,
-html.light-theme .bg-rose-600\/20,
-html.light-theme .bg-rose-600\/25,
-html.light-theme .bg-rose-600\/30,
-html.light-theme .bg-rose-950\/50,
-html.light-theme .bg-rose-950\/40,
-html.light-theme .bg-rose-950\/30,
-html.light-theme .bg-rose-900\/30,
-html.light-theme .bg-red-500\/10,
-html.light-theme .bg-red-500\/15,
-html.light-theme .bg-red-500\/20 {
+html.light-theme [class*="bg-rose-950"],
+html.light-theme [class*="bg-rose-900"],
+html.light-theme [class*="bg-rose-500/"],
+html.light-theme [class*="bg-rose-600/"],
+html.light-theme [class*="bg-red-950"],
+html.light-theme [class*="bg-red-900"],
+html.light-theme [class*="bg-red-500/"] {
   background-color: #fff1f2 !important;
   border-color: #fda4af !important;
   color: #9f1239 !important;
@@ -457,21 +425,13 @@ html.light-theme .text-orange-300 {
   color: #b45309 !important;
 }
 
-html.light-theme .bg-amber-500\/5,
-html.light-theme .bg-amber-500\/10,
-html.light-theme .bg-amber-500\/15,
-html.light-theme .bg-amber-500\/20,
-html.light-theme .bg-amber-500\/25,
-html.light-theme .bg-amber-950\/50,
-html.light-theme .bg-amber-950\/40,
-html.light-theme .bg-amber-950\/30,
-html.light-theme .bg-amber-900\/30,
-html.light-theme .bg-yellow-500\/10,
-html.light-theme .bg-yellow-500\/15,
-html.light-theme .bg-yellow-500\/20,
-html.light-theme .bg-orange-500\/10,
-html.light-theme .bg-orange-500\/15,
-html.light-theme .bg-orange-500\/20 {
+html.light-theme [class*="bg-amber-950"],
+html.light-theme [class*="bg-amber-900"],
+html.light-theme [class*="bg-amber-500/"],
+html.light-theme [class*="bg-yellow-950"],
+html.light-theme [class*="bg-yellow-500/"],
+html.light-theme [class*="bg-orange-950"],
+html.light-theme [class*="bg-orange-500/"] {
   background-color: #fffbeb !important;
   border-color: #fcd34d !important;
   color: #92400e !important;
@@ -489,18 +449,12 @@ html.light-theme .text-sky-500 {
   color: #0369a1 !important;
 }
 
-html.light-theme .bg-cyan-500\/5,
-html.light-theme .bg-cyan-500\/10,
-html.light-theme .bg-cyan-500\/15,
-html.light-theme .bg-cyan-500\/20,
-html.light-theme .bg-cyan-500\/25,
-html.light-theme .bg-cyan-950\/50,
-html.light-theme .bg-cyan-950\/40,
-html.light-theme .bg-cyan-950\/30,
-html.light-theme .bg-cyan-900\/30,
-html.light-theme .bg-sky-500\/10,
-html.light-theme .bg-sky-500\/15,
-html.light-theme .bg-sky-500\/20 {
+html.light-theme [class*="bg-cyan-950"],
+html.light-theme [class*="bg-cyan-900"],
+html.light-theme [class*="bg-cyan-500/"],
+html.light-theme [class*="bg-cyan-400/"],
+html.light-theme [class*="bg-sky-950"],
+html.light-theme [class*="bg-sky-500/"] {
   background-color: #f0f9ff !important;
   border-color: #7dd3fc !important;
   color: #075985 !important;
@@ -518,18 +472,11 @@ html.light-theme .text-violet-500 {
   color: #4338ca !important;
 }
 
-html.light-theme .bg-indigo-500\/5,
-html.light-theme .bg-indigo-500\/10,
-html.light-theme .bg-indigo-500\/15,
-html.light-theme .bg-indigo-500\/20,
-html.light-theme .bg-indigo-500\/25,
-html.light-theme .bg-indigo-950\/50,
-html.light-theme .bg-indigo-950\/40,
-html.light-theme .bg-indigo-950\/30,
-html.light-theme .bg-indigo-900\/30,
-html.light-theme .bg-violet-500\/10,
-html.light-theme .bg-violet-500\/15,
-html.light-theme .bg-violet-500\/20 {
+html.light-theme [class*="bg-indigo-950"],
+html.light-theme [class*="bg-indigo-900"],
+html.light-theme [class*="bg-indigo-500/"],
+html.light-theme [class*="bg-violet-950"],
+html.light-theme [class*="bg-violet-500/"] {
   background-color: #eef2ff !important;
   border-color: #a5b4fc !important;
   color: #3730a3 !important;
@@ -548,17 +495,11 @@ html.light-theme .text-pink-300 {
   color: #6b21a8 !important;
 }
 
-html.light-theme .bg-purple-500\/5,
-html.light-theme .bg-purple-500\/10,
-html.light-theme .bg-purple-500\/15,
-html.light-theme .bg-purple-500\/20,
-html.light-theme .bg-purple-500\/25,
-html.light-theme .bg-purple-950\/50,
-html.light-theme .bg-purple-950\/40,
-html.light-theme .bg-purple-950\/30,
-html.light-theme .bg-purple-900\/30,
-html.light-theme .bg-fuchsia-500\/10,
-html.light-theme .bg-pink-500\/10 {
+html.light-theme [class*="bg-purple-950"],
+html.light-theme [class*="bg-purple-900"],
+html.light-theme [class*="bg-purple-500/"],
+html.light-theme [class*="bg-fuchsia-500/"],
+html.light-theme [class*="bg-pink-500/"] {
   background-color: #faf5ff !important;
   border-color: #d8b4fe !important;
   color: #581c87 !important;
@@ -573,14 +514,9 @@ html.light-theme .text-blue-100 {
   color: #1d4ed8 !important;
 }
 
-html.light-theme .bg-blue-500\/5,
-html.light-theme .bg-blue-500\/10,
-html.light-theme .bg-blue-500\/15,
-html.light-theme .bg-blue-500\/20,
-html.light-theme .bg-blue-500\/25,
-html.light-theme .bg-blue-950\/50,
-html.light-theme .bg-blue-950\/40,
-html.light-theme .bg-blue-950\/30 {
+html.light-theme [class*="bg-blue-950"],
+html.light-theme [class*="bg-blue-900"],
+html.light-theme [class*="bg-blue-500/"] {
   background-color: #eff6ff !important;
   border-color: #93c5fd !important;
   color: #1e40af !important;
@@ -594,12 +530,26 @@ html.light-theme .text-teal-200 {
   color: #0f766e !important;
 }
 
-html.light-theme .bg-teal-500\/10,
-html.light-theme .bg-teal-500\/15,
-html.light-theme .bg-teal-500\/20 {
+html.light-theme [class*="bg-teal-950"],
+html.light-theme [class*="bg-teal-900"],
+html.light-theme [class*="bg-teal-500/"] {
   background-color: #f0fdfa !important;
   border-color: #5eead4 !important;
   color: #115e59 !important;
+}
+
+/* Semantic Borders in Light Mode (Softened & Clean) */
+html.light-theme [class*="border-rose-500"] {
+  border-color: #fda4af !important;
+}
+html.light-theme [class*="border-emerald-500"] {
+  border-color: #6ee7b7 !important;
+}
+html.light-theme [class*="border-amber-500"] {
+  border-color: #fcd34d !important;
+}
+html.light-theme [class*="border-cyan-500"] {
+  border-color: #7dd3fc !important;
 }
 
 /* Form Inputs, Selects & Sliders */

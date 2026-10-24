@@ -82,6 +82,69 @@ class TestBotBugs(unittest.TestCase):
 
         self.assertEqual(bot._SNIPER_CONFIG["max_open_positions"], self._orig_cfg.get("max_open_positions", 10))
 
+    def test_strict_buy_amount_usd_and_max_open_positions_guard(self):
+        """Verify bot never stacks duplicate buys ($1 -> $2.9) and never exceeds max_open_positions (5 -> 7)."""
+        from app.db.session import SessionLocal
+        from app.db.models import PortfolioHolding
+        from app.services import memecoins, portfolio
+        from sqlalchemy import select, delete
+
+        db = SessionLocal()
+        try:
+            db.execute(delete(PortfolioHolding).where(PortfolioHolding.mode == "PAPER"))
+            db.commit()
+
+            bot.update_sniper_config({"buy_amount_usd": 1.0, "max_open_positions": 2})
+            self.assertAlmostEqual(float(bot._SNIPER_CONFIG["buy_amount_usd"]), 1.0)
+            self.assertEqual(int(bot._SNIPER_CONFIG["max_open_positions"]), 2)
+
+            portfolio.add_holding(db, symbol="MEME1/SOL", quantity=1000.0, avg_entry_price=0.001, current_price=0.001, mode="PAPER")
+
+            # Attempting to auto-snipe the SAME token from bot must raise POSISI_SUDAH_ADA (prevents $1 stacking to $2.9)
+            with self.assertRaises(ValueError) as ctx_dup:
+                memecoins.execute_snipe(
+                    db,
+                    {
+                        "symbol": "MEME1/SOL",
+                        "amount_usd": 1.0,
+                        "price": 0.001,
+                        "mode": "PAPER",
+                        "from_bot": True,
+                        "force_unsafe": True,
+                        "max_open_positions": 2,
+                    },
+                )
+            self.assertIn("POSISI_SUDAH_ADA", str(ctx_dup.exception))
+
+            # Add 2nd holding to reach max_open_positions = 2
+            portfolio.add_holding(db, symbol="MEME2/SOL", quantity=1000.0, avg_entry_price=0.001, current_price=0.001, mode="PAPER")
+
+            # Attempting a 3rd auto-snipe when max_open_positions = 2 must raise MAX_POSITIONS_REACHED
+            with self.assertRaises(ValueError) as ctx_max:
+                memecoins.execute_snipe(
+                    db,
+                    {
+                        "symbol": "MEME3/SOL",
+                        "amount_usd": 1.0,
+                        "price": 0.001,
+                        "mode": "PAPER",
+                        "from_bot": True,
+                        "force_unsafe": True,
+                        "max_open_positions": 2,
+                    },
+                )
+            self.assertIn("MAX_POSITIONS_REACHED", str(ctx_max.exception))
+
+            ov = portfolio.get_overview(db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
+            self.assertIn("paper_winrate_pct", ov)
+            self.assertIn("live_winrate_pct", ov)
+            self.assertIn("paper_trades", ov)
+            self.assertIn("live_trades", ov)
+        finally:
+            db.execute(delete(PortfolioHolding).where(PortfolioHolding.mode == "PAPER"))
+            db.commit()
+            db.close()
+
 
 if __name__ == "__main__":
     unittest.main()
