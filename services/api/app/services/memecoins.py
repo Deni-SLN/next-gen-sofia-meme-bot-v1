@@ -315,7 +315,11 @@ def execute_snipe(db: Session, data: dict) -> dict:
         net_swap_usd_est = max(0.0001, amount_usd - dex_fee_usd)
         est_qty = round(net_swap_usd_est / fill_price_est, 6) if fill_price_est > 0 else 0.0
         if onchain_out_raw and int(onchain_out_raw) > 0:
-            est_qty = round(int(onchain_out_raw) / 1e6, 6)
+            cand_qty = round(int(onchain_out_raw) / 1e6, 6)
+            # Only use raw 1e6 division if its implied USD value aligns within 12% of net_swap_usd_est
+            # (prevents 9-decimal SPL tokens or Jupiter/DexScreener feed skew from creating a 50% fake initial loss)
+            if est_qty > 0 and 0.88 <= (cand_qty / est_qty) <= 1.12:
+                est_qty = cand_qty
 
         # Immediately inject the newly bought token into _SPL_CACHE so even if Solana RPC returns 429
         # right after confirmation, sync_onchain_holdings_to_portfolio keeps 100% parity with Phantom Wallet!
@@ -365,8 +369,14 @@ def execute_snipe(db: Session, data: dict) -> dict:
     net_swap_usd = max(0.0001, amount_usd - dex_fee_usd)
     qty = round(net_swap_usd / fill_price, 6) if fill_price > 0 else 0.0
     if snipe_mode == "LIVE" and onchain_out_raw and int(onchain_out_raw) > 0:
-        qty = round(int(onchain_out_raw) / 1e6, 6)
+        cand_qty = round(int(onchain_out_raw) / 1e6, 6)
+        if qty > 0 and 0.88 <= (cand_qty / qty) <= 1.12:
+            qty = cand_qty
     effective_entry_price = (amount_usd / qty) if qty > 0 else fill_price
+
+    # Pin the exact contract address for this active holding to prevent cross-token ticker collisions
+    if resolved_contract:
+        market.pin_holding_contract(resolved_symbol, resolved_contract)
 
     holding = portfolio.add_holding(
         db,

@@ -123,7 +123,9 @@ def compute_execution_costs(
 
     slippage_usd = round(notional_usd * (effective_slippage_pct / 100.0), 6)
     dex_fee_usd = round(notional_usd * (DEX_LP_FEE_PCT / 100.0), 6)
-    gas_fee_usd = round(min(0.03, max(0.002, float(priority_fee_sol or 0.0008) * 2.5)), 6)
+    raw_gas_usd = min(0.03, max(0.002, float(priority_fee_sol or 0.0008) * 2.5))
+    # Scale gas fee proportionally on micro-trades so small positions ($0.10 - $2.00) do not start at -10% net PnL
+    gas_fee_usd = round(min(raw_gas_usd, max(0.0004, notional_usd * 0.003)) if notional_usd > 0 else raw_gas_usd, 6)
 
     return {
         "effective_slippage_pct": effective_slippage_pct,

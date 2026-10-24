@@ -70,8 +70,55 @@ def test_mcp_call_tool_encyclopedia(client):
 def test_mcp_resources_and_prompts(client):
     res_r = client.get("/api/v1/mcp/resources")
     assert res_r.status_code == 200
-    assert res_r.json()["total"] >= 3
+    assert res_r.json()["total"] >= 6
 
     res_p = client.get("/api/v1/mcp/prompts")
     assert res_p.status_code == 200
     assert res_p.json()["total"] >= 3
+
+
+def test_mcp_proxmox_jsonrpc_and_data_snapshot(client):
+    # 1. Test JSON-RPC initialize & tools/list
+    r_init = client.post(
+        "/api/v1/mcp/jsonrpc",
+        json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+    )
+    assert r_init.status_code == 200
+    assert r_init.json()["result"]["serverInfo"]["name"] == "sofia-intelligence"
+
+    r_list = client.post(
+        "/api/v1/mcp/jsonrpc",
+        json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+    )
+    assert r_list.status_code == 200
+    names = [t["name"] for t in r_list.json()["result"]["tools"]]
+    assert "get_bot_status_and_logs" in names
+    assert "get_trading_journal" in names
+    assert "get_wallets_and_treasury" in names
+    assert "get_portfolio_status" in names
+
+    # 2. Test JSON-RPC tools/call for get_bot_status_and_logs & get_portfolio_status
+    r_call = client.post(
+        "/api/v1/mcp/jsonrpc",
+        json={
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "get_bot_status_and_logs", "arguments": {"limit": 5}},
+        },
+    )
+    assert r_call.status_code == 200
+    assert r_call.json()["result"]["isError"] is False
+    assert r_call.json()["result"]["data"]["status"] == "success"
+
+    # 3. Test Proxmox guide & data-snapshot endpoints
+    r_guide = client.get("/api/v1/mcp/proxmox-guide")
+    assert r_guide.status_code == 200
+    assert "jsonrpc_2_0" in r_guide.json()["endpoints"]
+
+    r_snap = client.get("/api/v1/mcp/data-snapshot?mode=PAPER")
+    assert r_snap.status_code == 200
+    snap = r_snap.json()
+    assert snap["status"] == "online"
+    assert snap["portfolio"]["status"] == "success"
+    assert snap["bot"]["status"] == "success"

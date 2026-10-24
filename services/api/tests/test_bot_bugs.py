@@ -51,7 +51,24 @@ class TestBotBugs(unittest.TestCase):
         preset = bot.STRATEGY_PRESETS["AGGRESSIVE"]
         self.assertEqual(preset["tick_interval_ms"], 1200)
         self.assertEqual(preset["auto_tp_pct"], 8.0)
+        self.assertEqual(preset["auto_sl_pct"], 5.5)
         self.assertTrue(preset["only_new_creations"])
+
+    def test_pinned_contract_anti_collision_and_sl_cooldown(self):
+        """Verify pinned contract prevents cross-token ticker price collisions and SL cooldown blocks re-buys."""
+        from app.services import market
+        sym = "TESTPEPE/SOL"
+        ca_real = "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr"
+        ca_fake = "11111111111111111111111111111111111111111111"
+
+        market.pin_holding_contract(sym, ca_real)
+        market._register_token_cache({"symbol": sym, "base_symbol": "TESTPEPE", "contract": ca_real, "price": 0.0010, "liquidity": 25000.0})
+        # Attempting to register a different contract with the same symbol must NOT overwrite the pinned symbol cache
+        market._register_token_cache({"symbol": sym, "base_symbol": "TESTPEPE", "contract": ca_fake, "price": 0.00001, "liquidity": 50000.0})
+        cached_tok = market._PRICE_CACHE[sym][0]
+        self.assertEqual(cached_tok["contract"], ca_real)
+        self.assertAlmostEqual(cached_tok["price"], 0.0010)
+        market.unpin_holding_contract(sym)
 
     def test_bot_config_backup_and_restore(self):
         """Verify that testing config changes leaves clean state without hardcoding max_open_positions."""

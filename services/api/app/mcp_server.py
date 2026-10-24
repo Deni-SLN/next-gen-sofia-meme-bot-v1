@@ -28,6 +28,10 @@ from app.services import (
     signals as signals_service,
     portfolio as portfolio_service,
     market as market_service,
+    bot as bot_service,
+    journal as journal_service,
+    wallets as wallets_service,
+    treasury as treasury_service,
 )
 from app.db.session import SessionLocal
 
@@ -252,10 +256,10 @@ def analyze_memecoin_rugcheck(token_query: str) -> Dict[str, Any]:
 @mcp.tool()
 def search_market_news(query: str = "", category: str = "all", limit: int = 5) -> Dict[str, Any]:
     """
-    Mencari berita finansial dan pasar Indonesia terkini dari media terverifikasi (CNBC Indonesia, Antara, dsb).
+    Mencari berita finansial, geopolitik, dan pasar Indonesia terkini dari media terverifikasi (CNBC Indonesia, Antara, Reuters, Al Jazeera, dsb).
 
-    :param query: Kata kunci pencarian (contoh: 'IHSG', 'BI Rate', 'Bitcoin', 'Antam'). Kosongkan untuk headline umum.
-    :param category: Kategori berita ('all', 'saham', 'crypto', 'emas', 'ekonomi').
+    :param query: Kata kunci pencarian (contoh: 'IHSG', 'BI Rate', 'Bitcoin', 'Antam', 'Timur Tengah', 'Konflik'). Kosongkan untuk headline umum.
+    :param category: Kategori berita ('all', 'saham', 'crypto', 'emas', 'ekonomi', 'geopolitik', 'teknologi').
     :param limit: Jumlah maksimal artikel yang dikembalikan (default 5, maks 10).
     """
     lim = min(10, max(1, int(limit)))
@@ -317,21 +321,106 @@ def get_trading_signals(status: str = "pending", limit: int = 10) -> Dict[str, A
 
 
 @mcp.tool()
-def get_portfolio_status() -> Dict[str, Any]:
+def get_portfolio_status(mode: str = "PAPER") -> Dict[str, Any]:
     """
-    Membaca ringkasan ekuitas portofolio trading live, saldo tunai IDR & USD,
-    posisi aset yang sedang di-hold, dan kurs valuta asing live (USD/IDR).
+    Membaca ringkasan ekuitas portofolio trading (PAPER atau LIVE), saldo tunai IDR & USD,
+    winrate histori trading, posisi aset yang sedang di-hold, dan kurs valuta asing live (USD/IDR).
+
+    :param mode: Mode portofolio ('PAPER' atau 'LIVE'). Default 'PAPER'.
     """
+    active_mode = str(mode or "PAPER").strip().upper()
+    if active_mode not in ("PAPER", "LIVE"):
+        active_mode = "PAPER"
     with SessionLocal() as db:
-        port = portfolio_service.get_live_portfolio(db, refresh_live_prices=False)
+        port = portfolio_service.get_overview(db, refresh_live_prices=False, mode=active_mode, skip_rpc=True)
+        holdings = port.get("holdings", [])
         return {
             "status": "success",
+            "active_mode": active_mode,
             "usd_idr_rate": port.get("usd_idr"),
-            "total_equity_usd": port.get("live_total_equity_usd") or port.get("paper_cash_usd"),
-            "total_equity_idr": port.get("live_cash_idr") or port.get("paper_cash_idr"),
-            "cash_balance_usd": port.get("paper_cash_usd"),
-            "holdings_count": len(port.get("items", [])),
-            "holdings": port.get("items", []),
+            "total_equity_usd": port.get("total_equity_usd"),
+            "total_equity_idr": port.get("total_equity_idr"),
+            "cash_balance_usd": port.get("active_cash_usd"),
+            "cash_balance_idr": port.get("active_cash_idr"),
+            "unrealized_pnl_usd": port.get("unrealized_pnl"),
+            "unrealized_pnl_idr": port.get("unrealized_pnl_idr"),
+            "unrealized_pnl_pct": port.get("unrealized_pnl_pct"),
+            "alltime_winrate_pct": port.get("alltime_winrate_pct"),
+            "alltime_wins": port.get("alltime_wins"),
+            "alltime_losses": port.get("alltime_losses"),
+            "alltime_trades": port.get("alltime_trades"),
+            "holdings_count": len(holdings),
+            "holdings": holdings,
+        }
+
+
+@mcp.tool()
+def get_bot_status_and_logs(limit: int = 15) -> Dict[str, Any]:
+    """
+    Membaca status mesin Bot Trading Sniper SOFIA (running/stopped), mode aktif (PAPER/LIVE),
+    konfigurasi strategi (SAFE/DEFAULT/AGGRESSIVE), tahapan radar saat ini, winrate, dan log aktivitas bot.
+
+    :param limit: Jumlah maksimal log aktivitas bot yang dikembalikan (default 15, maks 50).
+    """
+    lim = min(50, max(1, int(limit)))
+    with SessionLocal() as db:
+        st = bot_service.get_bot_status(db)
+        port_paper = portfolio_service.get_overview(db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
+        port_live = portfolio_service.get_overview(db, refresh_live_prices=False, mode="LIVE", skip_rpc=True)
+        return {
+            "status": "success",
+            "bot_status": st.status,
+            "active_mode": st.mode,
+            "strategy_mode": bot_service._SNIPER_CONFIG.get("strategy_mode", "DEFAULT"),
+            "total_trades_executed": st.total_trades,
+            "sniper_config": bot_service.get_sniper_config(),
+            "current_stage": bot_service._CURRENT_STAGE,
+            "winrate_stats": {
+                "paper_winrate_pct": port_paper.get("alltime_winrate_pct"),
+                "paper_wins": port_paper.get("alltime_wins"),
+                "paper_losses": port_paper.get("alltime_losses"),
+                "live_winrate_pct": port_live.get("alltime_winrate_pct"),
+                "live_wins": port_live.get("alltime_wins"),
+                "live_losses": port_live.get("alltime_losses"),
+            },
+            "recent_logs": bot_service._BOT_ACTIVITY_LOGS[:lim],
+        }
+
+
+@mcp.tool()
+def get_trading_journal(limit: int = 15, mode: str = "") -> Dict[str, Any]:
+    """
+    Membaca jurnal histori transaksi trading SOFIA (Buy/Sell, PnL USD & IDR, winrate, profit factor, dan daftar trade).
+
+    :param limit: Jumlah maksimal histori trade yang dikembalikan (default 15, maks 50).
+    :param mode: Filter mode ('PAPER', 'LIVE', atau kosong untuk semua).
+    """
+    lim = min(50, max(1, int(limit)))
+    with SessionLocal() as db:
+        data = journal_service.get_journal_summary(db, limit=lim)
+        entries = data.get("trades", []) or data.get("entries", [])
+        return {
+            "status": "success",
+            "summary": data.get("summary", data),
+            "returned_count": len(entries[:lim]),
+            "entries": entries[:lim],
+        }
+
+
+@mcp.tool()
+def get_wallets_and_treasury() -> Dict[str, Any]:
+    """
+    Membaca daftar dompet trading (Hot Wallet Solana / Phantom & Paper Wallet),
+    saldo kas, cadangan gas (Gas Reserve), dan status Treasury Settlement 05:00 WIB.
+    """
+    with SessionLocal() as db:
+        wallets_data = wallets_service.list_wallets(db)
+        return {
+            "status": "success",
+            "usd_idr": wallets_data.get("usd_idr"),
+            "wallets": wallets_data.get("wallets", []),
+            "treasury": wallets_data.get("treasury", {}),
+            "live_engine": wallets_data.get("live_engine", {}),
         }
 
 
@@ -381,15 +470,22 @@ def lookup_market_encyclopedia(keyword: str) -> Dict[str, Any]:
 @mcp.tool()
 def get_market_pulse() -> Dict[str, Any]:
     """
-    Snapshot live denyut pasar (Market Pulse): token Solana trending, volume lonjakan DexScreener, dan kurs FX USD/IDR.
+    Snapshot live denyut pasar (Market Pulse): token Solana baru (New Creations), Final Stretch, Migrated, dan kurs FX USD/IDR.
     """
     pulse = market_service.get_live_pulse_feed()
     fx = market_service.get_fx_rate()
+    new_c = pulse.get("new_creations", [])
+    final_s = pulse.get("final_stretch", [])
+    mig = pulse.get("migrated", [])
+    combined = new_c[:4] + final_s[:3] + mig[:3]
     return {
         "status": "success",
         "usd_idr": fx.get("usd_idr"),
-        "trending_tokens_count": len(pulse.get("trending", [])),
-        "trending_tokens": pulse.get("trending", [])[:6],
+        "trending_tokens_count": len(combined),
+        "trending_tokens": combined[:8],
+        "new_creations": new_c[:6],
+        "final_stretch": final_s[:6],
+        "migrated": mig[:6],
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -416,6 +512,27 @@ def resource_gold_prices() -> str:
 def resource_portfolio_summary() -> str:
     """Current live trading equity and balance overview."""
     data = get_portfolio_status()
+    return json.dumps(data, indent=2)
+
+
+@mcp.resource("sofia://bot/status")
+def resource_bot_status() -> str:
+    """Current trading bot engine status, strategy config, winrate, and recent activity logs."""
+    data = get_bot_status_and_logs(limit=15)
+    return json.dumps(data, indent=2)
+
+
+@mcp.resource("sofia://journal/summary")
+def resource_journal_summary() -> str:
+    """Current trading journal summary and recent closed trades."""
+    data = get_trading_journal(limit=15)
+    return json.dumps(data, indent=2)
+
+
+@mcp.resource("sofia://news/geopolitik")
+def resource_geopolitik_news() -> str:
+    """Latest Geopolitik & Militer news affecting global economy and markets."""
+    data = search_market_news(category="geopolitik", limit=8)
     return json.dumps(data, indent=2)
 
 

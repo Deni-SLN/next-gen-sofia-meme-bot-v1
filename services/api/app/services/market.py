@@ -17,6 +17,34 @@ _PULSE_CACHE = {
 
 _PRICE_CACHE: dict[str, tuple[dict, float]] = {}
 _CONTRACT_REGISTRY: dict[str, str] = {}
+_PINNED_HOLDING_CONTRACTS: dict[str, str] = {}
+
+VALID_QUOTE_SYMBOLS: set[str] = {
+    "SOL", "WSOL", "USDC", "USDT", "USD", "USD1", "WETH", "ETH",
+}
+
+
+def pin_holding_contract(symbol: str, contract: str) -> None:
+    """Pin the exact on-chain contract address for an active holding to prevent cross-token ticker collisions."""
+    sym_u = str(symbol or "").strip().upper()
+    ca = str(contract or "").strip()
+    if not sym_u or len(ca) < 20:
+        return
+    base_u = sym_u.split("/")[0].strip()
+    _PINNED_HOLDING_CONTRACTS[sym_u] = ca
+    _PINNED_HOLDING_CONTRACTS[base_u] = ca
+    _CONTRACT_REGISTRY[sym_u] = ca
+    _CONTRACT_REGISTRY[base_u] = ca
+
+
+def unpin_holding_contract(symbol: str) -> None:
+    """Release the pinned contract address when a holding is 100% closed."""
+    sym_u = str(symbol or "").strip().upper()
+    if not sym_u:
+        return
+    base_u = sym_u.split("/")[0].strip()
+    _PINNED_HOLDING_CONTRACTS.pop(sym_u, None)
+    _PINNED_HOLDING_CONTRACTS.pop(base_u, None)
 
 _KNOWN_FALLBACKS: dict[str, dict] = {
     "BONK": {
@@ -152,8 +180,10 @@ LEGACY_ESTABLISHED_TOKENS: set[str] = {
     "BONK", "WIF", "PEPE", "DOGE", "SHIB", "FLOKI", "POPCAT", "BRETT", "MEW",
     "BOME", "MYRO", "SLERF", "WEN", "PONKE", "MOG", "TURBO", "NEIRO", "GOAT",
     "ACT", "PNUT", "FARTCOIN", "PENGU", "TRUMP", "MELANIA", "SOL", "WSOL",
-    "USDC", "USDT", "ETH", "WETH", "WBTC", "RAY", "JUP", "PYTH", "JTO", "ORCA",
-    "CHEEMS", "BABYDOGE", "MEME", "PEOPLE", "DOGS", "NOT", "TOSHI", "DEGEN",
+    "USDC", "USDT", "ETH", "WETH", "WBTC", "BBTC", "CBBTC", "TBTC", "BTC",
+    "RAY", "JUP", "PYTH", "JTO", "ORCA", "PAXG", "XAUT", "GLDX", "AU", "FAU",
+    "GOLD-197", "USD1", "CHEEMS", "BABYDOGE", "MEME", "PEOPLE", "DOGS", "NOT",
+    "TOSHI", "DEGEN",
 }
 
 HEADERS = {
@@ -163,10 +193,14 @@ HEADERS = {
 
 
 def is_legacy_token(symbol_or_base: str) -> bool:
-    """Return True if the token symbol belongs to an old/established coin (e.g. BONK, PEPE, WIF)."""
+    """Return True if the token symbol belongs to an old/established coin (e.g. BONK, PEPE, WIF) or uses an invalid quote currency."""
     if not symbol_or_base:
         return False
-    clean = symbol_or_base.strip().upper().split("/")[0].strip()
+    raw = symbol_or_base.strip().upper()
+    parts = [p.strip() for p in raw.split("/")]
+    clean = parts[0]
+    if len(parts) > 1 and parts[1] not in VALID_QUOTE_SYMBOLS:
+        return True
     return clean in LEGACY_ESTABLISHED_TOKENS
 
 
@@ -220,13 +254,22 @@ def _register_token_cache(tok: dict, now: float | None = None) -> None:
     base_key = str(tok.get("base_symbol") or "").upper()
     ca_key = str(tok.get("contract") or "").upper()
 
+    pinned_ca = (_PINNED_HOLDING_CONTRACTS.get(sym_key) or _PINNED_HOLDING_CONTRACTS.get(base_key) or "").upper()
+    is_collided_symbol = bool(pinned_ca and ca_key and pinned_ca != ca_key)
+
+    if ca_key:
+        _PRICE_CACHE[ca_key] = (tok, ts)
+
+    if is_collided_symbol:
+        # Never overwrite an active holding's symbol price cache or contract registry with a different token sharing the same ticker
+        return
+
     if sym_key:
         _PRICE_CACHE[sym_key] = (tok, ts)
     if base_key:
         if base_key not in _PRICE_CACHE or tok.get("liquidity", 0) >= _PRICE_CACHE[base_key][0].get("liquidity", 0):
             _PRICE_CACHE[base_key] = (tok, ts)
     if ca_key:
-        _PRICE_CACHE[ca_key] = (tok, ts)
         if sym_key:
             _CONTRACT_REGISTRY[sym_key] = tok["contract"]
         if base_key:
@@ -436,19 +479,20 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 20) -> l
     except Exception:
         pass
 
-    # Strictly filter for brand-new meme coins (never legacy tokens like BONK)
+    # Strictly filter for brand-new meme coins (never legacy tokens like BONK or invalid quote pairs)
     fresh_creations: list[dict] = []
     for tok in discovered:
-        if is_legacy_token(tok["base_symbol"]):
+        if is_legacy_token(tok.get("symbol") or tok.get("base_symbol", "")):
             continue
         # Must be relatively young (<= 12 hours, or on Pump.fun bonding curve with MCap < $500k)
         if tok["age_hours"] <= 12.0 and tok["market_cap"] <= 800000.0:
             tok["is_new_creation"] = True
             fresh_creations.append(tok)
 
-    # Sort by newest age first, prioritizing tokens with live 5m buys/volume
+    # Sort prioritizing positive 5m orderflow (buys > sells & positive momentum), then newest age
     fresh_creations.sort(
         key=lambda x: (
+            0 if (x.get("buys_5m", 0) > x.get("sells_5m", 0) and float(x.get("price_change_5m", 0.0)) >= 0.0) else 1,
             0 if (x.get("buys_5m", 0) + x.get("sells_5m", 0)) > 0 else 1,
             x.get("age_hours", 99.0),
         )
@@ -786,6 +830,54 @@ def get_live_token_info(symbol_or_contract: str) -> dict | None:
         return fb
 
     return None
+
+
+def resolve_holding_live_price(
+    symbol: str,
+    avg_entry_price: float = 0.0,
+    current_price: float = 0.0,
+    contract_hint: str = "",
+) -> dict | None:
+    """
+    Resolve live market data for an existing holding with strict Anti-Ticker-Collision & Price Continuity protection.
+    Prevents DexScreener symbol searches from returning a completely different token pool sharing the same ticker.
+    """
+    sym_u = str(symbol or "").strip().upper()
+    base_u = sym_u.split("/")[0].strip()
+    pinned_ca = (
+        str(contract_hint or "").strip()
+        or _PINNED_HOLDING_CONTRACTS.get(sym_u)
+        or _PINNED_HOLDING_CONTRACTS.get(base_u)
+        or ""
+    )
+    tok = get_live_token_info(pinned_ca if len(pinned_ca) >= 28 else symbol)
+    if not tok:
+        return None
+
+    fetched_price = float(tok.get("price") or 0.0)
+    ref_price = float(current_price if current_price > 0 else avg_entry_price)
+    if fetched_price <= 0 or ref_price <= 0:
+        return tok
+
+    tok_ca = str(tok.get("contract") or "").strip().upper()
+    exact_ca_match = bool(pinned_ca and tok_ca and pinned_ca.upper() == tok_ca)
+
+    # If the price suddenly drops > 38% or spikes > 350% in a single tick without an exact pinned CA match,
+    # or even with a generic lookup that jumped to a different pool, reject the collided price.
+    ratio = fetched_price / ref_price
+    if not exact_ca_match and (ratio < 0.62 or ratio > 4.5):
+        safe_tok = dict(tok)
+        safe_tok["price"] = ref_price
+        safe_tok["collision_guarded"] = True
+        return safe_tok
+    if exact_ca_match and (ratio < 0.25 or ratio > 12.0):
+        # Guard against corrupted RPC/DEX single-tick outlier ticks (> -75% or > +1100% in 1s)
+        safe_tok = dict(tok)
+        safe_tok["price"] = ref_price
+        safe_tok["collision_guarded"] = True
+        return safe_tok
+
+    return tok
 
 
 def live_rug_audit(query: str) -> dict:

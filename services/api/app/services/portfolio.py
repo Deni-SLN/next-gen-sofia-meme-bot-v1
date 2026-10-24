@@ -192,6 +192,9 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
             live_price = float(tok["usd_val"]) / amt
         liq = float(tok.get("liquidity", 1800.0))
 
+        if tok.get("mint"):
+            market.pin_holding_contract(sym, str(tok["mint"]))
+
         existing = db.execute(
             select(PortfolioHolding).where(
                 PortfolioHolding.symbol == sym,
@@ -199,6 +202,14 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
             )
         ).scalar_one_or_none()
         if existing:
+            if existing.quantity > 0 and amt > 0 and abs(existing.quantity - amt) / existing.quantity > 0.08:
+                # Preserve cost basis invariant when on-chain token count adjusts from initial estimate
+                prev_cost_usd = existing.quantity * existing.avg_entry_price
+                rescaled_entry = prev_cost_usd / amt
+                if live_price > 0 and (rescaled_entry < live_price * 0.4 or rescaled_entry > live_price * 2.5):
+                    existing.avg_entry_price = live_price * 1.006
+                else:
+                    existing.avg_entry_price = rescaled_entry
             existing.quantity = amt
             if live_price > 0:
                 existing.current_price = live_price
@@ -266,7 +277,11 @@ def get_overview(
 
     for h in holdings:
         if refresh_live_prices:
-            live_tok = market.get_live_token_info(h.symbol)
+            live_tok = market.resolve_holding_live_price(
+                h.symbol,
+                avg_entry_price=float(h.avg_entry_price or 0.0),
+                current_price=float(h.current_price or 0.0),
+            )
             if live_tok and live_tok.get("price", 0) > 0:
                 h.current_price = float(live_tok["price"])
                 if live_tok.get("liquidity", 0) > 0:
@@ -519,8 +534,12 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
 
     paper_wallet, usd_idr = get_or_create_paper_wallet(db)
 
-    # Fetch 100% real live price from DexScreener
-    live_tok = market.get_live_token_info(symbol)
+    # Fetch 100% real live price from DexScreener with anti-collision guard
+    live_tok = market.resolve_holding_live_price(
+        symbol,
+        avg_entry_price=float(existing.avg_entry_price or 0.0),
+        current_price=float(existing.current_price or 0.0),
+    )
     resolved_price = float(live_tok["price"]) if (live_tok and live_tok.get("price", 0) > 0) else float(existing.current_price)
     # Sanity guard: if resolved_price is over 50x higher than entry price due to cross-chain ticker collision, protect from inflated price
     if existing.avg_entry_price > 0 and resolved_price > (existing.avg_entry_price * 50.0):
@@ -719,6 +738,7 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     db.add(trade)
 
     if pct >= 0.999:
+        market.unpin_holding_contract(symbol)
         db.delete(existing)
     else:
         existing.quantity = existing.quantity - qty_to_sell

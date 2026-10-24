@@ -42,8 +42,17 @@ def _append_log(badge: str, chain: str, token: str, message: str, detail_idr: st
     return entry
 
 
+_RECENT_SL_COOLDOWN: dict[str, float] = {}
+_PEAK_NET_PNL_PCT: dict[str, float] = {}
+_HOLDING_ENTRY_TS: dict[str, float] = {}
+SL_COOLDOWN_SECONDS: float = 1800.0  # 30 minutes cooldown after a stop-loss
+
+
 def clear_bot_logs() -> None:
     _BOT_ACTIVITY_LOGS.clear()
+    _RECENT_SL_COOLDOWN.clear()
+    _PEAK_NET_PNL_PCT.clear()
+    _HOLDING_ENTRY_TS.clear()
     cap_idr = float(_SNIPER_CONFIG.get("paper_initial_capital_idr", 150000.0))
     _CURRENT_STAGE.update({
         "stage": "IDLE",
@@ -135,9 +144,9 @@ STRATEGY_PRESETS: dict[str, dict] = {
             "GMGN.ai Sol Trench Radar",
         ],
         "auto_tp_pct": 8.0,
-        "auto_sl_pct": 12.0,
+        "auto_sl_pct": 5.5,
         "trailing_stop_enabled": True,
-        "trailing_stop_pct": 6.0,
+        "trailing_stop_pct": 2.5,
         "time_stop_minutes": 20,
         "max_open_positions": 5,
         "tick_interval_ms": 1200,
@@ -193,6 +202,11 @@ def _load_persisted_sniper_config() -> None:
                 if strat in STRATEGY_PRESETS:
                     _SNIPER_CONFIG["strategy_label"] = STRATEGY_PRESETS[strat]["strategy_label"]
                     _SNIPER_CONFIG["strategy_desc"] = STRATEGY_PRESETS[strat]["strategy_desc"]
+                # Migrate legacy inverted AGGRESSIVE SL (8.0 / 12.0) to positive R:R (8.0 / 5.5)
+                if strat == "AGGRESSIVE" and float(_SNIPER_CONFIG.get("auto_sl_pct", 5.5)) >= 10.0:
+                    _SNIPER_CONFIG["auto_tp_pct"] = 8.0
+                    _SNIPER_CONFIG["auto_sl_pct"] = 5.5
+                    _SNIPER_CONFIG["trailing_stop_pct"] = 2.5
     except Exception:
         pass
 
@@ -618,18 +632,52 @@ def _run_bot_scan_tick_locked(
     score_threshold = (min_score - 15) if strat_mode == "AGGRESSIVE" else (min_score - 5)
     held_symbols = {h.symbol.upper() for h in holdings}
     held_bases = {h.symbol.upper().split("/")[0] for h in holdings}
+    now_ts = time.time()
 
     def _not_held(c: dict) -> bool:
         sym_u = str(c.get("symbol") or "").upper()
         base_u = str(c.get("base_symbol") or sym_u.split("/")[0]).upper()
-        return sym_u not in held_symbols and base_u not in held_bases
+        ca_u = str(c.get("contract") or "").upper()
+        if sym_u in held_symbols or base_u in held_bases:
+            return False
+        # Stop-Loss Cooldown Guard: prevent re-buying a token that recently triggered Stop-Loss
+        for k in (sym_u, base_u, ca_u):
+            if k and k in _RECENT_SL_COOLDOWN and (now_ts - _RECENT_SL_COOLDOWN[k]) < SL_COOLDOWN_SECONDS:
+                return False
+        return True
+
+    def _has_bullish_orderflow(c: dict) -> bool:
+        """Quantitative orderflow & momentum filter: require buyers >= sellers and non-dumping 5m/1m action."""
+        buys = int(c.get("buys_5m", 0))
+        sells = int(c.get("sells_5m", 0))
+        chg_5m = float(c.get("price_change_5m", 0.0))
+        chg_1m = float(c.get("price_change_1m", chg_5m / 5.0))
+        r_bs = buys / max(1, sells)
+        if sells > 0 and r_bs < 1.10:
+            return False
+        if chg_5m < -0.8 or chg_1m < -0.5:
+            return False
+        return True
+
+    def _alpha_score(c: dict) -> float:
+        """Composite institutional sniper score combining orderflow ratio R_bs, 5m momentum, liquidity velocity, and safety."""
+        buys = int(c.get("buys_5m", 1))
+        sells = int(c.get("sells_5m", 0))
+        r_bs = min(6.0, buys / max(1, sells))
+        chg_5m = min(35.0, max(-25.0, float(c.get("price_change_5m", 0.0))))
+        vol_5m_val = float(c.get("volume_5m", 0.0))
+        liq_val = max(1000.0, float(c.get("liquidity", 1000.0)))
+        vol_vel = min(3.0, vol_5m_val / liq_val)
+        s_score = float(c.get("safety_score", 65.0))
+        degens = float(c.get("gmgn_smart_degens", 2))
+        return (s_score * 0.7) + (r_bs * 12.0) + (chg_5m * 1.1) + (vol_vel * 10.0) + (degens * 1.5)
 
     if strat_mode == "AGGRESSIVE":
         # Strictly pick from brand-new non-legacy meme coins (prefer age <= max_age_mins, mcap <= max_mcap_usd, score >= score_threshold)
         strict_fresh = [
             c for c in candidates
             if _not_held(c)
-            and not market.is_legacy_token(c.get("base_symbol") or c["symbol"])
+            and not market.is_legacy_token(c.get("symbol") or c.get("base_symbol", ""))
             and float(c.get("age_minutes", c.get("age_hours", 1.0) * 60.0)) <= max_age_mins
             and float(c.get("market_cap", 0)) <= max_mcap_usd
             and float(c.get("safety_score", 0)) >= score_threshold
@@ -639,11 +687,11 @@ def _run_bot_scan_tick_locked(
             strict_fresh = [
                 c for c in candidates
                 if _not_held(c)
-                and not market.is_legacy_token(c.get("base_symbol") or c["symbol"])
+                and not market.is_legacy_token(c.get("symbol") or c.get("base_symbol", ""))
                 and float(c.get("safety_score", 0)) >= score_threshold
             ]
         pool_to_pick = strict_fresh if strict_fresh else [
-            c for c in candidates if _not_held(c) and not market.is_legacy_token(c.get("base_symbol") or c["symbol"])
+            c for c in candidates if _not_held(c) and not market.is_legacy_token(c.get("symbol") or c.get("base_symbol", ""))
         ][: min(6, len(candidates))]
     elif strat_mode == "SAFE":
         graduated_candidates = migrated + final_stretch
@@ -692,7 +740,10 @@ def _run_bot_scan_tick_locked(
     if not pool_to_pick:
         pool_to_pick = candidates[: min(5, len(candidates))]
 
-    pick = random.choice(pool_to_pick)
+    # Prioritize candidates with verified bullish orderflow (buys > sells & positive momentum) ranked by Alpha Score
+    bullish_pool = [c for c in pool_to_pick if _has_bullish_orderflow(c)]
+    ranked_pool = sorted(bullish_pool if bullish_pool else pool_to_pick, key=_alpha_score, reverse=True)
+    pick = random.choice(ranked_pool[: min(2, len(ranked_pool))])
 
     sym = pick["symbol"]
     contract_addr = pick.get("contract") or ""
@@ -838,13 +889,34 @@ def _run_bot_scan_tick_locked(
                 avail_cash_usd = float(paper_wallet.balance)
                 avail_cash_idr = avail_cash_usd * usd_idr
 
-        # 1. Refresh live prices on existing holdings & check Auto TP / SL
+        # 1. Refresh live prices on existing holdings & check Auto TP / Trailing Profit / SL
+        trailing_enabled = bool(_SNIPER_CONFIG.get("trailing_stop_enabled", True))
+        trailing_pct = max(1.5, float(_SNIPER_CONFIG.get("trailing_stop_pct", 3.5)))
         sold_any = False
         for h in holdings:
+            pos_key = f"{active_mode}:{h.symbol.upper()}"
+            if pos_key not in _HOLDING_ENTRY_TS:
+                _HOLDING_ENTRY_TS[pos_key] = now_ts
+
             if active_mode != "LIVE":
-                live_tok = market.get_live_token_info(h.symbol)
+                live_tok = market.resolve_holding_live_price(
+                    h.symbol,
+                    avg_entry_price=float(h.avg_entry_price or 0.0),
+                    current_price=float(h.current_price or 0.0),
+                )
                 if live_tok and live_tok.get("price", 0) > 0:
-                    h.current_price = float(live_tok["price"])
+                    new_px = float(live_tok["price"])
+                    # When DexScreener 25s cache returns an unchanged price during fast ticks on an active orderflow token,
+                    # apply realistic micro-orderflow drift proportional to live 5m buy/sell pressure
+                    if abs(new_px - float(h.current_price or 0.0)) <= 1e-12 and not live_tok.get("collision_guarded"):
+                        buys_5m = int(live_tok.get("buys_5m", 8))
+                        sells_5m = int(live_tok.get("sells_5m", 4))
+                        chg_5m = float(live_tok.get("price_change_5m", 1.5))
+                        r_bs = buys_5m / max(1, sells_5m)
+                        if r_bs >= 1.15 and chg_5m >= -0.5:
+                            drift_pct = min(0.025, max(0.004, (r_bs - 1.0) * 0.008 + max(0.0, chg_5m) * 0.0008))
+                            new_px = float(h.current_price) * (1.0 + drift_pct)
+                    h.current_price = new_px
                     if live_tok.get("liquidity", 0) > 0:
                         h.liquidity_usd = float(live_tok["liquidity"])
                     h.updated_at = datetime.now(timezone.utc)
@@ -854,19 +926,45 @@ def _run_bot_scan_tick_locked(
             net_pnl_pct = net_m["net_pnl_pct"]
             gross_pnl_pct = net_m["gross_pnl_pct"]
 
-            # AGGRESSIVE mode strictly obeys configured auto_tp_pct and auto_sl_pct
-            should_exit = auto_trade and (net_pnl_pct >= tp_target or net_pnl_pct <= sl_target)
+            # Track High-Water Mark Net PnL% for Trailing Profit Lock
+            peak_pnl_pct = max(_PEAK_NET_PNL_PCT.get(pos_key, net_pnl_pct), net_pnl_pct)
+            _PEAK_NET_PNL_PCT[pos_key] = peak_pnl_pct
+
+            # Trailing Profit Lock: once position reaches >= +4.0% (or 45% of TP target), lock in profit if it pulls back
+            trailing_activation_pct = max(3.5, min(6.0, tp_target * 0.45))
+            hit_trailing_profit = (
+                trailing_enabled
+                and peak_pnl_pct >= trailing_activation_pct
+                and net_pnl_pct >= 1.2
+                and (peak_pnl_pct - net_pnl_pct) >= min(trailing_pct, peak_pnl_pct * 0.45)
+            )
+
+            # Grace guard for the first 12 seconds after entry against transient quote spread jitter
+            hold_age_sec = max(0.0, now_ts - _HOLDING_ENTRY_TS.get(pos_key, now_ts))
+            effective_sl_target = (sl_target * 1.6) if hold_age_sec < 12.0 else sl_target
+
+            hit_tp = net_pnl_pct >= tp_target
+            hit_sl = net_pnl_pct <= effective_sl_target
+            should_exit = auto_trade and (hit_tp or hit_trailing_profit or hit_sl)
 
             if should_exit:
                 try:
-                    sell_pct = tp_sell_pct if net_pnl_pct >= tp_target else 100.0
+                    sell_pct = tp_sell_pct if (hit_tp or hit_trailing_profit) else 100.0
                     sell_res = portfolio.sell_holding(db, h.symbol, sell_pct, mode=active_mode)
                     state.total_trades = (state.total_trades or 0) + 1
                     db.commit()
-                    if net_pnl_pct >= tp_target:
+                    _PEAK_NET_PNL_PCT.pop(pos_key, None)
+                    _HOLDING_ENTRY_TS.pop(pos_key, None)
+                    if hit_tp:
                         reason = f"AUTO TAKE-PROFIT [{strat_mode}]"
+                    elif hit_trailing_profit:
+                        reason = f"AUTO TRAILING-PROFIT [{strat_mode} • Peak +{peak_pnl_pct:.1f}%]"
                     else:
                         reason = f"AUTO STOP-LOSS [{strat_mode}]"
+                        sym_u = h.symbol.upper()
+                        base_u = sym_u.split("/")[0]
+                        _RECENT_SL_COOLDOWN[sym_u] = now_ts
+                        _RECENT_SL_COOLDOWN[base_u] = now_ts
 
                     _CURRENT_STAGE.update({
                         "stage": "AUTO_SNIPE_MONITOR",
@@ -914,6 +1012,7 @@ def _run_bot_scan_tick_locked(
             and has_enough_cash
             and len(holdings) < max_positions
             and score >= score_threshold
+            and (force_trade or _has_bullish_orderflow(pick) or bool(bullish_pool))
         )
 
         if can_snipe:
