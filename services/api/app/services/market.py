@@ -46,6 +46,15 @@ def unpin_holding_contract(symbol: str) -> None:
     _PINNED_HOLDING_CONTRACTS.pop(sym_u, None)
     _PINNED_HOLDING_CONTRACTS.pop(base_u, None)
 
+
+def get_pinned_contract(symbol: str) -> str | None:
+    """Return the pinned contract address for an active holding if one exists."""
+    sym_u = str(symbol or "").strip().upper()
+    if not sym_u:
+        return None
+    base_u = sym_u.split("/")[0].strip()
+    return _PINNED_HOLDING_CONTRACTS.get(sym_u) or _PINNED_HOLDING_CONTRACTS.get(base_u)
+
 _KNOWN_FALLBACKS: dict[str, dict] = {
     "BONK": {
         "symbol": "BONK/SOL",

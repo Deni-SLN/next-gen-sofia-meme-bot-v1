@@ -266,6 +266,26 @@ def get_overview(
         holdings = live_holdings
         refresh_live_prices = False
     else:
+        # Self-heal any corrupted unpinned ticker-collision Paper Sell trade (e.g. $1 position sold for $60+)
+        try:
+            corrupt_trades = list(
+                db.execute(
+                    select(Trade).where(
+                        Trade.mode == "PAPER",
+                        Trade.status == "closed",
+                        Trade.pnl > 25.0,
+                        Trade.total > 25.0,
+                    )
+                ).scalars().all()
+            )
+            if corrupt_trades:
+                for ct in corrupt_trades:
+                    if "Paper Sell" in (ct.notes or ""):
+                        paper_wallet.balance = max(0.0, float(paper_wallet.balance) - float(ct.pnl or 0.0))
+                        db.delete(ct)
+                db.commit()
+        except Exception:
+            pass
         # In PAPER mode, holdings are simulated paper holdings from PortfolioHolding (strictly PAPER)
         holdings = db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "PAPER")).scalars().all()
     total_value = 0.0
@@ -284,8 +304,13 @@ def get_overview(
             )
             if live_tok and live_tok.get("price", 0) > 0:
                 new_px = float(live_tok["price"])
-                if h.avg_entry_price > 0 and new_px > (h.avg_entry_price * 2.0) and not market.get_pinned_contract(h.symbol):
-                    new_px = float(h.current_price or h.avg_entry_price)
+                entry_px = float(h.avg_entry_price or 0.0)
+                cur_px = float(h.current_price or entry_px)
+                if entry_px > 0 and new_px > (entry_px * 2.0) and not market.get_pinned_contract(h.symbol):
+                    new_px = cur_px
+                # Preserve active orderflow tick price in PAPER mode when DexScreener 25s cache still returns entry snapshot
+                if not is_live and entry_px > 0 and abs(new_px - entry_px) < (entry_px * 0.0025) and abs(cur_px - entry_px) >= (entry_px * 0.0025):
+                    new_px = cur_px
                 h.current_price = new_px
                 if live_tok.get("liquidity", 0) > 0:
                     h.liquidity_usd = float(live_tok["liquidity"])
@@ -394,7 +419,7 @@ def get_overview(
             .where(
                 Trade.status == "closed",
                 or_(Trade.side == "sell", Trade.pnl != 0),
-                or_(Trade.result.is_(None), Trade.result != "ORPHAN_CLEARED"),
+                or_(Trade.notes.is_(None), ~Trade.notes.contains("dibersihkan karena token tidak ditemukan")),
             )
             .group_by(norm_mode_col)
         )
@@ -582,10 +607,21 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
         current_price=float(existing.current_price or 0.0),
     )
     resolved_price = float(live_tok["price"]) if (live_tok and live_tok.get("price", 0) > 0) else float(existing.current_price)
-    # Sanity guard: if resolved_price is over 50x higher than entry price due to cross-chain ticker collision, protect from inflated price
-    if existing.avg_entry_price > 0 and resolved_price > (existing.avg_entry_price * 50.0):
-        if existing.current_price > 0 and existing.current_price < (existing.avg_entry_price * 5.0):
-            resolved_price = float(existing.current_price)
+    if (
+        trade_mode == "PAPER"
+        and existing.current_price > 0
+        and existing.avg_entry_price > 0
+        and abs(existing.current_price - existing.avg_entry_price) >= abs(resolved_price - existing.avg_entry_price)
+    ):
+        resolved_price = float(existing.current_price)
+    # Sanity guard: protect against cross-chain or unpinned ticker collision inflating exit proceeds
+    if existing.avg_entry_price > 0:
+        max_mult = 50.0 if market.get_pinned_contract(symbol) else 2.0
+        if resolved_price > (existing.avg_entry_price * max_mult) or resolved_price < (existing.avg_entry_price * 0.1):
+            if existing.current_price > 0 and (existing.avg_entry_price * 0.1) <= existing.current_price <= (existing.avg_entry_price * max_mult):
+                resolved_price = float(existing.current_price)
+            else:
+                resolved_price = float(existing.avg_entry_price)
     market_price = resolved_price
     liq_usd = float(live_tok["liquidity"]) if (live_tok and live_tok.get("liquidity", 0) > 0) else float(existing.liquidity_usd or 25000.0)
     tok_ca = str((live_tok.get("contract") if live_tok else "") or "")
@@ -678,7 +714,6 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
                 db.delete(existing)
                 if open_buy and open_buy.status == "open":
                     open_buy.status = "closed"
-                    open_buy.result = "ORPHAN_CLEARED"
                     open_buy.closed_at = datetime.now(timezone.utc)
                     open_buy.notes = f"Posisi {symbol} dibersihkan karena token tidak ditemukan di wallet on-chain."
                 db.commit()

@@ -145,6 +145,78 @@ class TestBotBugs(unittest.TestCase):
             db.commit()
             db.close()
 
+    def test_winrate_updates_dynamically_for_paper_and_live(self):
+        """Ensure WR PAPER and WR LIVE in portfolio.get_overview and strategy_stats update when trades close."""
+        from datetime import datetime, timezone
+        from sqlalchemy import delete
+        from app.db.session import SessionLocal
+        from app.db.models import PortfolioHolding, Trade
+        from app.services import bot, portfolio
+
+        db = SessionLocal()
+        try:
+            db.execute(delete(PortfolioHolding).where(PortfolioHolding.symbol == "WINMEME/SOL"))
+            db.execute(delete(Trade).where(Trade.symbol.in_(["WINMEME/SOL", "LIVEWIN/SOL"])))
+            db.commit()
+
+            ov_before = portfolio.get_overview(db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
+            base_paper_trades = int(ov_before["paper_trades"])
+            base_paper_wins = int(ov_before["paper_wins"])
+            base_live_trades = int(ov_before["live_trades"])
+            base_live_wins = int(ov_before["live_wins"])
+
+            # 1. Simulate a PAPER position reaching +15% TP and selling via sell_holding
+            portfolio.add_holding(
+                db,
+                symbol="WINMEME/SOL",
+                quantity=1000.0,
+                avg_entry_price=0.001,
+                current_price=0.00115,
+                mode="PAPER",
+            )
+            sell_res = portfolio.sell_holding(db, "WINMEME/SOL", 100.0, mode="PAPER")
+            self.assertGreater(sell_res["realized_pnl_usd"], 0.0)
+
+            # 2. Insert a closed LIVE trade as well
+            now = datetime.now(timezone.utc)
+            live_trade = Trade(
+                symbol="LIVEWIN/SOL",
+                side="sell",
+                quantity=500.0,
+                price=0.0024,
+                total=1.20,
+                mode="LIVE",
+                status="closed",
+                pnl=0.20,
+                notes="[AGGRESSIVE] Live On-Chain Sell (100%)",
+                opened_at=now,
+                closed_at=now,
+            )
+            db.add(live_trade)
+            db.commit()
+
+            ov_after = portfolio.get_overview(db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
+            self.assertEqual(ov_after["paper_trades"], base_paper_trades + 1)
+            self.assertEqual(ov_after["paper_wins"], base_paper_wins + 1)
+            self.assertGreater(ov_after["paper_winrate_pct"], 0.0)
+
+            self.assertEqual(ov_after["live_trades"], base_live_trades + 1)
+            self.assertEqual(ov_after["live_wins"], base_live_wins + 1)
+            self.assertGreater(ov_after["live_winrate_pct"], 0.0)
+
+            # 3. Verify get_sniper_config() (even without db argument) returns populated strategy_stats
+            cfg = bot.get_sniper_config()
+            self.assertIn("strategy_stats", cfg)
+            total_strat_paper = sum(s["paper_trades_count"] for s in cfg["strategy_stats"].values())
+            total_strat_live = sum(s["live_trades_count"] for s in cfg["strategy_stats"].values())
+            self.assertGreater(total_strat_paper, 0)
+            self.assertGreater(total_strat_live, 0)
+        finally:
+            db.execute(delete(PortfolioHolding).where(PortfolioHolding.symbol == "WINMEME/SOL"))
+            db.execute(delete(Trade).where(Trade.symbol.in_(["WINMEME/SOL", "LIVEWIN/SOL"])))
+            db.commit()
+            db.close()
+
 
 if __name__ == "__main__":
     unittest.main()

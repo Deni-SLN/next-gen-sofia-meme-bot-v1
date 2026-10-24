@@ -112,9 +112,10 @@ def start(body: StartBotRequest, db: Session = Depends(get_db)):
             slippage_pct=body.slippage_pct,
         )
         data = _row_to_dict(state)
-        cfg = bot.get_sniper_config()
+        cfg = bot.get_sniper_config(db, mode=state.mode)
         data["sniper_config"] = cfg
         data["strategy_mode"] = cfg.get("strategy_mode", "DEFAULT")
+        data["strategy_stats"] = cfg.get("strategy_stats", {})
         return data
     except ValueError as e:
         code = str(e)

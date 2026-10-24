@@ -169,28 +169,37 @@ export default function TradingPage() {
       setSelectedMode(e.detail);
       walletsQuery.refetch();
       portfolioQuery.refetch();
+      configQuery.refetch();
+      botQuery.refetch();
     };
-    const botHandler = () => botQuery.refetch();
+    const botHandler = () => {
+      botQuery.refetch();
+      configQuery.refetch();
+    };
     const resetHandler = (e: any) => {
       if (e?.detail) portfolioQuery.setData(e.detail);
       else portfolioQuery.refetch();
       walletsQuery.refetch();
+      configQuery.refetch();
+      botQuery.refetch();
     };
     const tradeHandler = () => {
       botQuery.refetch();
       portfolioQuery.refetch();
       walletsQuery.refetch();
+      configQuery.refetch();
     };
     window.addEventListener('sofia-mode-change', handler);
     window.addEventListener('sofia-bot-status-change', botHandler);
     window.addEventListener('sofia-paper-reset', resetHandler);
     window.addEventListener('sofia-bot-trade-executed', tradeHandler);
 
-    // Real-time auto-refresh every 8 seconds so Wallet & Terminal Positions stay 100% synced without hitting Solana RPC 429 rate-limits
+    // Real-time auto-refresh every 5 seconds so Winrate, Wallet & Terminal Positions stay 100% synced
     const rtInterval = setInterval(() => {
       portfolioQuery.refetch();
       walletsQuery.refetch();
-    }, 8000);
+      configQuery.refetch();
+    }, 5000);
 
     return () => {
       clearInterval(rtInterval);
@@ -536,6 +545,7 @@ export default function TradingPage() {
       setQuickExitNotice({ type: 'ok', text: msg });
       await portfolioQuery.refetch();
       await walletsQuery.refetch();
+      await configQuery.refetch();
     } catch (err: any) {
       const errMsg = err?.message || 'Gagal menjual posisi';
       setActionError(errMsg);
@@ -562,6 +572,7 @@ export default function TradingPage() {
       setQuickExitNotice({ type: 'ok', text: msg });
       await portfolioQuery.refetch();
       await walletsQuery.refetch();
+      await configQuery.refetch();
     } catch (err: any) {
       const errMsg = err?.message || 'Gagal mengeksekusi Panic Sell All';
       setActionError(errMsg);
@@ -889,11 +900,17 @@ export default function TradingPage() {
                 const isLockedOther = isRunning && !isSelected;
                 const srvStat =
                   configQuery.data?.strategy_stats?.[m.id] ||
-                  botQuery.data?.strategy_stats?.[m.id];
-                const tradesCount = Number(srvStat?.trades_count ?? 0);
-                const winsCount = Number(srvStat?.wins ?? 0);
-                const hasTrades = tradesCount > 0 && srvStat?.winrate_pct !== null && srvStat?.winrate_pct !== undefined;
-                const displayWinrate = hasTrades ? `${srvStat.winrate_pct}%` : '—';
+                  botQuery.data?.strategy_stats?.[m.id] ||
+                  botQuery.data?.sniper_config?.strategy_stats?.[m.id];
+                const paperTrades = Number(srvStat?.paper_trades_count ?? 0);
+                const paperWins = Number(srvStat?.paper_wins ?? 0);
+                const paperWr = Number(srvStat?.paper_winrate_pct ?? 0);
+                const liveTrades = Number(srvStat?.live_trades_count ?? 0);
+                const liveWins = Number(srvStat?.live_wins ?? 0);
+                const liveWr = Number(srvStat?.live_winrate_pct ?? 0);
+                const activeModeTrades = isLive ? liveTrades : paperTrades;
+                const activeModeWr = isLive ? liveWr : paperWr;
+                const displayWinrate = activeModeTrades > 0 ? `${activeModeWr.toFixed(1)}%` : `${activeModeWr.toFixed(1)}%`;
 
                 return (
                   <button
@@ -925,47 +942,33 @@ export default function TradingPage() {
                       <div className="flex items-baseline justify-between gap-2 mt-1">
                         <div className="text-sm font-extrabold text-white">{m.title}</div>
                         <span className={`px-2 py-0.5 rounded-md text-[11px] font-extrabold border ${m.winrateBadgeClass}`}>
-                          🎯 Winrate: {displayWinrate}
+                          🎯 WR ({selectedMode}): {displayWinrate}
                         </span>
                       </div>
                       <div className="text-[11px] font-bold text-cyan-300 mt-0.5">{m.subtitle}</div>
                       <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed font-sans">{m.desc}</p>
 
-                      {/* Winrate Progress Bar & Metrics - Strictly Real Data */}
-                      {hasTrades ? (
-                        <div className="mt-2.5 p-2 rounded-lg bg-obsidian-900/80 border border-obsidian-800/90 space-y-1.5">
-                          <div className="flex items-center justify-between text-[10px]">
-                            <span className="text-slate-400 font-semibold">
-                              Winrate Real (Riwayat Trade)
-                            </span>
-                            <span className="font-extrabold text-white">
-                              {displayWinrate} • {winsCount}W / {tradesCount - winsCount}L
-                            </span>
-                          </div>
-                          <div className="w-full h-1.5 rounded-full bg-obsidian-950 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${m.winrateBarClass}`}
-                              style={{ width: `${Math.min(100, Math.max(0, Number(srvStat?.winrate_pct ?? 0)))}%` }}
-                            />
-                          </div>
-                          <div className="text-[9px] text-slate-400 flex items-center justify-between pt-0.5">
-                            <span>Rekor Mode {m.id}:</span>
-                            <span className="text-emerald-300 font-bold">
-                              {tradesCount} Trade Selesai
-                            </span>
-                          </div>
+                      {/* Winrate Progress Bar & Metrics: Dual Paper & Live Breakdown */}
+                      <div className="mt-2.5 p-2 rounded-lg bg-obsidian-900/80 border border-obsidian-800/90 space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-emerald-300 font-bold">🟢 WR Paper:</span>
+                          <span className="font-extrabold text-white">
+                            {paperWr.toFixed(1)}% • {paperWins}W / {Math.max(0, paperTrades - paperWins)}L ({paperTrades})
+                          </span>
                         </div>
-                      ) : (
-                        <div className="mt-2.5 p-2 rounded-lg bg-obsidian-900/80 border border-obsidian-800/90 space-y-1">
-                          <div className="flex items-center justify-between text-[10px]">
-                            <span className="text-slate-400 font-semibold">Winrate Mode:</span>
-                            <span className="text-slate-400 font-medium">Belum ada trade</span>
-                          </div>
-                          <p className="text-[9px] text-slate-500 font-sans">
-                            Winrate dihitung otomatis 100% real saat posisi closed trade tercatat.
-                          </p>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-rose-300 font-bold">🔴 WR Live:</span>
+                          <span className="font-extrabold text-white">
+                            {liveWr.toFixed(1)}% • {liveWins}W / {Math.max(0, liveTrades - liveWins)}L ({liveTrades})
+                          </span>
                         </div>
-                      )}
+                        <div className="w-full h-1.5 rounded-full bg-obsidian-950 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${m.winrateBarClass}`}
+                            style={{ width: `${activeModeTrades > 0 ? Math.min(100, Math.max(4, activeModeWr)) : 0}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[10px] font-bold text-slate-200">
                       {m.stats}
