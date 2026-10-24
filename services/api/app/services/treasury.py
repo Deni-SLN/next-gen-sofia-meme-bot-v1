@@ -338,9 +338,7 @@ def get_treasury_summary(db: Session) -> dict:
     net_equity_usd = paper_cash_usd + holdings_net_usd + (t.gas_reserve_usd - init_gas_usd)
     cfg_idr = portfolio.get_paper_initial_capital_idr()
     cfg_baseline_usd = round(cfg_idr / usd_idr, 6)
-    baseline_usd = float(t.baseline_equity_usd or cfg_baseline_usd)
-    if baseline_usd < cfg_baseline_usd:
-        baseline_usd = cfg_baseline_usd
+    baseline_usd = float(t.baseline_equity_usd) if (t.baseline_equity_usd and float(t.baseline_equity_usd) > 0) else cfg_baseline_usd
 
     net_profit_usd = net_equity_usd - baseline_usd
     net_profit_pct = (net_profit_usd / baseline_usd * 100.0) if baseline_usd > 0 else 0.0
@@ -463,7 +461,11 @@ def run_daily_settlement(
         paper_wallet.updated_at = datetime.now(timezone.utc)
         db.commit()
 
-    ov = portfolio.get_overview(db, refresh_live_prices=True)
+    ov = portfolio.get_overview(
+        db,
+        refresh_live_prices=True,
+        reconcile_cash=(simulate_net_profit_idr is None),
+    )
     init_gas_usd = INITIAL_GAS_RESERVE_IDR / usd_idr
     paper_cash_usd = float(ov["paper_cash_usd"])
     holdings_net_usd = float(ov.get("net_holdings_value_usd", ov["total_value"]))
@@ -471,8 +473,8 @@ def run_daily_settlement(
     cfg_idr = portfolio.get_paper_initial_capital_idr()
     cfg_baseline_usd = round(cfg_idr / usd_idr, 6)
     current_baseline_usd = float(t.baseline_equity_usd or 0.0)
-    baseline_usd = max(current_baseline_usd, cfg_baseline_usd)
-    if baseline_usd > current_baseline_usd:
+    baseline_usd = current_baseline_usd if current_baseline_usd > 0 else cfg_baseline_usd
+    if current_baseline_usd <= 0 and baseline_usd > 0:
         t.baseline_equity_usd = baseline_usd
         db.commit()
 

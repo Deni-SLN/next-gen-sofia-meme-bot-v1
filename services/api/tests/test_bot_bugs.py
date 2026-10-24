@@ -8,9 +8,10 @@ class TestBotBugs(unittest.TestCase):
         self._orig_cfg = dict(bot._SNIPER_CONFIG)
 
     def tearDown(self):
-        # Restore sniper config in finally
+        # Restore sniper config in finally and persist back to disk so tests never pollute runtime config
         bot._SNIPER_CONFIG.clear()
         bot._SNIPER_CONFIG.update(self._orig_cfg)
+        bot._save_persisted_sniper_config()
 
     def test_user_owned_keys_preservation_on_preset(self):
         """Verify operator manual inputs are preserved and not overwritten when presets are applied."""
@@ -211,10 +212,41 @@ class TestBotBugs(unittest.TestCase):
             total_strat_live = sum(s["live_trades_count"] for s in cfg["strategy_stats"].values())
             self.assertGreater(total_strat_paper, 0)
             self.assertGreater(total_strat_live, 0)
-        finally:
-            db.execute(delete(PortfolioHolding).where(PortfolioHolding.symbol == "WINMEME/SOL"))
-            db.execute(delete(Trade).where(Trade.symbol.in_(["WINMEME/SOL", "LIVEWIN/SOL"])))
+
+            # 4. Verify $10 initial capital accounting invariant: losing trades NEVER inflate cash to $50+
+            portfolio.reset_paper_account(db, initial_capital_usd=10.0)
+            loss_trade = Trade(
+                symbol="LOSSMEME/SOL",
+                side="sell",
+                quantity=1000.0,
+                price=0.0009,
+                total=0.90,
+                mode="PAPER",
+                status="closed",
+                pnl=-0.10,
+                notes="[SAFE] Paper Sell (100%)",
+                opened_at=now,
+                closed_at=now,
+            )
+            db.add(loss_trade)
+            portfolio.add_holding(
+                db,
+                symbol="OPENMEME/SOL",
+                quantity=1000.0,
+                avg_entry_price=0.001,
+                current_price=0.00098,
+                mode="PAPER",
+            )
             db.commit()
+            ov_10 = portfolio.get_overview(db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
+            self.assertAlmostEqual(ov_10["paper_initial_usd"], 10.0, places=2)
+            self.assertAlmostEqual(ov_10["paper_cash_usd"], 8.90, places=2)
+            self.assertLess(ov_10["total_equity_usd"], 10.0)
+        finally:
+            db.execute(delete(PortfolioHolding).where(PortfolioHolding.symbol.in_(["WINMEME/SOL", "OPENMEME/SOL"])))
+            db.execute(delete(Trade).where(Trade.symbol.in_(["WINMEME/SOL", "LIVEWIN/SOL", "LOSSMEME/SOL"])))
+            db.commit()
+            portfolio.get_overview(db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
             db.close()
 
 

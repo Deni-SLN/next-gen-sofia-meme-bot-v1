@@ -774,12 +774,12 @@ def get_live_pulse_feed() -> dict:
     return result
 
 
-def get_live_token_info(symbol_or_contract: str) -> dict | None:
+def get_live_token_info(symbol_or_contract: str, max_cache_age: float = 25.0) -> dict | None:
     """Resolve real-time token price and market stats from DexScreener by symbol or contract address."""
     raw_query = symbol_or_contract.strip()
     key = raw_query.upper()
     now = time.time()
-    if key in _PRICE_CACHE and (now - _PRICE_CACHE[key][1] < 25):
+    if key in _PRICE_CACHE and (now - _PRICE_CACHE[key][1] < max_cache_age):
         return _PRICE_CACHE[key][0]
 
     fx = get_fx_rate()
@@ -859,7 +859,7 @@ def resolve_holding_live_price(
         or _PINNED_HOLDING_CONTRACTS.get(base_u)
         or ""
     )
-    tok = get_live_token_info(pinned_ca if len(pinned_ca) >= 28 else symbol)
+    tok = get_live_token_info(pinned_ca if len(pinned_ca) >= 28 else symbol, max_cache_age=4.0)
     if not tok:
         return None
 

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, delete, or_, func, case
+from sqlalchemy import select, delete, or_, and_, func, case
 from sqlalchemy.orm import Session
 from app.db.models import PortfolioHolding, Wallet, Trade, EquitySnapshot, TreasuryState
 from app.services import market, treasury
@@ -250,6 +250,7 @@ def get_overview(
     refresh_live_prices: bool = True,
     mode: str | None = None,
     skip_rpc: bool | None = None,
+    reconcile_cash: bool = True,
 ) -> dict:
     paper_wallet, usd_idr = get_or_create_paper_wallet(db)
     t_state = treasury.get_or_init_treasury(db, usd_idr)
@@ -266,31 +267,53 @@ def get_overview(
         holdings = live_holdings
         refresh_live_prices = False
     else:
-        # Self-heal any corrupted unpinned ticker-collision Paper Sell trade (e.g. $1 position sold for $60+)
+        # Clean up any legacy/zombie "[TRIG:" trades or oversized collision trades in PAPER mode
         try:
-            corrupt_trades = list(
+            bad_trades = list(
                 db.execute(
                     select(Trade).where(
                         Trade.mode == "PAPER",
-                        Trade.status == "closed",
-                        Trade.pnl > 25.0,
-                        Trade.total > 25.0,
+                        or_(
+                            and_(Trade.status == "closed", Trade.pnl > 25.0, Trade.total > 25.0),
+                            Trade.notes.contains("[TRIG:"),
+                            Trade.symbol.like("TEST_%"),
+                        ),
                     )
                 ).scalars().all()
             )
-            if corrupt_trades:
-                for ct in corrupt_trades:
-                    if "Paper Sell" in (ct.notes or ""):
-                        paper_wallet.balance = max(0.0, float(paper_wallet.balance) - float(ct.pnl or 0.0))
-                        db.delete(ct)
+            if bad_trades:
+                for bt in bad_trades:
+                    db.delete(bt)
                 db.commit()
         except Exception:
             pass
         # In PAPER mode, holdings are simulated paper holdings from PortfolioHolding (strictly PAPER)
-        holdings = db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "PAPER")).scalars().all()
+        holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "PAPER")).scalars().all())
+        try:
+            from app.services import bot as bot_svc
+            cfg_buy_usd = float(bot_svc._SNIPER_CONFIG.get("buy_amount_usd") or 1.0)
+            max_pos = max(1, int(bot_svc._SNIPER_CONFIG.get("max_open_positions") or 5))
+            trimmed = False
+            if len(holdings) > max_pos:
+                for ex_h in holdings[max_pos:]:
+                    db.delete(ex_h)
+                    trimmed = True
+                holdings = holdings[:max_pos]
+            for h_c in holdings:
+                c_usd = float(h_c.quantity or 0.0) * float(h_c.avg_entry_price or 0.0)
+                if cfg_buy_usd > 0 and c_usd > (cfg_buy_usd * 1.25):
+                    scale = cfg_buy_usd / c_usd
+                    h_c.quantity = float(h_c.quantity) * scale
+                    h_c.entry_costs_usd = float(h_c.entry_costs_usd or 0.0) * scale
+                    trimmed = True
+            if trimmed:
+                db.commit()
+        except Exception:
+            pass
     total_value = 0.0
     total_net_value = 0.0
     total_cost = 0.0
+    total_entry_gas = 0.0
     total_net_pnl = 0.0
     items = []
     dirty = False
@@ -308,9 +331,6 @@ def get_overview(
                 cur_px = float(h.current_price or entry_px)
                 if entry_px > 0 and new_px > (entry_px * 2.0) and not market.get_pinned_contract(h.symbol):
                     new_px = cur_px
-                # Preserve active orderflow tick price in PAPER mode when DexScreener 25s cache still returns entry snapshot
-                if not is_live and entry_px > 0 and abs(new_px - entry_px) < (entry_px * 0.0025) and abs(cur_px - entry_px) >= (entry_px * 0.0025):
-                    new_px = cur_px
                 h.current_price = new_px
                 if live_tok.get("liquidity", 0) > 0:
                     h.liquidity_usd = float(live_tok["liquidity"])
@@ -327,6 +347,7 @@ def get_overview(
         total_value += value
         total_net_value += net_val
         total_cost += cost
+        total_entry_gas += float(h.entry_costs_usd or 0.0)
         total_net_pnl += pnl
 
         items.append({
@@ -354,52 +375,6 @@ def get_overview(
 
     if dirty:
         db.commit()
-
-    unrealized_pnl = total_net_pnl
-    unrealized_pnl_pct = (unrealized_pnl / total_cost * 100.0) if total_cost > 0 else 0.0
-    paper_cash_usd = float(paper_wallet.balance)
-    paper_cash_idr = round(paper_cash_usd * usd_idr, 0)
-    initial_capital_usd = float(t_state.baseline_equity_usd or round(get_paper_initial_capital_idr() / usd_idr, 4))
-    initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
-    total_equity_usd = paper_cash_usd + total_net_value
-    total_equity_idr = round(total_equity_usd * usd_idr, 0)
-
-    # Record a live EquitySnapshot if holdings exist and prices were refreshed
-    if refresh_live_prices and len(items) > 0:
-        last_snap = (
-            db.execute(select(EquitySnapshot).order_by(EquitySnapshot.id.desc()).limit(1))
-            .scalar_one_or_none()
-        )
-        should_snap = False
-        if not last_snap:
-            should_snap = True
-        else:
-            last_dt = last_snap.created_at
-            if last_dt and last_dt.tzinfo is None:
-                last_dt = last_dt.replace(tzinfo=timezone.utc)
-            elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds() if last_dt else 999
-            if elapsed >= 5.0 or abs(float(last_snap.equity_usd) - total_equity_usd) >= 0.0005:
-                should_snap = True
-        if should_snap:
-            treasury.record_equity_snapshot(
-                db,
-                equity_usd=total_equity_usd,
-                cash_usd=paper_cash_usd,
-                holdings_net_usd=total_net_value,
-                gas_reserve_usd=t_state.gas_reserve_usd,
-                usd_idr=usd_idr,
-                reason="live_market_tick",
-            )
-
-    from app.services import live_engine
-    live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=skip_rpc)
-
-    active_mode = (mode or "PAPER").upper()
-    is_live = active_mode == "LIVE"
-    active_total_equity_usd = live_eq["live_total_equity_usd"] if is_live else total_equity_usd
-    active_total_equity_idr = round(active_total_equity_usd * usd_idr, 0)
-    active_cash_usd = live_eq["live_cash_usd"] if is_live else paper_cash_usd
-    active_cash_idr = round(active_cash_usd * usd_idr, 0)
 
     # 1 SQL aggregate query grouped by mode for both PAPER and LIVE winrate stats
     mode_stats = {
@@ -442,6 +417,66 @@ def get_overview(
             }
     except Exception:
         pass
+
+    unrealized_pnl = total_net_pnl
+    unrealized_pnl_pct = (unrealized_pnl / total_cost * 100.0) if total_cost > 0 else 0.0
+    initial_capital_usd = float(t_state.baseline_equity_usd or round(get_paper_initial_capital_idr() / usd_idr, 4))
+    initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
+
+    # Strict Paper Cash Accounting Invariant:
+    # Paper Cash = Initial Capital + Realized PnL (from closed Paper trades) - Open Holdings Cost
+    # Guarantees Paper Cash NEVER inflates to $50+ when Initial Capital is $10 and trades are losing!
+    if not is_live and reconcile_cash:
+        expected_cash_usd = max(
+            0.0,
+            round(initial_capital_usd + float(mode_stats["PAPER"]["realized_usd"]) - total_cost - total_entry_gas, 6),
+        )
+        if abs(float(paper_wallet.balance) - expected_cash_usd) > 0.01:
+            paper_wallet.balance = expected_cash_usd
+            paper_wallet.updated_at = datetime.now(timezone.utc)
+            db.commit()
+
+    paper_cash_usd = float(paper_wallet.balance)
+    paper_cash_idr = round(paper_cash_usd * usd_idr, 0)
+    total_equity_usd = paper_cash_usd + total_net_value
+    total_equity_idr = round(total_equity_usd * usd_idr, 0)
+
+    # Record a live EquitySnapshot if holdings exist and prices were refreshed
+    if refresh_live_prices and len(items) > 0:
+        last_snap = (
+            db.execute(select(EquitySnapshot).order_by(EquitySnapshot.id.desc()).limit(1))
+            .scalar_one_or_none()
+        )
+        should_snap = False
+        if not last_snap:
+            should_snap = True
+        else:
+            last_dt = last_snap.created_at
+            if last_dt and last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds() if last_dt else 999
+            if elapsed >= 5.0 or abs(float(last_snap.equity_usd) - total_equity_usd) >= 0.0005:
+                should_snap = True
+        if should_snap:
+            treasury.record_equity_snapshot(
+                db,
+                equity_usd=total_equity_usd,
+                cash_usd=paper_cash_usd,
+                holdings_net_usd=total_net_value,
+                gas_reserve_usd=t_state.gas_reserve_usd,
+                usd_idr=usd_idr,
+                reason="live_market_tick",
+            )
+
+    from app.services import live_engine
+    live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=skip_rpc)
+
+    active_mode = (mode or "PAPER").upper()
+    is_live = active_mode == "LIVE"
+    active_total_equity_usd = live_eq["live_total_equity_usd"] if is_live else total_equity_usd
+    active_total_equity_idr = round(active_total_equity_usd * usd_idr, 0)
+    active_cash_usd = live_eq["live_cash_usd"] if is_live else paper_cash_usd
+    active_cash_idr = round(active_cash_usd * usd_idr, 0)
 
     active_stat = mode_stats.get(active_mode, mode_stats["PAPER"])
     paper_stat = mode_stats["PAPER"]

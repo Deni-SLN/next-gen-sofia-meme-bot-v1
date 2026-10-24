@@ -445,9 +445,18 @@ def update_sniper_config(updates: dict, db: Session | None = None, allow_while_r
 
 
 def get_bot_status(db: Session) -> BotState:
-    state = db.execute(select(BotState).where(BotState.id == 1)).scalar_one_or_none()
+    # Stop legacy row id=1 so any old remote/zombie server instance connected to the same NeonDB stays idle
+    try:
+        legacy_state = db.execute(select(BotState).where(BotState.id == 1)).scalar_one_or_none()
+        if legacy_state and legacy_state.status == "running":
+            legacy_state.status = "stopped"
+            db.commit()
+    except Exception:
+        pass
+
+    state = db.execute(select(BotState).where(BotState.id == 2)).scalar_one_or_none()
     if not state:
-        state = BotState(id=1, status="idle", mode="PAPER", total_trades=0)
+        state = BotState(id=2, status="idle", mode="PAPER", total_trades=0)
         db.add(state)
         db.commit()
         db.refresh(state)
@@ -1045,22 +1054,7 @@ def _run_bot_scan_tick_locked(
                     # Guard against unpinned ticker collision inflating a $1 position to $2.9+
                     if entry_px > 0 and dex_px > (entry_px * 2.0) and not market.get_pinned_contract(h.symbol):
                         dex_px = cur_px
-                    # If DexScreener 25s REST cache hasn't ticked, simulate realistic DEX orderflow micro-ticks
-                    # driven by live 5m buy/sell ratio & momentum so PAPER positions hit TP/SL and update Winrate
-                    if entry_px > 0 and (abs(dex_px - cur_px) <= cur_px * 0.002 or abs(dex_px - entry_px) <= entry_px * 0.002):
-                        buys_5m = int(live_tok.get("buys_5m", 14))
-                        sells_5m = int(live_tok.get("sells_5m", 6))
-                        r_bs = buys_5m / max(1, sells_5m)
-                        chg_5m = float(live_tok.get("price_change_5m", 2.5))
-                        if r_bs >= 1.05 and chg_5m >= -1.0:
-                            step_pct = random.uniform(-0.85, 3.35)
-                        else:
-                            step_pct = random.uniform(-2.60, 1.40)
-                        new_px = cur_px * (1.0 + step_pct / 100.0)
-                        new_px = max(entry_px * 0.65, min(entry_px * 1.45, new_px))
-                    else:
-                        new_px = dex_px
-                    h.current_price = new_px
+                    h.current_price = dex_px
                     if live_tok.get("liquidity", 0) > 0:
                         h.liquidity_usd = float(live_tok["liquidity"])
                     h.updated_at = datetime.now(timezone.utc)
@@ -1089,7 +1083,7 @@ def _run_bot_scan_tick_locked(
 
             hit_tp = net_pnl_pct >= tp_target
             hit_sl = net_pnl_pct <= effective_sl_target
-            hit_time_stop = hold_age_sec >= time_stop_sec or (active_mode == "PAPER" and hold_age_sec >= 45.0 and abs(net_pnl_pct) >= 1.5)
+            hit_time_stop = hold_age_sec >= time_stop_sec
             should_exit = auto_trade and (hit_tp or hit_trailing_profit or hit_sl or hit_time_stop)
 
             if should_exit:

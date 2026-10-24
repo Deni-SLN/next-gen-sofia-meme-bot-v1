@@ -19,7 +19,11 @@ class TestModeIsolation(unittest.TestCase):
         self.db.query(PortfolioHolding).filter(
             PortfolioHolding.symbol.in_(["TEST_ISO_1", "TEST_ISO_2"])
         ).delete()
+        self.db.query(Trade).filter(
+            Trade.symbol.in_(["TEST_ISO_1", "TEST_ISO_2"])
+        ).delete()
         self.db.commit()
+        portfolio.get_overview(self.db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
         self.db.close()
 
     def test_holding_mode_composite_unique(self):
@@ -73,7 +77,7 @@ class TestModeIsolation(unittest.TestCase):
         self.db.commit()
 
         # Reset paper account
-        portfolio.reset_paper_account(self.db)
+        portfolio.reset_paper_account(self.db, initial_capital_usd=10.0)
 
         # Paper holding must be deleted
         paper_check = self.db.execute(
