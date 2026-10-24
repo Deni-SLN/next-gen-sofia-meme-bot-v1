@@ -8,21 +8,23 @@ import { useState, useEffect } from 'react';
  */
 export function toggleUltrawide(nextState?: boolean): boolean {
   if (typeof window !== 'undefined') {
-    const current = localStorage.getItem('sofia_ultrawide') === 'true';
+    const raw = localStorage.getItem('sofia_ultrawide');
+    const current = raw === null ? true : raw === 'true';
     const next = typeof nextState === 'boolean' ? nextState : !current;
     localStorage.setItem('sofia_ultrawide', next ? 'true' : 'false');
     window.dispatchEvent(new CustomEvent('sofia-ultrawide-toggle', { detail: next }));
     return next;
   }
-  return false;
+  return true;
 }
 
 export function useUltrawide(): boolean {
-  const [isUltrawide, setIsUltrawide] = useState<boolean>(false);
+  const [isUltrawide, setIsUltrawide] = useState<boolean>(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setIsUltrawide(localStorage.getItem('sofia_ultrawide') === 'true');
+      const raw = localStorage.getItem('sofia_ultrawide');
+      setIsUltrawide(raw === null ? true : raw === 'true');
 
       const handler = (e: any) => {
         setIsUltrawide(Boolean(e?.detail));

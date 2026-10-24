@@ -658,37 +658,26 @@ export default function TradingPage() {
             </div>
           </div>
 
-          {/* TOP CARD DIRECT PARAMETERS: Modal per Trade, Batas Posisi, Slippage, Modal Paper */}
+          {/* TOP CARD DIRECT PARAMETERS: Modal per Trade, Batas Posisi, Slippage & Modal Paper */}
           <div className="p-3.5 rounded-xl bg-obsidian-950 border border-obsidian-800 space-y-3 font-mono text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-obsidian-800/80 pb-2.5">
               <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-200 flex items-center gap-1.5">
                 <LucideIcon name="sliders" className="w-3.5 h-3.5 text-cyan-400" />
-                Pengaturan Langsung: Modal per Trade, Batas Posisi &amp; Slippage
+                Pengaturan Langsung: Modal per Trade, Batas Posisi, Slippage &amp; Modal Paper
               </span>
-              {!isLive ? (
-                <button
-                  type="button"
-                  onClick={() => setShowResetPaperModal(true)}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold transition flex items-center gap-1"
-                >
-                  <span>⚙️ Atur Modal Paper:</span>
-                  <span className="text-white underline">{formatIdr(paperInitialIdr)}</span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-2 text-[10px]">
-                  <span className="text-slate-400">Kas Siap:</span>
-                  <span className="text-cyan-300 font-bold">{liveUsdcBal.toFixed(4)} USDC</span>
-                  <span className="text-slate-500">•</span>
-                  <span className="text-amber-300 font-bold">{Number(liveGasBal).toFixed(4)} SOL Gas</span>
-                </div>
-              )}
+              <span className="text-[10px] text-slate-400">
+                Mode Aktif:{' '}
+                <strong className={isLive ? 'text-rose-400' : 'text-emerald-400'}>
+                  {selectedMode} • {strategyMode}
+                </strong>
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {/* Parameter 1: Dolar per Trade */}
-              <div className="space-y-1 p-2.5 rounded-lg bg-obsidian-900 border border-obsidian-800">
-                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between">
-                  <span>1. Dolar per Trade ($ USD)</span>
+              <div className="space-y-1.5 p-3 rounded-lg bg-obsidian-900 border border-obsidian-800 flex flex-col justify-between">
+                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between gap-1">
+                  <span>1. Dolar / Trade</span>
                   <span className="text-emerald-400 font-bold">≈ {formatIdr(snipeAmountIdr)}</span>
                 </label>
                 <div className="relative">
@@ -710,9 +699,9 @@ export default function TradingPage() {
               </div>
 
               {/* Parameter 2: Maksimal Posisi Terbuka */}
-              <div className="space-y-1 p-2.5 rounded-lg bg-obsidian-900 border border-obsidian-800">
-                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between">
-                  <span>2. Maks Posisi Terbuka</span>
+              <div className="space-y-1.5 p-3 rounded-lg bg-obsidian-900 border border-obsidian-800 flex flex-col justify-between">
+                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between gap-1">
+                  <span>2. Maks Posisi</span>
                   <span className="text-cyan-400 font-bold">{maxOpenPositions} Koin</span>
                 </label>
                 <div className="relative">
@@ -731,9 +720,9 @@ export default function TradingPage() {
               </div>
 
               {/* Parameter 3: Toleransi Slippage */}
-              <div className="space-y-1 p-2.5 rounded-lg bg-obsidian-900 border border-obsidian-800">
-                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between">
-                  <span>3. Toleransi Slippage (%)</span>
+              <div className="space-y-1.5 p-3 rounded-lg bg-obsidian-900 border border-obsidian-800 flex flex-col justify-between">
+                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between gap-1">
+                  <span>3. Slippage (%)</span>
                   <span className="text-amber-400 font-bold">{slippage}%</span>
                 </label>
                 <div className="relative">
@@ -750,14 +739,42 @@ export default function TradingPage() {
                 </div>
                 <span className="text-[9px] text-slate-500 block">Batas pergeseran harga swap</span>
               </div>
+
+              {/* Parameter 4: Atur Modal Paper / Saldo Siap DEX (Dimasukkan ke dalam Card!) */}
+              <div className="space-y-1.5 p-3 rounded-lg bg-obsidian-900 border border-emerald-500/30 flex flex-col justify-between">
+                <label className="text-slate-300 text-[10px] uppercase font-bold flex items-center justify-between gap-1">
+                  <span>{!isLive ? '4. Modal Paper' : '4. Kas Siap DEX'}</span>
+                  <span className="text-emerald-400 font-bold">
+                    {!isLive ? formatUsd(paperInitialUsd) : `${liveUsdcBal.toFixed(2)} USDC`}
+                  </span>
+                </label>
+                {!isLive ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPaperModal(true)}
+                    className="w-full px-2.5 py-1.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-extrabold text-xs transition flex items-center justify-between"
+                  >
+                    <span>⚙️ Atur Modal</span>
+                    <span className="text-white underline">{formatIdr(paperInitialIdr)}</span>
+                  </button>
+                ) : (
+                  <div className="px-2.5 py-1.5 rounded bg-obsidian-950 border border-obsidian-700 text-cyan-300 font-bold text-xs flex items-center justify-between">
+                    <span>{Number(liveGasBal).toFixed(4)} SOL</span>
+                    <span className="text-[10px] text-amber-300">Gas On-Chain</span>
+                  </div>
+                )}
+                <span className="text-[9px] text-slate-500 block">
+                  {!isLive ? 'Ubah / reset saldo simulasi Paper' : 'Saldo kas & gas hot wallet aktif'}
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[10px] text-slate-500">
               <span>* Parameter di atas otomatis diterapkan saat bot memindai &amp; mengeksekusi DEX.</span>
               <button
                 type="button"
                 onClick={handleSaveConfig}
-                className="px-3 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-obsidian-950 border border-cyan-500/40 font-extrabold text-[11px] transition"
+                className="px-3.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-obsidian-950 border border-cyan-500/40 font-extrabold text-[11px] transition"
               >
                 💾 Simpan Parameter
               </button>
@@ -1226,51 +1243,61 @@ export default function TradingPage() {
 
         const positionsBlock = (
           <div className="p-4 rounded-xl bg-obsidian-900 border border-obsidian-700/80 space-y-3 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-obsidian-800 pb-2.5">
-            <div className="flex items-center gap-2">
-              <LucideIcon name="activity" className="w-4 h-4 text-emerald-400" />
-              <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-100 font-mono">
-                Posisi Aktif di Terminal ({holdings.length} Koin)
-              </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-obsidian-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <LucideIcon name="activity" className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-100 font-mono">
+                  Posisi Aktif di Terminal ({holdings.length} Koin)
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-obsidian-950 border border-obsidian-700 text-cyan-300 font-mono text-[10px] font-bold">
+                  {holdings.length}/{displayMaxSlots} SLOT
+                </span>
+                {holdings.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={!!sellingKey}
+                    onClick={handlePanicSellAll}
+                    className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white font-mono font-extrabold text-[11px] shadow-glow-rose transition"
+                  >
+                    {sellingKey === 'PANIC_ALL' ? '⏳ MELIKUIDASI...' : '🚨 PANIC SELL ALL'}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {holdings.length > 0 && (
+
+            {quickExitNotice && (
+              <div
+                className={`px-3.5 py-2 rounded-lg text-xs font-mono flex items-center justify-between border ${
+                  quickExitNotice.type === 'ok'
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                }`}
+              >
+                <span>{quickExitNotice.text}</span>
                 <button
                   type="button"
-                  disabled={!!sellingKey}
-                  onClick={handlePanicSellAll}
-                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white font-mono font-extrabold text-[11px] shadow-glow-rose transition"
+                  onClick={() => setQuickExitNotice(null)}
+                  className="ml-2 text-slate-400 hover:text-white"
                 >
-                  {sellingKey === 'PANIC_ALL' ? '⏳ MELIKUIDASI SEMUA...' : '🚨 PANIC SELL ALL (100% LIKUIDASI)'}
+                  ✕
                 </button>
-              )}
-            </div>
-          </div>
+              </div>
+            )}
 
-          {quickExitNotice && (
-            <div
-              className={`px-3.5 py-2 rounded-lg text-xs font-mono flex items-center justify-between border ${
-                quickExitNotice.type === 'ok'
-                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-              }`}
-            >
-              <span>{quickExitNotice.text}</span>
-              <button
-                type="button"
-                onClick={() => setQuickExitNotice(null)}
-                className="ml-2 text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-
-          {holdings.length === 0 ? (
-            <div className="py-4 text-center text-xs font-mono text-slate-400">
-              Belum ada posisi terbuka. Gunakan <strong>⚡ 1-Click Terminal Snipe</strong> di atas atau nyalakan <strong>Auto-Sniper Bot</strong> untuk mulai membeli koin potensial secara otomatis.
-            </div>
-          ) : (
+            {holdings.length === 0 ? (
+              <div className="p-5 rounded-xl bg-obsidian-950/90 border border-obsidian-800/80 text-center space-y-2 font-mono">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-obsidian-900 border border-obsidian-700 text-[10px] text-slate-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <span>Stanby Monitor • 0 dari {displayMaxSlots} Slot Terbuka</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
+                  Belum ada posisi terbuka. Gunakan <strong>⚡ 1-Click Terminal Snipe</strong> di panel kiri atau nyalakan{' '}
+                  <strong>Auto-Sniper Bot</strong> untuk membeli koin potensial secara otomatis.
+                </p>
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
                 <thead className="bg-obsidian-950 text-slate-400 border-b border-obsidian-800 text-[10px] uppercase">
@@ -1361,7 +1388,7 @@ export default function TradingPage() {
                 </span>
                 <span className="text-xs text-slate-400 font-mono">≈ {formatIdr(activeEquityIdr)}</span>
               </div>
-              <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-1.5">
+              <div className="mt-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-obsidian-800/80 pt-2">
                 <span>{isLive ? `${liveWallets.length} Dompet On-Chain` : `Modal Awal ${formatIdr(paperInitialIdr)}`}</span>
                 {isLive ? (
                   <span className="font-mono text-cyan-400 text-[10px]">
@@ -1371,9 +1398,9 @@ export default function TradingPage() {
                   <button
                     type="button"
                     onClick={() => setShowResetPaperModal(true)}
-                    className="font-mono text-cyan-400 hover:text-cyan-300 hover:underline text-[10px] font-bold"
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-mono text-[10px] font-bold transition"
                   >
-                    ⚙️ Atur Modal
+                    ⚙️ Atur Modal Paper
                   </button>
                 )}
               </div>
@@ -1557,26 +1584,18 @@ export default function TradingPage() {
         return (
           <div className="space-y-4">
             {kpiCardsBlock}
-            {isUltrawide ? (
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-                {/* Kolom Kiri: Control Switch, Strategy & Snipe Terminal (7 Col) */}
-                <div className="xl:col-span-7 space-y-4">
-                  {terminalControlsBlock}
-                </div>
-
-                {/* Kolom Kanan: Posisi Aktif & Log Stream dipindahkan ke samping! (5 Col) */}
-                <div className="xl:col-span-5 space-y-4">
-                  {positionsBlock}
-                  {botLogsBlock}
-                </div>
-              </div>
-            ) : (
-              <>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              {/* Kolom Kiri: Control Switch, Strategy & Snipe Terminal (7 Col) */}
+              <div className="lg:col-span-7 xl:col-span-7 space-y-4">
                 {terminalControlsBlock}
+              </div>
+
+              {/* Kolom Kanan: Posisi Aktif di Terminal & Live Bot Activity Stream di kanan! (5 Col) */}
+              <div className="lg:col-span-5 xl:col-span-5 space-y-4">
                 {positionsBlock}
                 {botLogsBlock}
-              </>
-            )}
+              </div>
+            </div>
           </div>
         );
       })()}

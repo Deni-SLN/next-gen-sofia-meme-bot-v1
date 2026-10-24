@@ -142,6 +142,63 @@ export default function NewsPage() {
   const positifCount = countBySentiment('POSITIF');
   const cuanCount = countBySentiment('PELUANG_CUAN');
 
+  // Hitung skor sentimen berita pasar skala 1 sampai 10 (Kiri 1 = Sangat Negatif, Kanan 10 = Sangat Positif)
+  const sentimentMetrics = useMemo(() => {
+    const total = articles.length;
+    if (total === 0) {
+      return {
+        scoreDecimal: 5.5,
+        scoreInt: 6,
+        negTotal: 0,
+        posTotal: 0,
+        negPct: 0,
+        posPct: 0,
+        statusLabel: 'NETRAL / SEIMBANG',
+        statusColor: 'text-amber-300 border-amber-500/40 bg-amber-500/15',
+      };
+    }
+    const weightedSum =
+      bahayaCount * 1.5 +
+      waspadaCount * 3.5 +
+      netralCount * 5.5 +
+      positifCount * 8.0 +
+      cuanCount * 9.6;
+    const rawScore = Math.min(10, Math.max(1, weightedSum / total));
+    const scoreDecimal = Number(rawScore.toFixed(1));
+    const scoreInt = Math.min(10, Math.max(1, Math.round(rawScore)));
+    const negTotal = bahayaCount + waspadaCount;
+    const posTotal = positifCount + cuanCount;
+    const negPct = Math.round((negTotal / total) * 100);
+    const posPct = Math.round((posTotal / total) * 100);
+
+    let statusLabel = '⚖️ NETRAL / SEIMBANG';
+    let statusColor = 'text-cyan-300 border-cyan-500/40 bg-cyan-500/15';
+    if (scoreDecimal <= 3.5) {
+      statusLabel = '🚨 SANGAT NEGATIF / RISK-OFF';
+      statusColor = 'text-rose-300 border-rose-500/50 bg-rose-500/20';
+    } else if (scoreDecimal <= 4.7) {
+      statusLabel = '⚠️ CENDERUNG NEGATIF / WASPADA';
+      statusColor = 'text-amber-300 border-amber-500/50 bg-amber-500/20';
+    } else if (scoreDecimal >= 7.5) {
+      statusLabel = '🚀 SANGAT POSITIF / BULLISH';
+      statusColor = 'text-emerald-300 border-emerald-500/50 bg-emerald-500/20';
+    } else if (scoreDecimal >= 6.0) {
+      statusLabel = '📈 POSITIF / OPTIMIS';
+      statusColor = 'text-emerald-300 border-emerald-500/40 bg-emerald-500/15';
+    }
+
+    return {
+      scoreDecimal,
+      scoreInt,
+      negTotal,
+      posTotal,
+      negPct,
+      posPct,
+      statusLabel,
+      statusColor,
+    };
+  }, [articles.length, bahayaCount, waspadaCount, netralCount, positifCount, cuanCount]);
+
   const getCategoryBadgeStyle = (cat: string) => {
     switch (cat) {
       case 'crypto':
@@ -225,6 +282,132 @@ export default function NewsPage() {
       </Head>
 
       <div className={`p-4 lg:p-6 space-y-5 ${isUltrawide ? 'w-full max-w-none' : 'max-w-[1600px] mx-auto'}`}>
+        {/* TOP SENTIMENT METER PANEL: Kiri Negatif (1) -> Kanan Positif (10) */}
+        <div className="rounded-2xl border border-slate-800/90 bg-gradient-to-r from-rose-950/25 via-[#0f172a] to-emerald-950/25 p-4 sm:p-5 shadow-xl space-y-3.5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* Left Side: Negatif */}
+            <div className="flex items-center gap-3">
+              <div className="px-3 py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-left">
+                <div className="text-[10px] font-mono font-extrabold uppercase tracking-wider text-rose-400 flex items-center gap-1">
+                  <span>⬅️ KIRI: SENTIMEN NEGATIF (1)</span>
+                </div>
+                <div className="text-xs font-bold text-rose-200 mt-0.5 font-mono">
+                  {sentimentMetrics.negTotal} Berita ({sentimentMetrics.negPct}%) • Bahaya {bahayaCount} / Waspada {waspadaCount}
+                </div>
+              </div>
+            </div>
+
+            {/* Center: Nilai Skor Sentimen 1 - 10 */}
+            <div className="flex flex-col items-center text-center">
+              <div className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold">
+                PANEL INDEKS SENTIMEN BERITA PASAR (SKALA 1 – 10)
+              </div>
+              <div className="flex items-center gap-2.5 mt-1">
+                <span className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight">
+                  {sentimentMetrics.scoreInt}
+                  <span className="text-sm font-bold text-slate-400"> / 10</span>
+                </span>
+                <span className="text-xs font-mono text-slate-400">
+                  (Skor: {sentimentMetrics.scoreDecimal})
+                </span>
+                <span className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border font-mono ${sentimentMetrics.statusColor}`}>
+                  {sentimentMetrics.statusLabel}
+                </span>
+              </div>
+            </div>
+
+            {/* Right Side: Positif */}
+            <div className="flex items-center justify-end gap-3">
+              <div className="px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-right">
+                <div className="text-[10px] font-mono font-extrabold uppercase tracking-wider text-emerald-400 flex items-center justify-end gap-1">
+                  <span>KANAN: SENTIMEN POSITIF (10) ➡️</span>
+                </div>
+                <div className="text-xs font-bold text-emerald-200 mt-0.5 font-mono">
+                  {sentimentMetrics.posTotal} Berita ({sentimentMetrics.posPct}%) • Positif {positifCount} / Cuan {cuanCount}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 1 to 10 Numbered Bar: Left (1 Negative) to Right (10 Positive) */}
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-10 gap-1.5 font-mono">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => {
+                const isCurrent = val === sentimentMetrics.scoreInt;
+                const getStepColor = (n: number, active: boolean) => {
+                  if (n <= 2) {
+                    return active
+                      ? 'bg-rose-600 text-white border-white ring-2 ring-rose-400 shadow-lg scale-105'
+                      : 'bg-rose-950/70 text-rose-300 border-rose-500/40 hover:bg-rose-900/60';
+                  }
+                  if (n <= 4) {
+                    return active
+                      ? 'bg-amber-500 text-slate-950 border-white ring-2 ring-amber-300 shadow-lg scale-105'
+                      : 'bg-amber-950/60 text-amber-300 border-amber-500/40 hover:bg-amber-900/50';
+                  }
+                  if (n <= 6) {
+                    return active
+                      ? 'bg-cyan-400 text-slate-950 border-white ring-2 ring-cyan-300 shadow-lg scale-105'
+                      : 'bg-slate-900/90 text-slate-300 border-slate-700 hover:bg-slate-800';
+                  }
+                  if (n <= 8) {
+                    return active
+                      ? 'bg-teal-500 text-slate-950 border-white ring-2 ring-teal-300 shadow-lg scale-105'
+                      : 'bg-teal-950/60 text-teal-300 border-teal-500/40 hover:bg-teal-900/50';
+                  }
+                  return active
+                    ? 'bg-emerald-500 text-slate-950 border-white ring-2 ring-emerald-300 shadow-lg scale-105'
+                    : 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/60';
+                };
+
+                const handleClickStep = () => {
+                  if (val <= 2) setSentimentFilter(sentimentFilter === 'BAHAYA' ? 'ALL' : 'BAHAYA');
+                  else if (val <= 4) setSentimentFilter(sentimentFilter === 'WASPADA' ? 'ALL' : 'WASPADA');
+                  else if (val <= 6) setSentimentFilter(sentimentFilter === 'NETRAL' ? 'ALL' : 'NETRAL');
+                  else if (val <= 8) setSentimentFilter(sentimentFilter === 'POSITIF' ? 'ALL' : 'POSITIF');
+                  else setSentimentFilter(sentimentFilter === 'PELUANG_CUAN' ? 'ALL' : 'PELUANG_CUAN');
+                };
+
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={handleClickStep}
+                    title={`Skala Sentimen ${val}/10 (Klik untuk filter)`}
+                    className={`py-2 rounded-lg border text-center transition-all flex flex-col items-center justify-center ${getStepColor(
+                      val,
+                      isCurrent
+                    )}`}
+                  >
+                    <span className="text-xs sm:text-sm font-black leading-none">{val}</span>
+                    <span className="text-[8px] sm:text-[9px] font-bold opacity-85 mt-0.5 hidden sm:inline">
+                      {val === 1
+                        ? 'Sangat Negatif'
+                        : val <= 3
+                        ? 'Negatif'
+                        : val <= 4
+                        ? 'Waspada'
+                        : val <= 6
+                        ? 'Netral'
+                        : val <= 8
+                        ? 'Positif'
+                        : val === 9
+                        ? 'Bullish'
+                        : 'Sangat Positif'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 px-1">
+              <span className="text-rose-400 font-bold">1 – 4: Zona Sentimen Negatif (Bearish / Waspada)</span>
+              <span className="text-slate-300 font-semibold">5 – 6: Zona Netral ({netralCount} Berita)</span>
+              <span className="text-emerald-400 font-bold">7 – 10: Zona Sentimen Positif (Bullish / Peluang Cuan)</span>
+            </div>
+          </div>
+        </div>
+
         {/* Top Header */}
         <div className="rounded-2xl border border-slate-800/90 bg-gradient-to-r from-[#0b101d] via-[#0f172a] to-[#0b101d] p-5 shadow-xl">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
