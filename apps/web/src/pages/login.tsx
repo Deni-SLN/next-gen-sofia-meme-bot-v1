@@ -224,7 +224,7 @@ export function LoginPortal({ onSuccess }: LoginPortalProps) {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Masukkan username (Deni26)..."
+                  placeholder="Masukkan username..."
                   disabled={isLocked || loading}
                   className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-obsidian-950 border border-obsidian-700 text-slate-100 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 transition"
                   autoComplete="username"
