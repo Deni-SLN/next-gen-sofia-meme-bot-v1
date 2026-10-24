@@ -164,6 +164,44 @@ class TestModeIsolation(unittest.TestCase):
         self.assertIn("winrate_pct", stats_paper["SAFE"])
         self.assertIn("winrate_pct", stats_live["SAFE"])
 
+    def test_sell_holding_does_not_delete_cross_mode_buy_trade(self):
+        """Verify sell_holding in PAPER mode does not delete a LIVE buy trade of the same symbol."""
+        now = datetime.now(timezone.utc)
+        # Create a LIVE buy trade
+        live_buy = Trade(
+            symbol="TEST_ISO_1",
+            side="buy",
+            quantity=100.0,
+            price=1.0,
+            mode="LIVE",
+            status="open",
+            opened_at=now,
+        )
+        self.db.add(live_buy)
+        # Create a PAPER holding
+        h_paper = PortfolioHolding(
+            symbol="TEST_ISO_1",
+            quantity=100.0,
+            avg_entry_price=1.0,
+            current_price=1.2,
+            mode="PAPER",
+        )
+        self.db.add(h_paper)
+        self.db.commit()
+
+        # Sell the PAPER holding completely
+        portfolio.sell_holding(self.db, "TEST_ISO_1", 100.0, mode="PAPER")
+
+        # The LIVE buy trade MUST still be present in the database!
+        check_live_buy = self.db.execute(
+            select(Trade).where(Trade.id == live_buy.id)
+        ).scalar_one_or_none()
+        self.assertIsNotNone(check_live_buy, "LIVE buy trade was mistakenly deleted by a PAPER sell!")
+
+        # Clean up
+        self.db.delete(check_live_buy)
+        self.db.commit()
+
 
 if __name__ == "__main__":
     unittest.main()

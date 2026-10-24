@@ -501,13 +501,21 @@ def sell_holding(db: Session, symbol: str, sell_pct: float = 100.0, mode: str | 
     if not existing or existing.quantity <= 0:
         raise ValueError(f"Holding {clean_sym} tidak ditemukan di portofolio.")
 
-    # Check original buy trade mode
-    open_buy = db.execute(
-        select(Trade).where(Trade.symbol == symbol, Trade.side == "buy").order_by(Trade.id.desc()).limit(1)
-    ).scalar_one_or_none()
-    trade_mode = (mode or (existing.mode if existing else None) or (open_buy.mode if open_buy else "PAPER")).upper()
+    trade_mode = (mode or (existing.mode if existing else None) or "PAPER").upper()
     if trade_mode not in ("PAPER", "LIVE"):
         trade_mode = "PAPER"
+
+    # Check original buy trade strictly matching trade_mode to prevent cross-mode deletion
+    open_buy = db.execute(
+        select(Trade)
+        .where(
+            Trade.symbol == symbol,
+            Trade.side == "buy",
+            Trade.mode == trade_mode,
+        )
+        .order_by(Trade.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
 
     paper_wallet, usd_idr = get_or_create_paper_wallet(db)
 

@@ -639,7 +639,7 @@ def get_live_equity_metrics(db: Session, usd_idr: float, skip_rpc: bool = False)
         auto_sync_live_wallets(db)
     live_wallets = list(
         db.execute(
-            select(Wallet).where(~Wallet.name.contains("Modal Paper"))
+            select(Wallet).where(Wallet.gate != "paper", ~Wallet.name.contains("Modal Paper"))
         )
         .scalars()
         .all()

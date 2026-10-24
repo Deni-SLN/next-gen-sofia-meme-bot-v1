@@ -343,15 +343,13 @@ def execute_snipe(db: Session, data: dict) -> dict:
         onchain_out_raw = None
         # PAPER MODE: Check against Paper Cash balance
         available_usd = float(paper_wallet.balance)
-        initial_usd = round(portfolio.get_paper_initial_capital_idr() / usd_idr, 4)
-        if amount_usd <= initial_usd * 1.05:
-            if amount_usd > available_usd + 0.0001:
-                avail_idr = round(available_usd * usd_idr, 0)
-                raise ValueError(
-                    f"SALDO_PAPER_TIDAK_CUKUP: Sisa saldo simulasi Rp {avail_idr:,.0f} (${available_usd:.2f}), sedangkan order Rp {amount_idr:,.0f} (${amount_usd:.2f})."
-                )
-            paper_wallet.balance = max(0.0, available_usd - amount_usd)
-            paper_wallet.updated_at = datetime.now(timezone.utc)
+        if amount_usd > available_usd + 0.0001:
+            avail_idr = round(available_usd * usd_idr, 0)
+            raise ValueError(
+                f"SALDO_PAPER_TIDAK_CUKUP: Sisa saldo simulasi Rp {avail_idr:,.0f} (${available_usd:.2f}), sedangkan order Rp {amount_idr:,.0f} (${amount_usd:.2f})."
+            )
+        paper_wallet.balance = max(0.0, available_usd - amount_usd)
+        paper_wallet.updated_at = datetime.now(timezone.utc)
 
         # Charge gas fee from Gas Reserve (auto-tops up if reserve < Rp 3.000)
         t_state = treasury.charge_gas_and_dex_fee(

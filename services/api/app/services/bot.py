@@ -593,7 +593,7 @@ def _run_bot_scan_tick_locked(
 
     if active_mode == "LIVE":
         portfolio.sync_onchain_holdings_to_portfolio(db)
-    holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
+    holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == active_mode)).scalars().all())
 
     if not candidates:
         _CURRENT_STAGE.update({
@@ -921,9 +921,8 @@ def _run_bot_scan_tick_locked(
                 # Adapt buy size to available spendable SOL cash, bounded by cfg_buy_idr
                 snipe_idr = min(cfg_buy_idr, max(2000.0, spendable_sol_idr))
             else:
-                snipe_idr = min(cfg_buy_idr, round(avail_cash_idr * 0.25, -2))
-                if snipe_idr < 10000.0:
-                    snipe_idr = min(15000.0, avail_cash_idr)
+                # Obey operator configured buy amount, bounded by available paper cash
+                snipe_idr = min(cfg_buy_idr, avail_cash_idr)
             try:
                 snipe_res = memecoins.execute_snipe(
                     db,
@@ -999,7 +998,7 @@ def _run_bot_scan_tick_locked(
                 skip_reason = f"Skor Keamanan {score:.0f} di bawah batas minimal {score_threshold:.0f} [{strat_mode}] (Anti-Rug Guard aktif)"
 
             ov = portfolio.get_overview(db, refresh_live_prices=True, mode=active_mode)
-            holdings = list(db.execute(select(PortfolioHolding)).scalars().all())
+            holdings = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == active_mode)).scalars().all())
             if holdings:
                 h = holdings[0]
                 net_m = treasury.compute_holding_net_metrics(h, usd_idr)

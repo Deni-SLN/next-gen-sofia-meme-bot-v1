@@ -10,6 +10,8 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         init_db()
+        from app.services import portfolio as portfolio_svc
+        portfolio_svc.set_paper_initial_capital_idr(150000.0)
         cls.client = TestClient(app)
         res = cls.client.post("/api/v1/auth/login", json={"password": settings.admin_password})
         assert res.status_code == 200
