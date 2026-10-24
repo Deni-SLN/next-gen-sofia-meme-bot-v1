@@ -515,7 +515,7 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
         import time
         now_ts = int(time.time())
         max_age_sec = 7 * 86400 + 120
-        for cat in ("all", "crypto", "saham", "emas", "ekonomi", "teknologi"):
+        for cat in ("all", "crypto", "saham", "emas", "ekonomi", "geopolitik", "teknologi"):
             r_news = self.client.get(f"/api/v1/news?category={cat}&limit=6&refresh=true", headers=self.headers)
             self.assertEqual(r_news.status_code, 200)
             payload = r_news.json()

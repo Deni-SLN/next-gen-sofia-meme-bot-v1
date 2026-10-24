@@ -188,7 +188,7 @@ const ENCYCLOPEDIA_DATA: EncyclopediaItem[] = [
     summary: 'Pusat agregasi berita pasar modal, crypto, emas, dan ekonomi makro berbahasa Indonesia terupdate (maksimal 7 hari terakhir) dengan tag sentimen risiko.',
     details: [
       'Tag Risiko Cerdas: Setiap artikel diklasifikasikan dengan tag sentimen: BAHAYA (merah), WASPADA (kuning), NETRAL (abu-abu), POSITIF (hijau toska), atau PELUANG CUAN (hijau emerald).',
-      'Filter Multi-Kategori: Tab terpisah untuk Semua Berita, Crypto, Saham BEI, Emas Antam, Ekonomi Makro, dan Perkembangan Teknologi AI.',
+      'Filter Multi-Kategori: Tab terpisah untuk Semua Berita, Crypto, Saham BEI, Emas Antam, Ekonomi Makro, Geopolitik & Militer, dan Perkembangan Teknologi AI.',
     ],
   },
   {

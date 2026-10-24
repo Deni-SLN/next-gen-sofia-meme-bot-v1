@@ -36,6 +36,7 @@ const CATEGORY_TABS = [
   { id: 'saham', label: 'Saham', badge: 'IHSG & BEI', icon: 'trending-up' },
   { id: 'emas', label: 'Emas', badge: 'ANTAM & XAU', icon: 'layers' },
   { id: 'ekonomi', label: 'Ekonomi', badge: 'MAKRO & BI', icon: 'banknote' },
+  { id: 'geopolitik', label: 'Geopolitik & Militer', badge: 'GLOBAL & PERANG', icon: 'shield-alert' },
   { id: 'teknologi', label: 'Teknologi', badge: 'AI & DIGITAL', icon: 'bot' },
 ];
 
@@ -44,6 +45,7 @@ const FALLBACK_THUMBS: Record<string, string> = {
   saham: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=800&q=80',
   emas: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=800&q=80',
   ekonomi: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=800&q=80',
+  geopolitik: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=800&q=80',
   teknologi: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=800&q=80',
 };
 
@@ -150,6 +152,8 @@ export default function NewsPage() {
         return 'bg-yellow-400/95 text-slate-950 border-yellow-300';
       case 'ekonomi':
         return 'bg-blue-500/90 text-white border-blue-400';
+      case 'geopolitik':
+        return 'bg-rose-500/90 text-white border-rose-400';
       case 'teknologi':
         return 'bg-purple-500/90 text-white border-purple-400';
       default:

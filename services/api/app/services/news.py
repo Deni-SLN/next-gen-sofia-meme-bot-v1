@@ -20,12 +20,14 @@ NEWS_CATEGORIES = {
     "all": {
         "id": "all",
         "label": "Semua Berita",
-        "query": "(kripto OR bitcoin OR IHSG OR saham OR \"harga emas\" OR ekonomi OR teknologi AI) Indonesia when:7d",
+        "query": "(kripto OR bitcoin OR IHSG OR saham OR \"harga emas\" OR ekonomi OR geopolitik OR perang OR teknologi AI) Indonesia when:7d",
         "badge": "TERKINI",
         "direct_feeds": [
             ("CNBC Indonesia Market", "https://www.cnbcindonesia.com/market/rss"),
+            ("CNBC Indonesia News", "https://www.cnbcindonesia.com/news/rss"),
             ("CNBC Indonesia Tech", "https://www.cnbcindonesia.com/tech/rss"),
             ("Antara Ekonomi", "https://www.antaranews.com/rss/ekonomi.xml"),
+            ("Antara Dunia", "https://www.antaranews.com/rss/dunia.xml"),
             ("Antara Tekno", "https://www.antaranews.com/rss/tekno.xml"),
         ],
     },
@@ -68,6 +70,17 @@ NEWS_CATEGORIES = {
             ("CNBC Indonesia Market", "https://www.cnbcindonesia.com/market/rss"),
             ("CNBC Indonesia News", "https://www.cnbcindonesia.com/news/rss"),
             ("Antara Ekonomi", "https://www.antaranews.com/rss/ekonomi.xml"),
+        ],
+    },
+    "geopolitik": {
+        "id": "geopolitik",
+        "label": "Geopolitik & Militer",
+        "query": "(geopolitik OR militer OR perang OR konflik OR sanksi OR \"timur tengah\" OR nato OR \"laut cina selatan\" OR pertahanan) when:7d",
+        "badge": "GEOPOLITIK",
+        "direct_feeds": [
+            ("CNBC Indonesia News", "https://www.cnbcindonesia.com/news/rss"),
+            ("Antara Politik & Hukum", "https://www.antaranews.com/rss/politik-hukum.xml"),
+            ("Antara Dunia", "https://www.antaranews.com/rss/dunia.xml"),
         ],
     },
     "teknologi": {
@@ -113,6 +126,13 @@ CATEGORY_THUMBNAILS: dict[str, list[str]] = {
         "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1580519542036-c47de6196ba5?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1444653614773-995cb1ef9efa?auto=format&fit=crop&w=800&q=80",
+    ],
+    "geopolitik": [
+        "https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1526470608268-f674ce90ebd4?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1508849789987-4e5333c12b78?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80",
     ],
     "teknologi": [
         "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=800&q=80",
@@ -291,7 +311,7 @@ def _classify_article_tags(title: str, summary: str, category: str) -> dict:
             "GEOPOLITIK_GLOBAL",
             "🌍 Geopolitik & Global",
             "warning",
-            ["global", "perang", "timur tengah", "china", "amerika", "as", "tarif", "ekspor", "impor", "dunia", "lintas negara"],
+            ["global", "perang", "timur tengah", "china", "amerika", "as", "tarif", "ekspor", "impor", "dunia", "lintas negara", "militer", "rudal", "senjata", "konflik", "tni", "israel", "iran", "rusia", "ukraina", "nato", "sanksi", "geopolitik"],
         ),
     ]
 
@@ -308,6 +328,7 @@ def _classify_article_tags(title: str, summary: str, category: str) -> dict:
             "saham": {"id": "BURSA_SAHAM", "label": "📊 Bursa Efek Indonesia", "tone": "emerald"},
             "emas": {"id": "LOGAM_MULIA", "label": "🪙 Harga Emas / Safe Haven", "tone": "amber"},
             "ekonomi": {"id": "MAKRO_EKONOMI", "label": "🏦 Makroekonomi RI", "tone": "info"},
+            "geopolitik": {"id": "GEOPOLITIK_GLOBAL", "label": "🌍 Geopolitik & Pertahanan", "tone": "warning"},
             "teknologi": {"id": "INOVASI_AI", "label": "🤖 AI & Inovasi Digital", "tone": "purple"},
         }
         tags.append(
@@ -332,6 +353,8 @@ def _detect_category_from_text(title: str, summary: str = "") -> str:
         return "emas"
     if any(k in t for k in ["ihsg", "saham", "bei", "emiten", "bursa efek", "dividen", "idx", "lq45", "ipo"]):
         return "saham"
+    if any(k in t for k in ["geopolitik", "militer", "perang", "rudal", "konflik", "senjata", "tni", "houthi", "timur tengah", "israel", "gaza", "iran", "ukraina", "rusia", "nato", "laut cina selatan", "pertahanan", "sanksi"]):
+        return "geopolitik"
     if any(k in t for k in ["ai", "teknologi", "kecerdasan buatan", "aplikasi", "chip", "semikonduktor", "siber", "inovasi", "digital", "startup", "gadget", "cloud", "robot"]):
         return "teknologi"
     return "ekonomi"
@@ -348,6 +371,7 @@ def _matches_category(cat_key: str, resolved_cat: str, title: str, summary: str)
         "saham": ["ihsg", "saham", "bei", "emiten", "bursa", "dividen", "idx", "wall street", "indeks"],
         "emas": ["emas", "antam", "logam mulia", "pegadaian", "komoditas", "xau"],
         "ekonomi": ["ekonomi", "bank indonesia", "rupiah", "inflasi", "suku bunga", "pajak", "apbn", "fiskal", "impor", "ekspor", "investasi", "keuangan"],
+        "geopolitik": ["geopolitik", "militer", "perang", "rudal", "konflik", "senjata", "tni", "houthi", "timur tengah", "israel", "gaza", "iran", "ukraina", "rusia", "nato", "laut cina selatan", "pertahanan", "sanksi", "keamanan global"],
         "teknologi": ["teknologi", "ai", "kecerdasan buatan", "digital", "startup", "siber", "internet", "aplikasi", "data", "chip"],
     }
     return any(k in text for k in keywords.get(cat_key, []))
