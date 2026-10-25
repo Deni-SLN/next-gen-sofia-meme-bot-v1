@@ -155,7 +155,12 @@ class TestBotBugs(unittest.TestCase):
         from app.services import bot, portfolio
 
         db = SessionLocal()
+        orig_bot_status = "running"
         try:
+            st_cur = bot.get_bot_status(db)
+            orig_bot_status = st_cur.status
+            st_cur.status = "stopped"
+            db.commit()
             db.execute(delete(PortfolioHolding).where(PortfolioHolding.symbol == "WINMEME/SOL"))
             db.execute(delete(Trade).where(Trade.symbol.in_(["WINMEME/SOL", "LIVEWIN/SOL"])))
             db.commit()
@@ -245,8 +250,59 @@ class TestBotBugs(unittest.TestCase):
         finally:
             db.execute(delete(PortfolioHolding).where(PortfolioHolding.symbol.in_(["WINMEME/SOL", "OPENMEME/SOL"])))
             db.execute(delete(Trade).where(Trade.symbol.in_(["WINMEME/SOL", "LIVEWIN/SOL", "LOSSMEME/SOL"])))
+            st_restore = bot.get_bot_status(db)
+            st_restore.status = orig_bot_status
             db.commit()
             portfolio.get_overview(db, refresh_live_prices=False, mode="PAPER", skip_rpc=True)
+            db.close()
+
+    def test_bot_continues_running_without_browser_and_only_stops_on_stop_bot(self):
+        """
+        Verify:
+        1. Starting the bot activates the 24/7 autonomous server daemon (autonomous_daemon_active = True).
+        2. Even when the browser is closed or the user logs out (no client polling), the bot remains 'running'
+           and runtime logs are persisted to disk so re-opening the browser restores all logs.
+        3. Only calling stop_bot() transitions status to 'stopped'.
+        """
+        import time
+        from app.db.session import SessionLocal
+        from app.services import bot
+
+        db = SessionLocal()
+        try:
+            orig_state = bot.get_bot_status(db)
+            orig_status = orig_state.status
+            orig_mode = orig_state.mode
+
+            # 1. Start bot
+            st = bot.start_bot(db, mode="PAPER")
+            self.assertEqual(st.status, "running")
+            telem = bot.get_daemon_telemetry()
+            self.assertTrue(telem["autonomous_daemon_active"])
+            self.assertTrue(telem["persists_on_browser_close"])
+            self.assertTrue(telem["persists_on_logout"])
+            self.assertTrue(telem["stops_only_on_stop_button"])
+
+            # 2. Simulate browser closed & user logged out (clear in-memory logs and wait for background daemon heartbeat)
+            bot._BOT_ACTIVITY_LOGS.clear()
+            bot._load_persisted_runtime_logs()
+            self.assertGreaterEqual(len(bot._BOT_ACTIVITY_LOGS), 1)
+
+            time.sleep(1.8)
+            st_after = bot.get_bot_status(db)
+            self.assertEqual(st_after.status, "running")
+            telem_after = bot.get_daemon_telemetry()
+            self.assertTrue(telem_after["autonomous_daemon_active"])
+            self.assertIsNotNone(telem_after["last_heartbeat_at"])
+
+            # 3. Verify bot ONLY stops when stop_bot is explicitly called
+            st_stopped = bot.stop_bot(db)
+            self.assertEqual(st_stopped.status, "stopped")
+        finally:
+            st_restore = bot.get_bot_status(db)
+            st_restore.status = orig_status
+            st_restore.mode = orig_mode
+            db.commit()
             db.close()
 
 

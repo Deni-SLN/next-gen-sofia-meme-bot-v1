@@ -16,9 +16,24 @@ class TestPaperBaseline(unittest.TestCase):
         token = login_res.json().get("token")
         self.headers = {"Authorization": f"Bearer {token}"}
         self._orig_capital = portfolio.get_paper_initial_capital_idr()
+        with SessionLocal() as db:
+            st = bot.get_bot_status(db)
+            self._orig_bot_status = st.status
+            self._orig_bot_mode = st.mode
+            t = treasury.get_or_init_treasury(db, 16300.0)
+            self._orig_baseline_usd = float(t.baseline_equity_usd or 10.0)
+            st.status = "stopped"
+            db.commit()
 
     def tearDown(self):
         portfolio.set_paper_initial_capital_idr(self._orig_capital)
+        with SessionLocal() as db:
+            t = treasury.get_or_init_treasury(db, 16300.0)
+            t.baseline_equity_usd = self._orig_baseline_usd
+            st = bot.get_bot_status(db)
+            st.status = self._orig_bot_status
+            st.mode = self._orig_bot_mode
+            db.commit()
 
     def test_get_and_set_paper_capital_endpoint(self):
         """Verify GET and PUT /api/v1/portfolio/paper-capital work properly."""

@@ -7,13 +7,20 @@ from pathlib import Path
 from datetime import datetime, timezone
 from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
-from app.db.models import BotState, PortfolioHolding
+from app.db.models import BotState, PortfolioHolding, Trade
 from app.services import market, portfolio, memecoins
 
 _CONFIG_FILE_PATH = Path(__file__).resolve().parent.parent.parent / "sniper_config.json"
+_LOGS_FILE_PATH = Path(__file__).resolve().parent.parent.parent / "bot_runtime_logs.json"
 _TICK_LOCK = threading.Lock()
 _LAST_TICK_TS: float = 0.0
+_LAST_TICK_ISO: str | None = None
 _LAST_TICK_RESULT: dict | None = None
+
+_DAEMON_LOCK = threading.Lock()
+_DAEMON_THREAD: threading.Thread | None = None
+_LAST_DAEMON_HEARTBEAT_TS: float = 0.0
+_LAST_DAEMON_HEARTBEAT_ISO: str | None = None
 
 _BOT_ACTIVITY_LOGS: list[dict] = []
 _CURRENT_STAGE: dict = {
@@ -24,7 +31,39 @@ _CURRENT_STAGE: dict = {
 }
 
 
+def _load_persisted_runtime_logs() -> None:
+    """Restore persisted activity logs & current stage from disk if in-memory logs are empty (e.g. after reload or browser reconnect)."""
+    if _BOT_ACTIVITY_LOGS:
+        return
+    try:
+        if _LOGS_FILE_PATH.exists():
+            data = json.loads(_LOGS_FILE_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                saved_logs = data.get("logs")
+                if isinstance(saved_logs, list) and saved_logs:
+                    _BOT_ACTIVITY_LOGS.extend(saved_logs[:60])
+                saved_stage = data.get("current_stage")
+                if isinstance(saved_stage, dict) and saved_stage.get("stage"):
+                    _CURRENT_STAGE.update(saved_stage)
+    except Exception:
+        pass
+
+
+def _save_persisted_runtime_logs() -> None:
+    """Persist the latest 60 activity logs and current stage to disk so closing the browser or logging out never loses activity history."""
+    try:
+        payload = {
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "current_stage": _CURRENT_STAGE,
+            "logs": _BOT_ACTIVITY_LOGS[:60],
+        }
+        _LOGS_FILE_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _append_log(badge: str, chain: str, token: str, message: str, detail_idr: str = "", level: str = "info") -> dict:
+    _load_persisted_runtime_logs()
     now_str = datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3]
     entry = {
         "id": f"{int(datetime.now(timezone.utc).timestamp() * 1000)}-{len(_BOT_ACTIVITY_LOGS)}",
@@ -61,6 +100,7 @@ def clear_bot_logs() -> None:
         "detail": f"Modal Paper telah di-reset ke Rp {cap_idr:,.0f}. Siap memindai market.",
     })
     _append_log("SYSTEM", "SOL", "RESET", f"Semua portofolio & posisi Paper dihapus. Modal kembali ke Rp {cap_idr:,.0f}.", f"Rp {cap_idr:,.0f}", "info")
+    _save_persisted_runtime_logs()
 
 
 def _trig_tag() -> str:
@@ -444,7 +484,61 @@ def update_sniper_config(updates: dict, db: Session | None = None, allow_while_r
     return get_sniper_config(db)
 
 
-def get_bot_status(db: Session) -> BotState:
+def _autonomous_bot_daemon_loop() -> None:
+    """Dedicated 24/7 self-healing background daemon thread.
+    Ensures the bot continues scanning DexScreener/GMGN, monitoring open positions for TP/SL,
+    and executing auto-snipes even when all browser tabs are closed or the operator logs out.
+    Only pauses when BotState(id=2).status != 'running' (when Stop Bot is clicked).
+    """
+    global _LAST_DAEMON_HEARTBEAT_TS, _LAST_DAEMON_HEARTBEAT_ISO
+    from app.db.session import SessionLocal
+
+    while True:
+        sleep_sec = 2.5
+        _LAST_DAEMON_HEARTBEAT_TS = time.time()
+        _LAST_DAEMON_HEARTBEAT_ISO = datetime.now(timezone.utc).isoformat()
+        try:
+            with SessionLocal() as db:
+                state = get_bot_status(db, _from_daemon=True)
+                sleep_sec = max(1.5, float(_SNIPER_CONFIG.get("tick_interval_ms", 3000)) / 1000.0)
+                if state.status == "running":
+                    run_bot_scan_tick(db, auto_trade=True, force_trade=False)
+        except Exception:
+            sleep_sec = 3.0
+        time.sleep(sleep_sec)
+
+
+def ensure_autonomous_bot_daemon() -> bool:
+    """Ensure the 24/7 autonomous background daemon thread is alive on the server."""
+    global _DAEMON_THREAD
+    with _DAEMON_LOCK:
+        if _DAEMON_THREAD is None or not _DAEMON_THREAD.is_alive():
+            _DAEMON_THREAD = threading.Thread(
+                target=_autonomous_bot_daemon_loop,
+                name="sofia-24x7-sniper-daemon",
+                daemon=True,
+            )
+            _DAEMON_THREAD.start()
+        return _DAEMON_THREAD.is_alive()
+
+
+def get_daemon_telemetry() -> dict:
+    """Return live telemetry proving the 24/7 server daemon is active independent of browser/login state."""
+    alive = bool(_DAEMON_THREAD and _DAEMON_THREAD.is_alive())
+    return {
+        "autonomous_daemon_active": alive,
+        "thread_name": _DAEMON_THREAD.name if _DAEMON_THREAD else "sofia-24x7-sniper-daemon",
+        "last_heartbeat_at": _LAST_DAEMON_HEARTBEAT_ISO,
+        "last_tick_at": _LAST_TICK_ISO,
+        "persists_on_browser_close": True,
+        "persists_on_logout": True,
+        "stops_only_on_stop_button": True,
+    }
+
+
+def get_bot_status(db: Session, _from_daemon: bool = False) -> BotState:
+    if not _from_daemon:
+        ensure_autonomous_bot_daemon()
     # Stop legacy row id=1 so any old remote/zombie server instance connected to the same NeonDB stays idle
     try:
         legacy_state = db.execute(select(BotState).where(BotState.id == 1)).scalar_one_or_none()
@@ -479,6 +573,8 @@ def start_bot(
         norm_mode = "PAPER"
 
     _load_persisted_sniper_config()
+    _load_persisted_runtime_logs()
+    ensure_autonomous_bot_daemon()
     if strategy_mode and strategy_mode.strip().upper() in STRATEGY_PRESETS:
         req_strat_norm = strategy_mode.strip().upper()
         cur_strat_norm = str(_SNIPER_CONFIG.get("strategy_mode", "DEFAULT")).strip().upper()
@@ -530,7 +626,7 @@ def start_bot(
             "SYSTEM",
             "SOL",
             "ENGINE",
-            f"🟢 Sniper Bot diaktifkan dalam Mode LIVE On-Chain • Strategi: {strat_label} (Hot Wallet: {w_name})",
+            f"🟢 Sniper Bot diaktifkan dalam Mode LIVE On-Chain • Strategi: {strat_label} (Hot Wallet: {w_name}) • 24/7 Server Daemon Aktif",
             f"Saldo Live: Rp {live_idr:,.0f}",
             "success",
         )
@@ -545,16 +641,18 @@ def start_bot(
             "SYSTEM",
             "SOL",
             "ENGINE",
-            f"Sniper Bot diaktifkan dalam mode {norm_mode} • Strategi: {strat_label}",
+            f"Sniper Bot diaktifkan dalam mode {norm_mode} • Strategi: {strat_label} • 24/7 Server Daemon Aktif (Tetap berjalan walau browser ditutup/logout)",
             f"Kurs $1 = Rp {usd_idr:,.0f}",
             "success",
         )
+    _save_persisted_runtime_logs()
     # Run initial scan tick (Step 1) so logs populate immediately
     run_bot_scan_tick(db, auto_trade=True, force_trade=False)
     return state
 
 
 def stop_bot(db: Session) -> BotState:
+    _load_persisted_runtime_logs()
     state = get_bot_status(db)
     state.status = "stopped"
     state.stopped_at = datetime.now(timezone.utc)
@@ -567,17 +665,20 @@ def stop_bot(db: Session) -> BotState:
         "target_token": None,
         "detail": "Mesin Sniper dihentikan oleh operator.",
     })
-    _append_log("SYSTEM", "SOL", "ENGINE", "Mesin Sniper dihentikan. Pemindaian otomatis dijeda.", "", "warn")
+    _append_log("SYSTEM", "SOL", "ENGINE", "Mesin Sniper dihentikan oleh operator (Tombol Hentikan Bot ditekan). Pemindaian otomatis dijeda.", "", "warn")
+    _save_persisted_runtime_logs()
     return state
 
 
 def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = False) -> dict:
     """Execute one real-time scan/audit/signal/auto-snipe cycle using live DexScreener market data in PAPER or LIVE mode."""
-    global _LAST_TICK_TS, _LAST_TICK_RESULT
+    global _LAST_TICK_TS, _LAST_TICK_ISO, _LAST_TICK_RESULT
     from app.services import treasury, live_engine
 
     _load_persisted_sniper_config()
-    state = get_bot_status(db)
+    _load_persisted_runtime_logs()
+    ensure_autonomous_bot_daemon()
+    state = get_bot_status(db, _from_daemon=True)
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
     trade_executed = False
@@ -595,6 +696,7 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             "logs": _BOT_ACTIVITY_LOGS[:25],
             "usd_idr": usd_idr,
             "trade_executed": False,
+            "daemon_telemetry": get_daemon_telemetry(),
         }
 
     now_ts = time.monotonic()
@@ -608,10 +710,13 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             "current_stage": _CURRENT_STAGE,
             "logs": _BOT_ACTIVITY_LOGS[:25],
             "usd_idr": usd_idr,
+            "daemon_telemetry": get_daemon_telemetry(),
         }
 
     if not _TICK_LOCK.acquire(blocking=force_trade):
+        base_res = _LAST_TICK_RESULT or {}
         return {
+            **base_res,
             "status": state.status,
             "mode": state.mode,
             "strategy_mode": strat_mode,
@@ -621,12 +726,14 @@ def run_bot_scan_tick(db: Session, auto_trade: bool = True, force_trade: bool = 
             "logs": _BOT_ACTIVITY_LOGS[:25],
             "usd_idr": usd_idr,
             "trade_executed": False,
+            "daemon_telemetry": get_daemon_telemetry(),
         }
 
     try:
         return _run_bot_scan_tick_locked(db, state, usd_idr, active_mode, strat_mode, auto_trade, force_trade)
     finally:
         _LAST_TICK_TS = time.monotonic()
+        _LAST_TICK_ISO = datetime.now(timezone.utc).isoformat()
         _TICK_LOCK.release()
 
 
@@ -967,6 +1074,18 @@ def _run_bot_scan_tick_locked(
                         if active_mode == "PAPER":
                             refund_usd = float(h.quantity or 0.0) * float(h.avg_entry_price or 0.0)
                             paper_wallet.balance = round(float(paper_wallet.balance) + refund_usd, 6)
+                            orphaned_buys = list(
+                                db.execute(
+                                    select(Trade).where(
+                                        Trade.mode == "PAPER",
+                                        Trade.symbol == h.symbol,
+                                        Trade.side == "buy",
+                                        Trade.status == "open",
+                                    )
+                                ).scalars().all()
+                            )
+                            for ob in orphaned_buys:
+                                db.delete(ob)
                             db.delete(h)
                             db.commit()
                         else:
@@ -1183,7 +1302,7 @@ def _run_bot_scan_tick_locked(
                         "priority_fee_sol": float(_SNIPER_CONFIG.get("priority_fee_sol", 0.005)),
                         "anti_mev": bool(_SNIPER_CONFIG.get("anti_mev", True)),
                         "force_unsafe": strat_mode == "AGGRESSIVE",
-                        "block_legacy_tokens": strat_mode == "AGGRESSIVE",
+                        "block_legacy_tokens": True,
                         "mode": active_mode,
                         "from_bot": True,
                         "max_open_positions": max_positions,
@@ -1290,6 +1409,7 @@ def _run_bot_scan_tick_locked(
                         "warn",
                     )
 
+    _save_persisted_runtime_logs()
     res_payload = {
         "status": state.status,
         "mode": state.mode,
@@ -1301,6 +1421,7 @@ def _run_bot_scan_tick_locked(
         "usd_idr": usd_idr,
         "trade_executed": trade_executed,
         "trade_action": trade_action,
+        "daemon_telemetry": get_daemon_telemetry(),
     }
     _LAST_TICK_RESULT = res_payload
     return res_payload
@@ -1308,6 +1429,8 @@ def _run_bot_scan_tick_locked(
 
 def get_bot_activity(db: Session, tick: bool = True, force_trade: bool = False) -> dict:
     _load_persisted_sniper_config()
+    _load_persisted_runtime_logs()
+    ensure_autonomous_bot_daemon()
     state = get_bot_status(db)
     if (tick or force_trade) and state.status == "running":
         return run_bot_scan_tick(db, auto_trade=True, force_trade=force_trade)
@@ -1324,5 +1447,6 @@ def get_bot_activity(db: Session, tick: bool = True, force_trade: bool = False) 
         "logs": _BOT_ACTIVITY_LOGS[:25],
         "usd_idr": fx["usd_idr"],
         "trade_executed": False,
+        "daemon_telemetry": get_daemon_telemetry(),
     }
 

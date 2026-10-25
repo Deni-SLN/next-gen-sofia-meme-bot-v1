@@ -122,6 +122,16 @@ export default function DashboardPage() {
     pulseQuery.data?.fx?.usd_idr ||
     17960;
 
+  useEffect(() => {
+    if (botQuery.data?.status === 'running') {
+      const srvMode = botQuery.data?.mode;
+      if ((srvMode === 'LIVE' || srvMode === 'PAPER') && srvMode !== snipeMode) {
+        setSnipeMode(srvMode);
+        setTradingMode(srvMode);
+      }
+    }
+  }, [botQuery.data, snipeMode]);
+
   const handleToggleModeSwitch = () => {
     const next = snipeMode === 'PAPER' ? 'LIVE' : 'PAPER';
     setSnipeMode(next);

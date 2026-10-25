@@ -10,13 +10,30 @@ class TestNextGenTSofiaTrade(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         init_db()
-        from app.services import portfolio as portfolio_svc
+        from app.services import portfolio as portfolio_svc, bot as bot_svc
+        from app.db.session import SessionLocal
+        cls._orig_capital = portfolio_svc.get_paper_initial_capital_idr()
+        with SessionLocal() as db:
+            st = bot_svc.get_bot_status(db)
+            cls._orig_bot_status = st.status
+            cls._orig_bot_mode = st.mode
         portfolio_svc.set_paper_initial_capital_idr(150000.0)
         cls.client = TestClient(app)
         res = cls.client.post("/api/v1/auth/login", json={"password": settings.admin_password})
         assert res.status_code == 200
         cls.token = res.json()["token"]
         cls.headers = {"Authorization": f"Bearer {cls.token}"}
+
+    @classmethod
+    def tearDownClass(cls):
+        from app.services import portfolio as portfolio_svc, bot as bot_svc
+        from app.db.session import SessionLocal
+        portfolio_svc.set_paper_initial_capital_idr(cls._orig_capital)
+        with SessionLocal() as db:
+            st = bot_svc.get_bot_status(db)
+            st.status = cls._orig_bot_status
+            st.mode = cls._orig_bot_mode
+            db.commit()
 
     def test_health(self):
         r = self.client.get("/health")

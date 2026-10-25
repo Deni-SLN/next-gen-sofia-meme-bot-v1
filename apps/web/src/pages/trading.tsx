@@ -656,6 +656,14 @@ export default function TradingPage() {
                 >
                   STRATEGI: {strategyMode}
                 </span>
+                {isRunning && (
+                  <span
+                    className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/35"
+                    title="Mesin Auto-Sniper berjalan mandiri di server 24/7. Menutup browser atau logout tidak akan menghentikan bot."
+                  >
+                    🛡️ 24/7 Server Daemon Aktif (Tetap Jalan Walau Browser Ditutup / Logout)
+                  </span>
+                )}
               </div>
               <div className="text-xs font-mono text-slate-400 pt-0.5">
                 {selectedMode === 'PAPER' ? (

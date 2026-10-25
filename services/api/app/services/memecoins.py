@@ -181,9 +181,10 @@ def execute_snipe(db: Session, data: dict) -> dict:
                     f"POSISI_SUDAH_ADA: Token {symbol} sudah aktif di portofolio ({snipe_mode}). Bot tidak menumpuk (double-buy) koin yang sama."
                 )
 
-    if data.get("block_legacy_tokens") and market.is_legacy_token(symbol):
+    enforce_legacy_block = bool(data.get("block_legacy_tokens") or data.get("from_bot"))
+    if enforce_legacy_block and market.is_legacy_token(symbol):
         raise ValueError(
-            f"LEGACY_TOKEN_BLOCKED: Mode AGRESIF hanya membeli koin meme BARU (New Creations dari DexScreener/GMGN.ai). Koin lama '{symbol}' diblokir."
+            f"LEGACY_TOKEN_BLOCKED: Auto-Sniper Bot hanya membeli koin meme BARU (DexScreener/GMGN.ai). Koin lama '{symbol}' diblokir."
         )
 
     check = analyze_rug_check(lookup_query or symbol)
@@ -194,6 +195,18 @@ def execute_snipe(db: Session, data: dict) -> dict:
 
     # Fetch 100% real live market price from DexScreener + GMGN Trench registry
     live_tok = market.get_live_token_info(lookup_query or symbol)
+    if live_tok and symbol and len(symbol) < 30:
+        req_base = symbol.upper().split("/")[0].strip()
+        tok_base = str(live_tok.get("symbol") or "").upper().split("/")[0].strip()
+        tok_ca = str(live_tok.get("contract") or "").strip().upper()
+        if req_base and tok_base and req_base != tok_base and (not contract_hint or contract_hint.upper() != tok_ca):
+            # Prevent a generic search collision from overwriting the requested token with an unrelated pair
+            live_tok = market.get_live_token_info(symbol)
+            if live_tok:
+                tok_base2 = str(live_tok.get("symbol") or "").upper().split("/")[0].strip()
+                if tok_base2 != req_base:
+                    live_tok = None
+
     live_price = (
         float(live_tok["price"])
         if (live_tok and live_tok.get("price", 0) > 0)
@@ -205,9 +218,9 @@ def execute_snipe(db: Session, data: dict) -> dict:
         else float(check.get("liquidity_usd") or 25000.0)
     )
     resolved_symbol = live_tok["symbol"] if live_tok else symbol
-    if data.get("block_legacy_tokens") and market.is_legacy_token(resolved_symbol):
+    if enforce_legacy_block and market.is_legacy_token(resolved_symbol):
         raise ValueError(
-            f"LEGACY_TOKEN_BLOCKED: Mode AGRESIF hanya membeli koin meme BARU. Koin lama '{resolved_symbol}' diblokir."
+            f"LEGACY_TOKEN_BLOCKED: Auto-Sniper Bot hanya membeli koin meme BARU. Koin lama '{resolved_symbol}' diblokir."
         )
     resolved_contract = (live_tok.get("contract") if live_tok else None) or contract_hint or check.get("contract") or ""
     token_age = (live_tok.get("age") if live_tok else None) or check.get("age") or "baru"

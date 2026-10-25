@@ -801,27 +801,31 @@ def get_live_token_info(symbol_or_contract: str, max_cache_age: float = 25.0) ->
             return chosen
 
     # 2. Otherwise search DexScreener by symbol/name (allowing bonding curve pairs)
-    try:
-        matches = fetch_dexscreener_search(base_query, limit=20, allow_bonding_curve=True)
-        if matches:
-            # Prioritize Solana chain pools to prevent collisions with same-named tokens on Ethereum/Base
-            sol_matches = [m for m in matches if m.get("chain", "").lower() == "solana"]
-            cand_pool = sol_matches if sol_matches else matches
-            matches_by_liq = sorted(cand_pool, key=lambda x: x.get("liquidity", 0.0), reverse=True)
-            chosen = matches_by_liq[0]
-            for m in matches_by_liq:
-                if (
-                    m["symbol"].upper() == key
-                    or m["base_symbol"].upper() == base_query.upper()
-                    or m["contract"].upper() == key
-                ):
-                    chosen = m
-                    break
-            _register_token_cache(chosen, now)
-            _PRICE_CACHE[key] = (chosen, now)
-            return chosen
-    except Exception:
-        pass
+    is_raw_ca_query = len(raw_query) >= 30 and "/" not in raw_query
+    if not is_raw_ca_query:
+        try:
+            matches = fetch_dexscreener_search(base_query, limit=20, allow_bonding_curve=True)
+            if matches:
+                # Prioritize Solana chain pools to prevent collisions with same-named tokens on Ethereum/Base
+                sol_matches = [m for m in matches if m.get("chain", "").lower() == "solana"]
+                cand_pool = sol_matches if sol_matches else matches
+                matches_by_liq = sorted(cand_pool, key=lambda x: x.get("liquidity", 0.0), reverse=True)
+                chosen = None
+                for m in matches_by_liq:
+                    if (
+                        m["symbol"].upper() == key
+                        or m["base_symbol"].upper() == base_query.upper()
+                        or m["contract"].upper() == key
+                        or (known_ca and m["contract"].upper() == known_ca.upper())
+                    ):
+                        chosen = m
+                        break
+                if chosen is not None:
+                    _register_token_cache(chosen, now)
+                    _PRICE_CACHE[key] = (chosen, now)
+                    return chosen
+        except Exception:
+            pass
 
     cached = _PRICE_CACHE.get(key, (None, 0.0))[0]
     if cached:

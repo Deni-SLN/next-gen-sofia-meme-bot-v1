@@ -173,8 +173,13 @@ export function BotActivityCard({
                 ? 'px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-medium'
                 : 'px-2.5 py-1 rounded-lg bg-obsidian-850 text-slate-400 border border-obsidian-700 text-[11px] font-medium'
             }
+            title={
+              isRunning
+                ? 'Bot berjalan 24/7 di server. Menutup browser atau logout tidak akan menghentikan bot; bot hanya berhenti jika tombol Hentikan Bot ditekan.'
+                : 'Bot sedang berhenti / standby.'
+            }
           >
-            {isRunning ? 'Online' : 'Standby'}
+            {isRunning ? 'Online • 24/7 Daemon' : 'Standby'}
           </span>
         </div>
       </div>

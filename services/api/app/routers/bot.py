@@ -71,6 +71,7 @@ def get_status(db: Session = Depends(get_db)):
     data["sniper_config"] = cfg
     data["strategy_mode"] = cfg.get("strategy_mode", "DEFAULT")
     data["strategy_stats"] = cfg.get("strategy_stats", {})
+    data["daemon_telemetry"] = bot.get_daemon_telemetry()
     return data
 
 
@@ -116,6 +117,7 @@ def start(body: StartBotRequest, db: Session = Depends(get_db)):
         data["sniper_config"] = cfg
         data["strategy_mode"] = cfg.get("strategy_mode", "DEFAULT")
         data["strategy_stats"] = cfg.get("strategy_stats", {})
+        data["daemon_telemetry"] = bot.get_daemon_telemetry()
         return data
     except ValueError as e:
         code = str(e)
@@ -132,6 +134,7 @@ def stop(db: Session = Depends(get_db)):
         state = bot.stop_bot(db)
         data = _row_to_dict(state)
         data["sniper_config"] = bot.get_sniper_config()
+        data["daemon_telemetry"] = bot.get_daemon_telemetry()
         return data
     except ValueError as e:
         code = str(e)

@@ -32,11 +32,11 @@ def _execute_background_bot_tick() -> float:
 
 
 async def _autonomous_bot_engine_worker() -> None:
-    """Autonomous background engine so the bot keeps scanning and trading across menu changes or closed tabs until explicitly stopped."""
+    """Autonomous background engine so the bot keeps scanning and trading across menu changes, closed tabs, or logout until explicitly stopped."""
     while True:
         sleep_sec = 2.5
         try:
-            sleep_sec = await asyncio.to_thread(_execute_background_bot_tick)
+            sleep_sec = await asyncio.wait_for(asyncio.to_thread(_execute_background_bot_tick), timeout=25.0)
         except Exception:
             sleep_sec = 3.0
         await asyncio.sleep(sleep_sec)
@@ -45,6 +45,7 @@ async def _autonomous_bot_engine_worker() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    bot_service.ensure_autonomous_bot_daemon()
     settlement_task = asyncio.create_task(_daily_0500_wib_settlement_worker())
     bot_engine_task = asyncio.create_task(_autonomous_bot_engine_worker())
     try:
