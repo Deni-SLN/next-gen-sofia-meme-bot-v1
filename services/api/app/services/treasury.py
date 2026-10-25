@@ -33,13 +33,16 @@ def next_0500_wib_iso() -> str:
 def get_or_init_treasury(db: Session, usd_idr: float | None = None) -> TreasuryState:
     if usd_idr is None:
         usd_idr = market.get_fx_rate()["usd_idr"]
-    t = db.execute(select(TreasuryState).where(TreasuryState.id == 1)).scalar_one_or_none()
     from app.services import portfolio as portfolio_svc
     init_cap_usd = round(portfolio_svc.get_paper_initial_capital_idr() / usd_idr, 6)
     init_gas_usd = round(INITIAL_GAS_RESERVE_IDR / usd_idr, 6)
+    today_wib = now_wib().strftime("%Y-%m-%d")
+
+    # Active TreasuryState uses id=2 (isolated from legacy remote instances on id=1)
+    t = db.execute(select(TreasuryState).where(TreasuryState.id == 2)).scalar_one_or_none()
     if not t:
         t = TreasuryState(
-            id=1,
+            id=2,
             gas_reserve_usd=init_gas_usd,
             gas_min_idr=DEFAULT_GAS_MIN_IDR,
             gas_target_idr=DEFAULT_GAS_TARGET_IDR,
@@ -50,7 +53,7 @@ def get_or_init_treasury(db: Session, usd_idr: float | None = None) -> TreasuryS
             paper_main_vault_usd=0.0,
             total_gas_spent_usd=0.0,
             total_dex_fees_usd=0.0,
-            last_settlement_date=None,
+            last_settlement_date=today_wib,
             updated_at=datetime.now(timezone.utc),
         )
         db.add(t)
@@ -74,6 +77,7 @@ def reset_treasury_for_paper(db: Session, usd_idr: float, baseline_usd: float | 
     t = get_or_init_treasury(db, usd_idr)
     configured_idr = portfolio_svc.get_paper_initial_capital_idr()
     init_usd = float(baseline_usd) if (baseline_usd is not None and float(baseline_usd) > 0) else round(configured_idr / usd_idr, 6)
+    today_wib = now_wib().strftime("%Y-%m-%d")
     t.gas_reserve_usd = round(INITIAL_GAS_RESERVE_IDR / usd_idr, 6)
     t.gas_min_idr = DEFAULT_GAS_MIN_IDR
     t.gas_target_idr = DEFAULT_GAS_TARGET_IDR
@@ -84,7 +88,7 @@ def reset_treasury_for_paper(db: Session, usd_idr: float, baseline_usd: float | 
     t.paper_main_vault_usd = 0.0
     t.total_gas_spent_usd = 0.0
     t.total_dex_fees_usd = 0.0
-    t.last_settlement_date = None
+    t.last_settlement_date = today_wib
     t.updated_at = datetime.now(timezone.utc)
 
     # Record initial snapshot at Rp 150.000

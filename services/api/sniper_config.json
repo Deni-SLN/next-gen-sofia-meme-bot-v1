@@ -7,7 +7,7 @@
   "priority_fee_sol": 0.0005,
   "jito_bribe_sol": 0.0005,
   "anti_mev": true,
-  "buy_amount_idr": 18090.0,
+  "buy_amount_idr": 18087.0,
   "min_safety_score": 82,
   "min_liquidity_usd": 20000.0,
   "min_bonding_curve_pct": 85.0,
@@ -34,5 +34,6 @@
   "multi_wallet_rotation": true,
   "max_open_positions": 5,
   "tick_interval_ms": 4000,
-  "paper_initial_capital_idr": 180870.0
+  "paper_initial_capital_idr": 180870.0,
+  "paper_initial_capital_usd": 10.0
 }

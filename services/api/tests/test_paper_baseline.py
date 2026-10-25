@@ -26,10 +26,8 @@ class TestPaperBaseline(unittest.TestCase):
             db.commit()
 
     def tearDown(self):
-        portfolio.set_paper_initial_capital_idr(self._orig_capital)
         with SessionLocal() as db:
-            t = treasury.get_or_init_treasury(db, 16300.0)
-            t.baseline_equity_usd = self._orig_baseline_usd
+            portfolio.reset_paper_account(db, initial_capital_usd=self._orig_baseline_usd)
             st = bot.get_bot_status(db)
             st.status = self._orig_bot_status
             st.mode = self._orig_bot_mode

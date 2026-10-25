@@ -1,11 +1,26 @@
 from datetime import datetime, timezone
+import re
 from sqlalchemy import select, delete, or_, and_, func, case
 from sqlalchemy.orm import Session
-from app.db.models import PortfolioHolding, Wallet, Trade, EquitySnapshot, TreasuryState
+from app.db.models import PortfolioHolding, Wallet, Trade, EquitySnapshot, TreasuryState, Settlement
 from app.services import market, treasury
 
 PAPER_INITIAL_CAPITAL_IDR = 150000.0
 PAPER_WALLET_NAME = "Modal Paper Simulasi (Rp 150.000)"
+
+
+def _extract_wallet_usd_label(wallet_name: str | None) -> float | None:
+    if not wallet_name:
+        return None
+    m = re.search(r"\(\$([0-9,]+(?:\.[0-9]+)?)\s*/", wallet_name)
+    if m:
+        try:
+            v = float(m.group(1).replace(",", ""))
+            if v > 0:
+                return v
+        except Exception:
+            pass
+    return None
 
 
 def get_paper_initial_capital_idr() -> float:
@@ -19,13 +34,16 @@ def get_paper_initial_capital_idr() -> float:
     return PAPER_INITIAL_CAPITAL_IDR
 
 
-def set_paper_initial_capital_idr(amount_idr: float) -> float:
+def set_paper_initial_capital_idr(amount_idr: float, amount_usd: float | None = None) -> float:
     val = float(amount_idr)
     if val <= 0:
         raise ValueError("Nominal modal awal harus lebih besar dari 0")
     try:
         from app.services import bot
-        bot.update_sniper_config({"paper_initial_capital_idr": val}, allow_while_running=True)
+        updates: dict = {"paper_initial_capital_idr": val}
+        if amount_usd is not None and float(amount_usd) > 0:
+            updates["paper_initial_capital_usd"] = round(float(amount_usd), 4)
+        bot.update_sniper_config(updates, allow_while_running=True)
     except Exception:
         pass
     return val
@@ -80,14 +98,15 @@ def reset_paper_account(
     if initial_capital_usd is not None and float(initial_capital_usd) > 0:
         initial_usd = round(float(initial_capital_usd), 4)
         initial_idr = round(initial_usd * usd_idr, 0)
-        set_paper_initial_capital_idr(initial_idr)
+        set_paper_initial_capital_idr(initial_idr, amount_usd=initial_usd)
     elif initial_capital_idr is not None and float(initial_capital_idr) > 0:
         initial_idr = round(float(initial_capital_idr), 0)
         initial_usd = round(initial_idr / usd_idr, 4)
-        set_paper_initial_capital_idr(initial_idr)
+        set_paper_initial_capital_idr(initial_idr, amount_usd=initial_usd)
     else:
         initial_idr = get_paper_initial_capital_idr()
         initial_usd = round(initial_idr / usd_idr, 4)
+        set_paper_initial_capital_idr(initial_idr, amount_usd=initial_usd)
 
     # CRITICAL: Isolate modes. Only wipe PAPER holdings, NEVER delete live on-chain positions!
     db.execute(delete(PortfolioHolding).where(PortfolioHolding.mode == "PAPER"))
@@ -420,7 +439,15 @@ def get_overview(
 
     unrealized_pnl = total_net_pnl
     unrealized_pnl_pct = (unrealized_pnl / total_cost * 100.0) if total_cost > 0 else 0.0
-    initial_capital_usd = float(t_state.baseline_equity_usd or round(get_paper_initial_capital_idr() / usd_idr, 4))
+    wallet_label_usd = _extract_wallet_usd_label(getattr(paper_wallet, "name", None))
+    if wallet_label_usd is not None and wallet_label_usd > 0:
+        transferred_count = db.execute(
+            select(func.count(Settlement.id)).where(Settlement.status == "transferred")
+        ).scalar_one_or_none() or 0
+        if transferred_count == 0 and abs(float(t_state.baseline_equity_usd or 0.0) - wallet_label_usd) > 0.01:
+            t_state.baseline_equity_usd = wallet_label_usd
+            db.commit()
+    initial_capital_usd = float(t_state.baseline_equity_usd or wallet_label_usd or round(get_paper_initial_capital_idr() / usd_idr, 4))
     initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
 
     # Strict Paper Cash Accounting Invariant:

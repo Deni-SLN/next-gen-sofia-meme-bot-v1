@@ -269,6 +269,7 @@ _USER_OWNED_KEYS = (
     "slippage_pct",
     "max_slippage_pct",
     "paper_initial_capital_idr",
+    "paper_initial_capital_usd",
     "buy_amount_usd",
 )
 
