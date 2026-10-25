@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import threading
+import time
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.db.models import Wallet
@@ -6,13 +8,42 @@ from app.services import market, portfolio, treasury
 
 
 _SPL_TTL_SECONDS = 60.0
+_BG_SYNC_LOCK = threading.Lock()
+_BG_SYNC_RUNNING = False
+
+
+def _trigger_bg_onchain_wallet_sync(trading_addr: str | None = None) -> None:
+    """Refresh on-chain SOL and SPL balances in a background thread so GET /api/v1/wallets never blocks UI navigation."""
+    global _BG_SYNC_RUNNING
+    with _BG_SYNC_LOCK:
+        if _BG_SYNC_RUNNING:
+            return
+        _BG_SYNC_RUNNING = True
+
+    def _worker() -> None:
+        global _BG_SYNC_RUNNING
+        try:
+            from app.db.session import SessionLocal
+            from app.services import live_engine
+
+            with SessionLocal() as bg_db:
+                live_engine.auto_sync_live_wallets(bg_db, max_age_seconds=_SPL_TTL_SECONDS)
+            if trading_addr:
+                live_engine.query_solana_spl_tokens(trading_addr, max_cache_seconds=_SPL_TTL_SECONDS)
+        except Exception:
+            pass
+        finally:
+            with _BG_SYNC_LOCK:
+                _BG_SYNC_RUNNING = False
+
+    threading.Thread(target=_worker, name="sofia-wallet-bg-sync", daemon=True).start()
 
 
 def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
     from app.services import live_engine
     token_upper = (w.token or "USDT").upper()
     if "SOL" in token_upper and "USD" not in token_upper:
-        sol_info = market.get_live_token_info("SOL/USDT")
+        sol_info = market.get_live_token_info("SOL/USDT", max_cache_age=300.0)
         sol_price = float(sol_info["price"]) if (sol_info and sol_info.get("price", 0) > 10) else 145.0
         native_usd = w.balance * sol_price
     else:
@@ -22,8 +53,14 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
     usdc_bal = 0.0
     usdc_usd = 0.0
     if w.chain == "Solana" and w.address and w.gate == "trading" and "Modal Paper" not in (w.name or ""):
-        cache_ttl = _SPL_TTL_SECONDS
-        spl_tokens = live_engine.query_solana_spl_tokens(w.address, max_cache_seconds=cache_ttl)
+        addr = w.address.strip()
+        cached_entry = live_engine._SPL_CACHE.get(addr)
+        if cached_entry is not None:
+            cache_ts, spl_tokens = cached_entry
+            if (time.time() - cache_ts) > _SPL_TTL_SECONDS:
+                _trigger_bg_onchain_wallet_sync(addr)
+        else:
+            _trigger_bg_onchain_wallet_sync(addr)
         for t in spl_tokens:
             if t.get("symbol") == "USDC" or t.get("mint") == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v":
                 usdc_bal += float(t.get("amount") or 0.0)
@@ -58,7 +95,8 @@ def _wallet_to_dict(w: Wallet, usd_idr: float) -> dict:
 def list_wallets(db: Session) -> dict:
     from app.services import live_engine
 
-    live_engine.auto_sync_live_wallets(db)
+    if (time.time() - getattr(live_engine, "_LAST_ONCHAIN_SYNC", 0.0)) >= _SPL_TTL_SECONDS:
+        _trigger_bg_onchain_wallet_sync()
     portfolio.get_or_create_paper_wallet(db)
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]

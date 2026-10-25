@@ -8,7 +8,14 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => {
+            for (const reg of regs) {
+              reg.unregister();
+            }
+          })
+          .catch(() => {});
       }
       if ('caches' in window) {
         caches.keys().then((names) => {

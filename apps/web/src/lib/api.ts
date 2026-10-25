@@ -71,6 +71,21 @@ export function formatUsd(amountUsd: number | undefined | null): string {
   return `${sign}$${abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const _activeReadControllers = new Set<AbortController>();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('sofia-nav-start', () => {
+    _activeReadControllers.forEach((ctrl) => {
+      try {
+        ctrl.abort();
+      } catch {
+        // ignore abort errors
+      }
+    });
+    _activeReadControllers.clear();
+  });
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -80,17 +95,41 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw {
-      status: res.status,
-      message: err?.error?.message || err?.detail || `HTTP Error ${res.status}`,
-      code: err?.error?.code || 'REQUEST_FAILED',
-      request_id: res.headers.get('x-request-id') || undefined,
-    };
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  const ctrl = new AbortController();
+  if (isGet) {
+    _activeReadControllers.add(ctrl);
   }
-  return res.json();
+  const timeoutId = setTimeout(() => {
+    try {
+      ctrl.abort();
+    } catch {
+      // ignore
+    }
+  }, isGet ? 9000 : 20000);
+
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers,
+      signal: options.signal || ctrl.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw {
+        status: res.status,
+        message: err?.error?.message || err?.detail || `HTTP Error ${res.status}`,
+        code: err?.error?.code || 'REQUEST_FAILED',
+        request_id: res.headers.get('x-request-id') || undefined,
+      };
+    }
+    return res.json();
+  } finally {
+    clearTimeout(timeoutId);
+    if (isGet) {
+      _activeReadControllers.delete(ctrl);
+    }
+  }
 }
 
 export function useApiQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
@@ -100,8 +139,14 @@ export function useApiQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState<any>(null);
   const hasDataRef = useState<{ current: boolean }>({ current: false })[0];
+  const inFlightRef = useState<{ current: boolean }>({ current: false })[0];
 
   const refetch = useCallback(async () => {
+    // Prevent overlapping duplicate requests from exhausting the browser's 6-connection pool
+    if (inFlightRef.current) {
+      return;
+    }
+    inFlightRef.current = true;
     // Only trigger full skeleton/loading state if data hasn't been loaded yet
     if (!hasDataRef.current) {
       setIsLoading(true);
@@ -113,10 +158,16 @@ export function useApiQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
       const result = await fetcher();
       hasDataRef.current = true;
       setData(result);
-    } catch (err) {
-      setIsError(true);
-      setError(err);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return;
+      }
+      if (!hasDataRef.current) {
+        setIsError(true);
+        setError(err);
+      }
     } finally {
+      inFlightRef.current = false;
       setIsLoading(false);
       setIsFetching(false);
     }

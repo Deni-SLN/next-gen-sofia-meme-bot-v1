@@ -363,6 +363,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
+  const handleMenuNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    setMobileMenuOpen(false);
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sofia-nav-start', { detail: href }));
+      if (window.location.pathname === href) {
+        return;
+      }
+      e.preventDefault();
+      router.push(href).catch(() => {
+        window.location.href = href;
+      });
+      setTimeout(() => {
+        if (window.location.pathname !== href) {
+          window.location.href = href;
+        }
+      }, 450);
+    }
+  };
+
   if (checking) {
     return (
       <div className="min-h-screen bg-obsidian-950 text-slate-400 flex items-center justify-center font-sans text-xs tracking-wide">
@@ -416,7 +438,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </button>
 
             {/* Brand Identity */}
-            <Link href="/" className="flex items-center gap-2.5 pr-3 sm:border-r border-obsidian-700/70">
+            <Link
+              href="/"
+              onClick={(e) => handleMenuNavigation(e, '/')}
+              className="flex items-center gap-2.5 pr-3 sm:border-r border-obsidian-700/70"
+            >
               <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-obsidian-900 border border-obsidian-700 text-amber-400">
                 <LucideIcon name="trending-up" className="w-4 h-4" />
               </div>
@@ -559,6 +585,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {/* Settings Link to /settings page */}
             <Link
               href="/settings"
+              onClick={(e) => handleMenuNavigation(e, '/settings')}
               className={`flex items-center justify-center w-8 h-8 rounded-lg border transition ${
                 router.pathname === '/settings'
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
@@ -652,11 +679,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <Link
                           key={item.href}
                           href={item.href}
-                          onClick={() => setMobileMenuOpen(false)}
+                          onClick={(e) => handleMenuNavigation(e, item.href)}
                           className={
                             active
-                              ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-obsidian-800 text-white border border-obsidian-700 font-medium text-xs'
-                              : 'flex items-center justify-between px-2.5 py-2 rounded-lg text-slate-400 hover:bg-obsidian-850 hover:text-slate-200 text-xs'
+                              ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-obsidian-800 text-white border border-obsidian-700 font-medium text-xs cursor-pointer'
+                              : 'flex items-center justify-between px-2.5 py-2 rounded-lg text-slate-400 hover:bg-obsidian-850 hover:text-slate-200 text-xs cursor-pointer'
                           }
                         >
                           <div className="flex items-center gap-2.5">
@@ -715,7 +742,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* BEGIN: Clean AnalisMarket-Style Left Sidebar */}
-        <aside className="hidden md:flex md:w-56 shrink-0 h-full overflow-y-auto bg-obsidian-900/70 border-r border-obsidian-700/70 flex-col justify-between py-4 select-none">
+        <aside className="relative z-30 pointer-events-auto hidden md:flex md:w-56 shrink-0 h-full overflow-y-auto bg-obsidian-900/70 border-r border-obsidian-700/70 flex-col justify-between py-4 select-none">
           <div className="space-y-5 px-3">
             {NAV_GROUPS.map((group) => (
               <div key={group.title}>
@@ -729,10 +756,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={(e) => handleMenuNavigation(e, item.href)}
                         className={
                           active
-                            ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-obsidian-800 text-white border border-obsidian-700 font-medium text-xs transition'
-                            : 'flex items-center justify-between px-2.5 py-2 rounded-lg text-slate-400 hover:bg-obsidian-850/80 hover:text-slate-200 transition text-xs'
+                            ? 'flex items-center justify-between px-2.5 py-2 rounded-lg bg-obsidian-800 text-white border border-obsidian-700 font-medium text-xs transition cursor-pointer'
+                            : 'flex items-center justify-between px-2.5 py-2 rounded-lg text-slate-400 hover:bg-obsidian-850/80 hover:text-slate-200 transition text-xs cursor-pointer'
                         }
                       >
                         <div className="flex items-center gap-2.5 truncate">
@@ -816,14 +844,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* BEGIN: Mobile Fixed Bottom Tab Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 grid grid-cols-5 py-1.5 px-1 text-[10px]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 grid grid-cols-6 py-1.5 px-1 text-[10px]">
         {MOBILE_BOTTOM_NAV.map((tab) => {
           const active = router.pathname === tab.href;
           return (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition ${
+              onClick={(e) => handleMenuNavigation(e, tab.href)}
+              className={`flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition cursor-pointer ${
                 active ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -832,6 +861,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((prev) => !prev)}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition cursor-pointer ${
+            mobileMenuOpen ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <LucideIcon name="layers" className="w-4 h-4" />
+          <span>Lainnya</span>
+        </button>
       </nav>
       {/* END: Mobile Fixed Bottom Tab Bar */}
 

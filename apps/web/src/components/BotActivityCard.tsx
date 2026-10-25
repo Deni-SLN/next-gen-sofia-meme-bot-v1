@@ -97,7 +97,7 @@ export function BotActivityCard({
   };
 
   useEffect(() => {
-    fetchTick(true, false);
+    fetchTick(false, false);
   }, [botStatus]);
 
   useEffect(() => {
@@ -105,8 +105,9 @@ export function BotActivityCard({
     if (!isRunning) return;
     const intervalMs = Number(activity?.sniper_config?.tick_interval_ms || 3000);
     const timer = setInterval(() => {
-      fetchTick(true, false);
-    }, Math.max(1000, intervalMs));
+      // Read live state from the 24/7 server daemon without blocking browser HTTP connections
+      fetchTick(false, false);
+    }, Math.max(2000, intervalMs));
     return () => clearInterval(timer);
   }, [botStatus, activity?.status, activity?.sniper_config?.tick_interval_ms]);
 
