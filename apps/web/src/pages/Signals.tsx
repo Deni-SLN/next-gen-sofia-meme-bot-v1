@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import Head from 'next/head';
-import { api, useApiQuery } from '@/lib/api';
+import Link from 'next/link';
+import { api, useApiQuery, formatIdr, formatUsd, StockInsightItem, CryptoInsightItem } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
 
+type TabType = 'stocks' | 'crypto' | 'telegram' | 'algorithmic';
+
 export default function SignalsPage() {
-  const [activeTab, setActiveTab] = useState<'telegram' | 'algorithmic'>('telegram');
+  const [activeTab, setActiveTab] = useState<TabType>('stocks');
   const [searchTarget, setSearchTarget] = useState<string>('SOL');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [isRefreshingInsights, setIsRefreshingInsights] = useState<boolean>(false);
 
+  const insightsQuery = useApiQuery(() => api.getSignalInsights(), []);
   const internalSignalsQuery = useApiQuery(() => api.getSignals(), []);
   const telegramSignalsQuery = useApiQuery(() => api.getTelegramSignals(), []);
   const telegramBotsQuery = useApiQuery(() => api.getTelegramBots(), []);
@@ -16,6 +21,18 @@ export default function SignalsPage() {
     () => api.getTelegramQueryLinks(searchTarget || 'SOL'),
     [searchTarget]
   );
+
+  const handleManualRefreshInsights = async () => {
+    setIsRefreshingInsights(true);
+    try {
+      await api.getSignalInsights(true);
+      await insightsQuery.refetch();
+    } catch {
+      // ignore
+    } finally {
+      setIsRefreshingInsights(false);
+    }
+  };
 
   const handleCopyCommand = (text: string, key: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -25,6 +42,8 @@ export default function SignalsPage() {
     }
   };
 
+  const stockInsights: StockInsightItem[] = insightsQuery.data?.stocks || [];
+  const cryptoInsights: CryptoInsightItem[] = insightsQuery.data?.crypto || [];
   const tgSignals = telegramSignalsQuery.data?.signals || [];
   const tgBots = telegramBotsQuery.data?.bots || [];
   const quickLinks = botQueryLinks.data?.query_links || [];
@@ -32,7 +51,7 @@ export default function SignalsPage() {
   return (
     <>
       <Head>
-        <title>Alpha Signals &amp; Telegram Bot Radar | Sofia Market 3.9</title>
+        <title>Alpha Signals &amp; Market Insights | Sofia Market 3.9</title>
       </Head>
 
       <div className="space-y-5 pb-10">
@@ -43,47 +62,379 @@ export default function SignalsPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
               <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2.5">
                 <LucideIcon name="radio" className="w-6 h-6 text-cyan-400" />
-                Alpha Signals &amp; Radar Bot Telegram
+                Alpha Signals &amp; Market Insights
               </h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
                 SOFIA 3.9
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
-              Agregasi sinyal kuantitatif internal dan integrasi bot Telegram publik terverifikasi (RickBurp, DexScreener, GMGN Trench, EtherDrops, Saham IDX) untuk audit kontrak instan dan pelacakan smart money.
+              Pusat inteligensi pasar terintegrasi: 5 Saham IDX &amp; 5 Crypto Terkurasi dengan trading plan presisi, radar komunitas bot Telegram publik, dan sinyal algoritma kuantitatif otonom.
             </p>
           </div>
 
           {/* TAB SWITCHER */}
-          <div className="flex items-center bg-obsidian-950 p-1 rounded-xl border border-obsidian-700/80 shrink-0">
+          <div className="flex flex-wrap items-center bg-obsidian-950 p-1.5 rounded-xl border border-obsidian-700/80 gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('stocks')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                activeTab === 'stocks'
+                  ? 'bg-emerald-500 text-obsidian-950 shadow-sm font-extrabold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <LucideIcon name="trending-up" className="w-3.5 h-3.5" />
+              <span>Insight Saham (5)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('crypto')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                activeTab === 'crypto'
+                  ? 'bg-cyan-500 text-obsidian-950 shadow-sm font-extrabold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <LucideIcon name="coins" className="w-3.5 h-3.5" />
+              <span>Insight Crypto (5)</span>
+            </button>
             <button
               type="button"
               onClick={() => setActiveTab('telegram')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                 activeTab === 'telegram'
-                  ? 'bg-cyan-500 text-obsidian-950 shadow-sm'
+                  ? 'bg-purple-500 text-obsidian-950 shadow-sm font-extrabold'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <LucideIcon name="send" className="w-3.5 h-3.5" />
-              <span>Bot Telegram Publik ({tgBots.length})</span>
+              <span>Bot Telegram</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('algorithmic')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                 activeTab === 'algorithmic'
-                  ? 'bg-cyan-500 text-obsidian-950 shadow-sm'
+                  ? 'bg-amber-400 text-obsidian-950 shadow-sm font-extrabold'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <LucideIcon name="cpu" className="w-3.5 h-3.5" />
-              <span>Sinyal Algoritma Internal</span>
+              <LucideIcon name="zap" className="w-3.5 h-3.5" />
+              <span>Sinyal Algoritma</span>
             </button>
           </div>
         </div>
 
-        {activeTab === 'telegram' ? (
+        {/* TAB 1: INSIGHT SAHAM IDX (5 SAHAM TERKURASI) */}
+        {activeTab === 'stocks' && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-obsidian-900 border border-obsidian-750 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                    IDX TOP 5 WATCHLIST
+                  </span>
+                  <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5">
+                    <LucideIcon name="trending-up" className="w-4 h-4 text-emerald-400" />
+                    <span>5 Saham Terkurasi BEI: Fundamental Prima &amp; Peluang Akumulasi</span>
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Daftar saham dengan likuiditas tinggi, neraca kas prima, margin aman, dan setup teknikal terukur (Risk/Reward &gt;= 1:2.0).
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleManualRefreshInsights}
+                  disabled={isRefreshingInsights || insightsQuery.isLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-obsidian-950 hover:bg-obsidian-850 border border-obsidian-700 text-emerald-300 hover:text-white text-xs font-bold transition disabled:opacity-50"
+                >
+                  <LucideIcon
+                    name="refresh-cw"
+                    className={`w-3.5 h-3.5 ${isRefreshingInsights || insightsQuery.isLoading ? 'animate-spin' : ''}`}
+                  />
+                  <span>Perbarui Live Quote</span>
+                </button>
+              </div>
+            </div>
+
+            <QueryState isLoading={insightsQuery.isLoading} isError={insightsQuery.isError} error={insightsQuery.error}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {stockInsights.map((stock) => {
+                  const isUp = stock.change_pct >= 0;
+                  return (
+                    <div
+                      key={stock.ticker}
+                      className="rounded-2xl bg-obsidian-900 border border-obsidian-750 hover:border-emerald-500/40 p-4 sm:p-5 flex flex-col justify-between transition-all duration-200 shadow-lg space-y-4"
+                    >
+                      {/* Top Header */}
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-black text-white tracking-tight">{stock.ticker}</span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-obsidian-950 text-slate-300 border border-obsidian-800">
+                                {stock.currency}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-300 font-medium line-clamp-1">{stock.name}</div>
+                            <div className="text-[11px] text-slate-500">{stock.sector}</div>
+                          </div>
+
+                          <div className="flex flex-col items-end">
+                            <span className="text-sm font-black text-white font-mono">
+                              {formatIdr(stock.current_price)}
+                            </span>
+                            <span
+                              className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                isUp
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                              }`}
+                            >
+                              {isUp ? `+${stock.change_pct}%` : `${stock.change_pct}%`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Badges & Safety Score */}
+                        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-obsidian-800">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-bold truncate max-w-[210px]">
+                            {stock.quality_badge}
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-obsidian-950 text-cyan-300 border border-obsidian-800 font-bold">
+                            Safety: {stock.safety_score}/100
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Verdict Callout */}
+                      <div className="p-2.5 rounded-xl bg-obsidian-950 border border-obsidian-800 space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400 font-medium">Rekomendasi Taktis:</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase tracking-wide">
+                            {stock.action}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 flex items-center justify-between font-mono">
+                          <span>Area Beli (Entry):</span>
+                          <span className="text-white font-bold">{stock.entry_zone}</span>
+                        </div>
+                      </div>
+
+                      {/* Trading Plan Matrix */}
+                      <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-obsidian-950/70 border border-obsidian-800/80 text-center font-mono">
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-slate-500 font-sans">Target 1 (TP1)</div>
+                          <div className="text-xs font-bold text-emerald-400">{formatIdr(stock.tp_1)}</div>
+                          <div className="text-[10px] text-emerald-500 font-semibold">+{stock.tp_1_pct}%</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-slate-500 font-sans">Target 2 (TP2)</div>
+                          <div className="text-xs font-bold text-cyan-300">{formatIdr(stock.tp_2)}</div>
+                          <div className="text-[10px] text-cyan-400 font-semibold">+{stock.tp_2_pct}%</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-slate-500 font-sans">Stop Loss (SL)</div>
+                          <div className="text-xs font-bold text-rose-400">{formatIdr(stock.stop_loss)}</div>
+                          <div className="text-[10px] text-rose-500 font-semibold">-{stock.stop_loss_pct}%</div>
+                        </div>
+                      </div>
+
+                      {/* Risk Reward & Technical Note */}
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                          <span>Rasio Risk / Reward:</span>
+                          <span className="text-amber-400 font-bold">{stock.risk_reward}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 bg-obsidian-950 p-2 rounded-lg border border-obsidian-850 leading-relaxed font-sans">
+                          <span className="text-slate-300 font-semibold">💡 Katalis Fundamental: </span>
+                          {stock.catalyst}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 pt-0.5">
+                          <LucideIcon name="zap" className="w-3 h-3 text-cyan-400" />
+                          <span>{stock.technical_summary}</span>
+                        </div>
+                      </div>
+
+                      {/* CTA Direct Link */}
+                      <div className="pt-2 border-t border-obsidian-800">
+                        <Link
+                          href={stock.detail_url}
+                          className="w-full py-2 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-obsidian-950 border border-emerald-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <span>Buka Analisa Lengkap {stock.ticker}</span>
+                          <LucideIcon name="external-link" className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </QueryState>
+          </div>
+        )}
+
+        {/* TAB 2: INSIGHT CRYPTO GLOBAL (5 CRYPTO TERKURASI) */}
+        {activeTab === 'crypto' && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-obsidian-900 border border-obsidian-750 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                    GLOBAL TOP 5 CRYPTO
+                  </span>
+                  <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5">
+                    <LucideIcon name="coins" className="w-4 h-4 text-cyan-400" />
+                    <span>5 Koin Crypto Terkurasi: Likuiditas Dalam, On-Chain Solid &amp; Setup Momentum</span>
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Aset crypto bluechip dan high-beta dengan aliran modal institusional, pertumbuhan ekosistem nyata, dan kalkulasi risiko presisi.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleManualRefreshInsights}
+                  disabled={isRefreshingInsights || insightsQuery.isLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-obsidian-950 hover:bg-obsidian-850 border border-obsidian-700 text-cyan-300 hover:text-white text-xs font-bold transition disabled:opacity-50"
+                >
+                  <LucideIcon
+                    name="refresh-cw"
+                    className={`w-3.5 h-3.5 ${isRefreshingInsights || insightsQuery.isLoading ? 'animate-spin' : ''}`}
+                  />
+                  <span>Perbarui Live Crypto</span>
+                </button>
+              </div>
+            </div>
+
+            <QueryState isLoading={insightsQuery.isLoading} isError={insightsQuery.isError} error={insightsQuery.error}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {cryptoInsights.map((coin) => {
+                  const isUp = coin.change_24h_pct >= 0;
+                  return (
+                    <div
+                      key={coin.symbol}
+                      className="rounded-2xl bg-obsidian-900 border border-obsidian-750 hover:border-cyan-500/40 p-4 sm:p-5 flex flex-col justify-between transition-all duration-200 shadow-lg space-y-4"
+                    >
+                      {/* Top Header */}
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-black text-white tracking-tight">{coin.symbol}</span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-obsidian-950 text-slate-300 border border-obsidian-800">
+                                USD &amp; IDR
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-300 font-medium">{coin.name}</div>
+                            <div className="text-[11px] text-slate-500">{coin.category}</div>
+                          </div>
+
+                          <div className="flex flex-col items-end">
+                            <span className="text-sm font-black text-white font-mono">
+                              {formatUsd(coin.current_price_usd)}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400">
+                              {formatIdr(coin.current_price_idr)}
+                            </span>
+                            <span
+                              className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded mt-0.5 ${
+                                isUp
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                              }`}
+                            >
+                              {isUp ? `+${coin.change_24h_pct}%` : `${coin.change_24h_pct}%`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Badges & Safety Score */}
+                        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-obsidian-800">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-bold truncate max-w-[210px]">
+                            {coin.tier_badge}
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-obsidian-950 text-emerald-300 border border-obsidian-800 font-bold">
+                            Safety: {coin.safety_score}/100
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Verdict Callout */}
+                      <div className="p-2.5 rounded-xl bg-obsidian-950 border border-obsidian-800 space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400 font-medium">Rekomendasi Taktis:</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 uppercase tracking-wide">
+                            {coin.action}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 flex items-center justify-between font-mono">
+                          <span>Area Beli (Entry):</span>
+                          <span className="text-white font-bold">{coin.entry_zone_usd}</span>
+                        </div>
+                      </div>
+
+                      {/* Trading Plan Matrix */}
+                      <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-obsidian-950/70 border border-obsidian-800/80 text-center font-mono">
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-slate-500 font-sans">Target 1 (TP1)</div>
+                          <div className="text-xs font-bold text-emerald-400">{formatUsd(coin.tp_1_usd)}</div>
+                          <div className="text-[10px] text-emerald-500 font-semibold">+{coin.tp_1_pct}%</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-slate-500 font-sans">Target 2 (TP2)</div>
+                          <div className="text-xs font-bold text-cyan-300">{formatUsd(coin.tp_2_usd)}</div>
+                          <div className="text-[10px] text-cyan-400 font-semibold">+{coin.tp_2_pct}%</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-slate-500 font-sans">Stop Loss (SL)</div>
+                          <div className="text-xs font-bold text-rose-400">{formatUsd(coin.stop_loss_usd)}</div>
+                          <div className="text-[10px] text-rose-500 font-semibold">-{coin.stop_loss_pct}%</div>
+                        </div>
+                      </div>
+
+                      {/* Risk Reward & Catalyst Note */}
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                          <span>Rasio Risk / Reward:</span>
+                          <span className="text-amber-400 font-bold">{coin.risk_reward}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 bg-obsidian-950 p-2 rounded-lg border border-obsidian-850 leading-relaxed font-sans">
+                          <span className="text-slate-300 font-semibold">⛓️ Katalis On-Chain: </span>
+                          {coin.catalyst}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 pt-0.5">
+                          <LucideIcon name="zap" className="w-3 h-3 text-cyan-400" />
+                          <span>{coin.technical_summary}</span>
+                        </div>
+                      </div>
+
+                      {/* CTA Direct Link */}
+                      <div className="pt-2 border-t border-obsidian-800">
+                        <Link
+                          href={coin.detail_url}
+                          className="w-full py-2 px-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500 text-cyan-300 hover:text-obsidian-950 border border-cyan-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <span>Buka Analisa Lengkap {coin.symbol}</span>
+                          <LucideIcon name="external-link" className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </QueryState>
+          </div>
+        )}
+
+        {/* TAB 3: BOT TELEGRAM PUBLIK */}
+        {activeTab === 'telegram' && (
           <div className="space-y-6">
             {/* 1-CLICK BOT QUERY LAUNCHER */}
             <div className="p-4 sm:p-5 rounded-2xl bg-obsidian-900 border border-obsidian-750 shadow-lg space-y-4">
@@ -168,7 +519,7 @@ export default function SignalsPage() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                    <LucideIcon name="activity" className="w-4 h-4 text-emerald-400" />
+                    <LucideIcon name="radio" className="w-4 h-4 text-emerald-400" />
                     <span>Radar Alpha Komunitas Telegram Publik (Live Feed)</span>
                   </h2>
                   <p className="text-xs text-slate-400">
@@ -276,8 +627,10 @@ export default function SignalsPage() {
               </div>
             </div>
           </div>
-        ) : (
-          /* ALGORITHMIC INTERNAL SIGNALS TABLE */
+        )}
+
+        {/* TAB 4: ALGORITHMIC INTERNAL SIGNALS TABLE */}
+        {activeTab === 'algorithmic' && (
           <QueryState isLoading={internalSignalsQuery.isLoading} isError={internalSignalsQuery.isError} error={internalSignalsQuery.error}>
             <div className="rounded-xl bg-obsidian-900 border border-obsidian-750 overflow-hidden shadow-lg">
               <table className="w-full text-left text-xs font-mono">

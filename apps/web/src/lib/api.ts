@@ -58,6 +58,61 @@ export function formatIdr(amountIdr: number | undefined | null): string {
   return `${sign}Rp ${Math.round(abs).toLocaleString('id-ID')}`;
 }
 
+export interface StockInsightItem {
+  ticker: string;
+  name: string;
+  sector: string;
+  quality_badge: string;
+  safety_score: number;
+  catalyst: string;
+  current_price: number;
+  change_pct: number;
+  currency: string;
+  action: string;
+  action_color: 'emerald' | 'cyan' | 'amber' | 'rose' | string;
+  entry_zone: string;
+  tp_1: number;
+  tp_1_pct: number;
+  tp_2: number;
+  tp_2_pct: number;
+  stop_loss: number;
+  stop_loss_pct: number;
+  risk_reward: string;
+  technical_summary: string;
+  detail_url: string;
+}
+
+export interface CryptoInsightItem {
+  symbol: string;
+  name: string;
+  category: string;
+  tier_badge: string;
+  safety_score: number;
+  catalyst: string;
+  current_price_usd: number;
+  current_price_idr: number;
+  change_24h_pct: number;
+  action: string;
+  action_color: 'emerald' | 'cyan' | 'amber' | 'rose' | string;
+  entry_zone_usd: string;
+  tp_1_usd: number;
+  tp_1_pct: number;
+  tp_2_usd: number;
+  tp_2_pct: number;
+  stop_loss_usd: number;
+  stop_loss_pct: number;
+  risk_reward: string;
+  technical_summary: string;
+  detail_url: string;
+}
+
+export interface SignalInsightsResponse {
+  stocks: StockInsightItem[];
+  crypto: CryptoInsightItem[];
+  updated_at: string;
+  cached?: boolean;
+}
+
 export function formatUsd(amountUsd: number | undefined | null): string {
   const val = Number(amountUsd || 0);
   const sign = val < 0 ? '-' : '';
@@ -229,6 +284,12 @@ export const api = {
     }),
   getSignals: (status?: string) =>
     request<any>(`/signals${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  getSignalInsights: (refresh: boolean = false) =>
+    request<SignalInsightsResponse>(`/signals/insights${refresh ? '?refresh=true' : ''}`),
+  getStockInsights: (refresh: boolean = false) =>
+    request<{ stocks: StockInsightItem[]; updated_at: string }>(`/signals/stock-insights${refresh ? '?refresh=true' : ''}`),
+  getCryptoInsights: (refresh: boolean = false) =>
+    request<{ crypto: CryptoInsightItem[]; updated_at: string }>(`/signals/crypto-insights${refresh ? '?refresh=true' : ''}`),
   createSignal: (data: any) =>
     request<any>('/signals', { method: 'POST', body: JSON.stringify(data) }),
   getAgents: () => request<any>('/ai/agents'),
