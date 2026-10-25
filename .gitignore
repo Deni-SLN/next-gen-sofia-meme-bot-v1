@@ -49,3 +49,5 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+services/api/bot_runtime_logs.json
