@@ -389,6 +389,331 @@ def trigger_manual_scan_tick(db: Session) -> dict[str, Any]:
     return _execute_auto_entry_tick(db)
 
 
+def compute_profit_potential(token: dict[str, Any]) -> dict[str, Any]:
+    """Compute calculated profit potential score (0-100), grade, upside, and catalyst drivers."""
+    score = 52.0
+    catalysts = []
+
+    # 1. Buy pressure vs sell pressure
+    buys = float(token.get("buys_5m") or 0)
+    sells = float(token.get("sells_5m") or 0)
+    if (buys + sells) > 0:
+        buy_ratio = buys / (buys + sells)
+        diff = (buy_ratio - 0.5) * 32.0
+        score += diff
+        if buy_ratio >= 0.65:
+            catalysts.append(f"Inflow Dominan ({int(buy_ratio * 100)}% Buys)")
+
+    # 2. Price momentum (5m, 1h, 24h)
+    chg_5m = float(token.get("price_change_5m") or 0)
+    chg_1h = float(token.get("price_change_1h") or 0)
+    chg_24h = float(token.get("price_change_24h") or 0)
+
+    if chg_5m > 0:
+        score += min(14.0, chg_5m * 0.7)
+        catalysts.append(f"Momentum 5m +{chg_5m:.1f}%")
+    if chg_1h > 0:
+        score += min(10.0, chg_1h * 0.25)
+    if chg_24h > 30:
+        catalysts.append(f"Reli 24h +{chg_24h:.0f}%")
+
+    # 3. Volume to liquidity turnover
+    vol = float(token.get("volume_24h") or token.get("volume_5m") or 0)
+    liq = max(500.0, float(token.get("liquidity") or 500.0))
+    vol_liq_ratio = vol / liq
+    if vol_liq_ratio >= 1.5:
+        score += min(12.0, vol_liq_ratio * 1.8)
+        catalysts.append(f"Vol/Liq {vol_liq_ratio:.1f}x Tinggi")
+
+    # 4. Smart Money Degens & GMGN tracking
+    degens = int(token.get("gmgn_smart_degens") or 0)
+    if degens > 0:
+        score += min(16.0, degens * 3.5)
+        catalysts.append(f"{degens} Smart Money Terdeteksi")
+
+    # 5. Bonding curve stage
+    curve_pct = float(token.get("bonding_curve_pct") or 0)
+    if 50.0 <= curve_pct < 95.0:
+        score += 8.0
+        catalysts.append(f"Bonding Curve {curve_pct:.0f}% (Akumulasi Aktif)")
+
+    final_score = int(max(38, min(99, round(score))))
+
+    if final_score >= 85:
+        grade = "A+"
+        label = "Super Cuan"
+        upside = "3x - 10x Potential"
+    elif final_score >= 75:
+        grade = "A"
+        label = "Peluang Tinggi"
+        upside = "2x - 5x Potential"
+    elif final_score >= 65:
+        grade = "B+"
+        label = "Potensial"
+        upside = "50% - 150% Scalp"
+    else:
+        grade = "B"
+        label = "Moderat"
+        upside = "20% - 50% Momentum"
+
+    if not catalysts:
+        catalysts = ["Volume Aktif di DEX", "Likuiditas Terverifikasi"]
+
+    return {
+        "profit_score": final_score,
+        "profit_grade": grade,
+        "profit_label": label,
+        "estimated_upside": upside,
+        "catalysts": catalysts[:3],
+    }
+
+
+def get_scanned_memecoins(
+    min_safety: int = 60,
+    min_profit: int = 50,
+    sort_by: str = "cuan",
+    target_pool: str = "ALL",
+) -> dict[str, Any]:
+    """
+    Fetch and analyze meme coins across Solana pools filtered by Profit Potential and Safety Scores.
+    Each token includes full CA address for 1-click copy and rapid auto-entry execution.
+    """
+    try:
+        pulse = memecoins.get_pulse_feed()
+    except Exception as exc:
+        logger.warning(f"Failed to fetch pulse in get_scanned_memecoins: {exc}")
+        pulse = {}
+
+    all_raw: list[dict[str, Any]] = []
+    pool_filter = (target_pool or "ALL").upper()
+
+    if pool_filter in ("ALL", "NEW_CREATIONS"):
+        for item in pulse.get("new_creations", []):
+            item_copy = dict(item)
+            item_copy["category"] = "NEW_CREATIONS"
+            all_raw.append(item_copy)
+
+    if pool_filter in ("ALL", "FINAL_STRETCH"):
+        for item in pulse.get("final_stretch", []):
+            item_copy = dict(item)
+            item_copy["category"] = "FINAL_STRETCH"
+            all_raw.append(item_copy)
+
+    if pool_filter in ("ALL", "MIGRATED"):
+        for item in pulse.get("migrated", []):
+            item_copy = dict(item)
+            item_copy["category"] = "MIGRATED"
+            all_raw.append(item_copy)
+
+    seen = set()
+    enriched: list[dict[str, Any]] = []
+
+    for t in all_raw:
+        sym = t.get("symbol") or t.get("base_symbol") or ""
+        ca = t.get("contract") or ""
+        key = ca if len(ca) >= 20 else sym
+        if not key or key in seen:
+            continue
+        seen.add(key)
+
+        if market.is_legacy_token(sym):
+            continue
+
+        profit_meta = compute_profit_potential(t)
+        safety_score = int(t.get("safety_score") or 70)
+
+        # Safety badges
+        audit_badges = []
+        if t.get("mint_revoked"):
+            audit_badges.append("Mint Revoked")
+        if t.get("lp_burned") or float(t.get("lp_locked_pct") or 0) > 80:
+            audit_badges.append("LP Burned/Locked")
+        if float(t.get("top10_pct") or 100) <= 25.0:
+            audit_badges.append("Top 10 Sehat")
+        if float(t.get("dev_holding_pct") or 100) <= 5.0:
+            audit_badges.append("Dev Holding Aman")
+
+        composite_score = round(profit_meta["profit_score"] * 0.55 + safety_score * 0.45, 1)
+
+        # Apply minimum filters
+        if safety_score < min_safety or profit_meta["profit_score"] < min_profit:
+            continue
+
+        enriched.append({
+            "symbol": sym,
+            "base_symbol": t.get("base_symbol") or sym.split("/")[0],
+            "name": t.get("name") or sym,
+            "contract": ca,
+            "chain": t.get("chain", "Solana"),
+            "dex": t.get("dex", "Raydium"),
+            "launchpad": t.get("launchpad", "Pump.fun"),
+            "price": float(t.get("price") or 0.0),
+            "price_idr": float(t.get("price_idr") or 0.0),
+            "price_change_5m": float(t.get("price_change_5m") or 0.0),
+            "price_change_1h": float(t.get("price_change_1h") or 0.0),
+            "price_change_24h": float(t.get("price_change_24h") or 0.0),
+            "volume_24h": float(t.get("volume_24h") or 0.0),
+            "volume_5m": float(t.get("volume_5m") or 0.0),
+            "liquidity": float(t.get("liquidity") or 0.0),
+            "liquidity_idr": float(t.get("liquidity_idr") or 0.0),
+            "market_cap": float(t.get("market_cap") or 0.0),
+            "buys_5m": int(t.get("buys_5m") or 0),
+            "sells_5m": int(t.get("sells_5m") or 0),
+            "holders": int(t.get("holders") or 0),
+            "age": t.get("age", "1h"),
+            "bonding_curve_pct": float(t.get("bonding_curve_pct") or 0.0),
+            "gmgn_smart_degens": int(t.get("gmgn_smart_degens") or 0),
+            "category": t.get("category", "NEW_CREATIONS"),
+            "dex_url": t.get("dex_url") or f"https://dexscreener.com/solana/{ca}",
+            # Profit metrics
+            "profit_score": profit_meta["profit_score"],
+            "profit_grade": profit_meta["profit_grade"],
+            "profit_label": profit_meta["profit_label"],
+            "estimated_upside": profit_meta["estimated_upside"],
+            "catalysts": profit_meta["catalysts"],
+            # Safety metrics
+            "safety_score": safety_score,
+            "composite_score": composite_score,
+            "audit_badges": audit_badges,
+            "mint_revoked": bool(t.get("mint_revoked")),
+            "lp_burned": bool(t.get("lp_burned")),
+            "top10_pct": float(t.get("top10_pct") or 0.0),
+            "dev_holding_pct": float(t.get("dev_holding_pct") or 0.0),
+        })
+
+    # Sorting
+    if sort_by == "safety":
+        enriched.sort(key=lambda x: (x["safety_score"], x["profit_score"], x["liquidity"]), reverse=True)
+    elif sort_by == "composite":
+        enriched.sort(key=lambda x: (x["composite_score"], x["liquidity"]), reverse=True)
+    elif sort_by == "volume":
+        enriched.sort(key=lambda x: (x["volume_24h"], x["profit_score"]), reverse=True)
+    else:  # default 'cuan'
+        enriched.sort(key=lambda x: (x["profit_score"], x["safety_score"], x["volume_24h"]), reverse=True)
+
+    high_cuan = sum(1 for x in enriched if x["profit_score"] >= 80)
+    high_safe = sum(1 for x in enriched if x["safety_score"] >= 75)
+
+    return {
+        "tokens": enriched,
+        "total_scanned": len(enriched),
+        "high_potential_count": high_cuan,
+        "high_safety_count": high_safe,
+        "filter_applied": {
+            "min_safety": min_safety,
+            "min_profit": min_profit,
+            "sort_by": sort_by,
+            "target_pool": pool_filter,
+        },
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def execute_single_token_auto_entry(
+    db: Session,
+    contract: str,
+    symbol: Optional[str] = None,
+    name: Optional[str] = None,
+) -> dict[str, Any]:
+    """Execute rapid single-token auto entry directly from the scanner view."""
+    with _LOCK:
+        _load_persisted_state()
+        total_count = _STATE.get("total_entries_count", 0)
+        max_entries = _STATE.get("max_entries", 5)
+
+        if total_count >= max_entries:
+            return {
+                "success": False,
+                "error": f"Batas kuota maksimal entry ({max_entries}/{max_entries}) sudah terpenuhi. Silakan reset kuota.",
+                "quota_reached": True,
+            }
+
+        mode = _STATE.get("mode", "PAPER")
+        entry_idr = float(_STATE.get("entry_amount_idr", 20000.0))
+        slippage = float(_STATE.get("slippage_pct", 1.0))
+        token_symbol = symbol or "TOKEN"
+        token_name = name or token_symbol
+
+    try:
+        snipe_res = memecoins.execute_snipe(
+            db,
+            {
+                "symbol": token_symbol,
+                "contract": contract,
+                "amount_idr": entry_idr,
+                "slippage_pct": slippage,
+                "mode": mode,
+                "anti_mev": True,
+                "priority_fee_sol": 0.001,
+            },
+        )
+    except Exception as exc:
+        err_msg = str(exc)
+        with _LOCK:
+            _append_log("WARN", token_symbol, f"Gagal Auto Entry koin {token_symbol}: {err_msg}", "danger")
+            _save_persisted_state()
+        return {"success": False, "error": err_msg}
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    spent_idr = float(snipe_res.get("amount_idr") or entry_idr)
+    spent_usd = float(snipe_res.get("amount_usd") or (spent_idr / 16500.0))
+
+    entry_record = {
+        "id": f"entry-{int(time.time() * 1000)}",
+        "timestamp": now_iso,
+        "symbol": token_symbol,
+        "name": token_name,
+        "contract": contract,
+        "wallet_address": snipe_res.get("wallet_address") or snipe_res.get("wallet_name") or "Primary Trading Wallet",
+        "entry_price": snipe_res.get("entry_price"),
+        "entry_price_idr": snipe_res.get("entry_price_idr"),
+        "quantity": snipe_res.get("quantity"),
+        "amount_idr": spent_idr,
+        "amount_usd": spent_usd,
+        "slippage_pct": snipe_res.get("slippage_pct") or slippage,
+        "safety_score": snipe_res.get("safety_score") or 75,
+        "mode": mode,
+        "tx_hash": snipe_res.get("tx_hash") or "SIMULATED_FILLED",
+        "launchpad": snipe_res.get("launchpad", "Raydium"),
+    }
+
+    with _LOCK:
+        _STATE["total_entries_count"] += 1
+        _STATE["total_spent_idr"] += spent_idr
+        _STATE["total_spent_usd"] += spent_usd
+        _STATE["last_entry_time"] = now_iso
+        _STATE["entries_history"].insert(0, entry_record)
+
+        new_total = _STATE["total_entries_count"]
+        max_ent = _STATE["max_entries"]
+
+        _append_log(
+            "ENTRY",
+            token_symbol,
+            f"⚡ [Mode Scan] Auto Entry {token_symbol} senilai Rp {spent_idr:,.0f} (${spent_usd:.2f}) @ ${entry_record['entry_price']:.6f}. Posisi: {new_total}/{max_ent}",
+            "success",
+        )
+
+        if new_total >= max_ent:
+            _STATE["status"] = "QUOTA_REACHED"
+            _STATE["current_scanning_candidate"] = None
+            _append_log(
+                "QUOTA",
+                "SYSTEM",
+                f"Batas maksimal entry tercapai ({new_total}/{max_ent}). Auto Entry dijeda.",
+                "success",
+            )
+
+        _save_persisted_state()
+
+    return {
+        "success": True,
+        "entry": entry_record,
+        "counter": f"{_STATE['total_entries_count']}/{_STATE['max_entries']}",
+        "quota_reached": _STATE["status"] == "QUOTA_REACHED",
+    }
+
+
 def ensure_auto_entry_daemon() -> None:
     """Daemon worker is managed asynchronously by main application lifespan worker."""
     pass

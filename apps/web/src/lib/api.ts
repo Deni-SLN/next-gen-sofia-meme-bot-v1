@@ -165,6 +165,60 @@ export interface AutoEntryState {
   updated_at?: string | null;
 }
 
+export interface ScannedMemeToken {
+  symbol: string;
+  base_symbol: string;
+  name: string;
+  contract: string;
+  chain: string;
+  dex: string;
+  launchpad: string;
+  price: number;
+  price_idr: number;
+  price_change_5m: number;
+  price_change_1h: number;
+  price_change_24h: number;
+  volume_24h: number;
+  volume_5m: number;
+  liquidity: number;
+  liquidity_idr: number;
+  market_cap: number;
+  buys_5m: number;
+  sells_5m: number;
+  holders: number;
+  age: string;
+  bonding_curve_pct: number;
+  gmgn_smart_degens: number;
+  category: string;
+  dex_url: string;
+  profit_score: number;
+  profit_grade: string;
+  profit_label: string;
+  estimated_upside: string;
+  catalysts: string[];
+  safety_score: number;
+  composite_score: number;
+  audit_badges: string[];
+  mint_revoked: boolean;
+  lp_burned: boolean;
+  top10_pct: number;
+  dev_holding_pct: number;
+}
+
+export interface ScannedMemeCoinsResponse {
+  tokens: ScannedMemeToken[];
+  total_scanned: number;
+  high_potential_count: number;
+  high_safety_count: number;
+  filter_applied: {
+    min_safety: number;
+    min_profit: number;
+    sort_by: string;
+    target_pool: string;
+  };
+  scanned_at: string;
+}
+
 export function formatUsd(amountUsd: number | undefined | null): string {
   const val = Number(amountUsd || 0);
   const sign = val < 0 ? '-' : '';
@@ -361,6 +415,19 @@ export const api = {
     request<AutoEntryState>('/auto-entry/reset-counter', { method: 'POST' }),
   triggerAutoEntryScan: () =>
     request<any>('/auto-entry/trigger-scan', { method: 'POST' }),
+  getScannedMemeCoins: (params?: { min_safety?: number; min_profit?: number; sort_by?: string; target_pool?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.min_safety !== undefined) q.append('min_safety', String(params.min_safety));
+    if (params?.min_profit !== undefined) q.append('min_profit', String(params.min_profit));
+    if (params?.sort_by) q.append('sort_by', params.sort_by);
+    if (params?.target_pool) q.append('target_pool', params.target_pool);
+    return request<ScannedMemeCoinsResponse>(`/auto-entry/scanned-memecoins?${q.toString()}`);
+  },
+  executeTokenEntry: (data: { contract: string; symbol?: string; name?: string }) =>
+    request<{ success: boolean; entry?: any; error?: string; counter?: string; quota_reached?: boolean }>('/auto-entry/execute-entry-for-token', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   getAgents: () => request<any>('/ai/agents'),
   createAgent: (data: any) =>
     request<any>('/ai/agents', { method: 'POST', body: JSON.stringify(data) }),

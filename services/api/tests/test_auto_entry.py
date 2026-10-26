@@ -77,3 +77,34 @@ class TestAutoEntry(unittest.TestCase):
         self.assertEqual(resp_scan.status_code, 200)
         data = resp_scan.json()
         self.assertIn("status", data)
+
+    def test_scanned_memecoins_endpoint(self):
+        resp = self.client.get(
+            "/api/v1/auto-entry/scanned-memecoins?min_safety=50&min_profit=40&sort_by=cuan",
+            headers=self.headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("tokens", data)
+        self.assertIn("total_scanned", data)
+        if data["tokens"]:
+            sample = data["tokens"][0]
+            self.assertIn("profit_score", sample)
+            self.assertIn("profit_grade", sample)
+            self.assertIn("safety_score", sample)
+            self.assertIn("contract", sample)
+            self.assertIn("symbol", sample)
+
+    def test_execute_token_entry_endpoint(self):
+        resp = self.client.post(
+            "/api/v1/auto-entry/execute-entry-for-token",
+            json={
+                "contract": "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+                "symbol": "POPCAT/SOL",
+                "name": "Popcat Token",
+            },
+            headers=self.headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get("success") or data.get("quota_reached"))

@@ -67,6 +67,43 @@ def reset_auto_entry_counter(user=Depends(get_current_user)):
     return auto_entry.reset_auto_entry_counter()
 
 
+class ExecuteTokenEntryRequest(BaseModel):
+    contract: str = Field(..., description="Alamat Contract Address (CA) token Solana")
+    symbol: Optional[str] = Field(None, description="Simbol token")
+    name: Optional[str] = Field(None, description="Nama token")
+
+
+@router.get("/scanned-memecoins")
+def get_scanned_memecoins(
+    min_safety: int = 60,
+    min_profit: int = 50,
+    sort_by: str = "cuan",
+    target_pool: str = "ALL",
+):
+    """Scan and retrieve curated meme coins filtered by profit potential & safety scores."""
+    return auto_entry.get_scanned_memecoins(
+        min_safety=min_safety,
+        min_profit=min_profit,
+        sort_by=sort_by,
+        target_pool=target_pool,
+    )
+
+
+@router.post("/execute-entry-for-token")
+def execute_token_entry(
+    body: ExecuteTokenEntryRequest,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Execute rapid auto entry for a specific token from the scan mode view."""
+    return auto_entry.execute_single_token_auto_entry(
+        db=db,
+        contract=body.contract,
+        symbol=body.symbol,
+        name=body.name,
+    )
+
+
 @router.post("/trigger-scan")
 def trigger_manual_scan_tick(
     db: Session = Depends(get_db),
