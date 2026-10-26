@@ -113,6 +113,58 @@ export interface SignalInsightsResponse {
   cached?: boolean;
 }
 
+export interface AutoEntryState {
+  status: 'STOPPED' | 'RUNNING' | 'QUOTA_REACHED';
+  mode: 'PAPER' | 'LIVE';
+  entry_amount_idr: number;
+  entry_amount_usd: number;
+  max_entries: number;
+  slippage_pct: number;
+  min_safety_score: number;
+  target_source: string;
+  total_entries_count: number;
+  total_spent_idr: number;
+  total_spent_usd: number;
+  current_scanning_candidate?: {
+    symbol?: string;
+    name?: string;
+    contract?: string;
+    safety_score?: number;
+    liquidity?: number;
+    price?: number;
+    launchpad?: string;
+  } | null;
+  last_scan_time?: string | null;
+  last_entry_time?: string | null;
+  entries_history: Array<{
+    id: string;
+    timestamp: string;
+    symbol: string;
+    name: string;
+    contract: string;
+    wallet_address?: string;
+    entry_price: number;
+    entry_price_idr: number;
+    quantity: number;
+    amount_idr: number;
+    amount_usd: number;
+    slippage_pct: number;
+    safety_score: number;
+    mode: string;
+    tx_hash: string;
+    launchpad?: string;
+  }>;
+  scan_logs: Array<{
+    id: string;
+    time: string;
+    badge: string;
+    token: string;
+    message: string;
+    level: string;
+  }>;
+  updated_at?: string | null;
+}
+
 export function formatUsd(amountUsd: number | undefined | null): string {
   const val = Number(amountUsd || 0);
   const sign = val < 0 ? '-' : '';
@@ -292,6 +344,23 @@ export const api = {
     request<{ crypto: CryptoInsightItem[]; updated_at: string }>(`/signals/crypto-insights${refresh ? '?refresh=true' : ''}`),
   createSignal: (data: any) =>
     request<any>('/signals', { method: 'POST', body: JSON.stringify(data) }),
+  // Auto Entry Bot Endpoints
+  getAutoEntryStatus: () => request<AutoEntryState>('/auto-entry/status'),
+  startAutoEntry: (params?: any) =>
+    request<AutoEntryState>('/auto-entry/start', {
+      method: 'POST',
+      body: JSON.stringify(params || {}),
+    }),
+  stopAutoEntry: () => request<AutoEntryState>('/auto-entry/stop', { method: 'POST' }),
+  updateAutoEntryConfig: (params: any) =>
+    request<AutoEntryState>('/auto-entry/config', {
+      method: 'PUT',
+      body: JSON.stringify(params),
+    }),
+  resetAutoEntryCounter: () =>
+    request<AutoEntryState>('/auto-entry/reset-counter', { method: 'POST' }),
+  triggerAutoEntryScan: () =>
+    request<any>('/auto-entry/trigger-scan', { method: 'POST' }),
   getAgents: () => request<any>('/ai/agents'),
   createAgent: (data: any) =>
     request<any>('/ai/agents', { method: 'POST', body: JSON.stringify(data) }),

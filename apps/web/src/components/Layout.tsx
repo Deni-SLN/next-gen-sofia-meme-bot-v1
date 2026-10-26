@@ -33,6 +33,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: 'Terminal & Eksekusi',
     items: [
       { href: '/', label: 'Command Center', icon: 'layout-dashboard' },
+      { href: '/auto-entry', label: 'Auto Entry Bot', icon: 'crosshair', badge: 'ENTRY', badgeTone: 'cyan' },
       { href: '/pulse', label: 'Trenches & Pulse', icon: 'zap', badge: 'LIVE', badgeTone: 'amber' },
       { href: '/trading', label: 'Auto-Sniper Bot', icon: 'crosshair', badge: '3 MODE', badgeTone: 'emerald' },
       { href: '/rugcheck', label: 'Rug & Bundle Shield', icon: 'shield-alert' },

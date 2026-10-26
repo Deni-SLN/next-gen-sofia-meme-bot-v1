@@ -4,9 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import init_db, SessionLocal
-from app.routers import auth, bot, portfolio, signals, ai, risk, performance, wallets, memecoins, journal, news, stocks, gold, crypto, chat, telegram, mcp as mcp_router
+from app.routers import auth, bot, portfolio, signals, ai, risk, performance, wallets, memecoins, journal, news, stocks, gold, crypto, chat, telegram, mcp as mcp_router, auto_entry
 from app.mcp_server import mcp
-from app.services import treasury, bot as bot_service
+from app.services import treasury, bot as bot_service, auto_entry as auto_entry_service
 
 
 async def _daily_0500_wib_settlement_worker() -> None:
@@ -42,21 +42,42 @@ async def _autonomous_bot_engine_worker() -> None:
         await asyncio.sleep(sleep_sec)
 
 
+def _execute_background_auto_entry_tick() -> None:
+    with SessionLocal() as db:
+        state = auto_entry_service.get_auto_entry_state()
+        if state.get("status") == "RUNNING":
+            auto_entry_service._execute_auto_entry_tick(db)
+
+
+async def _autonomous_auto_entry_worker() -> None:
+    """Autonomous background worker for Auto Entry bot execution."""
+    while True:
+        try:
+            await asyncio.wait_for(asyncio.to_thread(_execute_background_auto_entry_tick), timeout=25.0)
+        except Exception:
+            pass
+        await asyncio.sleep(2.8)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     bot_service.ensure_autonomous_bot_daemon()
     settlement_task = asyncio.create_task(_daily_0500_wib_settlement_worker())
     bot_engine_task = asyncio.create_task(_autonomous_bot_engine_worker())
+    auto_entry_task = asyncio.create_task(_autonomous_auto_entry_worker())
     try:
         yield
     finally:
         settlement_task.cancel()
         bot_engine_task.cancel()
+        auto_entry_task.cancel()
         with suppress(asyncio.CancelledError):
             await settlement_task
         with suppress(asyncio.CancelledError):
             await bot_engine_task
+        with suppress(asyncio.CancelledError):
+            await auto_entry_task
 
 
 app = FastAPI(
@@ -89,6 +110,7 @@ app.include_router(crypto.router, prefix="/api/v1/crypto", tags=["Analisa Crypto
 app.include_router(gold.router, prefix="/api/v1/gold", tags=["Harga & Portofolio Emas"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["AI Chat & Research"])
 app.include_router(telegram.router, prefix="/api/v1/telegram", tags=["Telegram Bot & Radar"])
+app.include_router(auto_entry.router, prefix="/api/v1/auto-entry", tags=["Auto Entry"])
 app.include_router(mcp_router.router, prefix="/api/v1/mcp", tags=["Model Context Protocol (MCP)"])
 
 # Mount FastMCP SSE Endpoint for Hermes Agent, OpenClaw, and Networked MCP Clients

@@ -1,0 +1,394 @@
+import json
+import logging
+import threading
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional
+from sqlalchemy.orm import Session
+
+from app.db.session import SessionLocal
+from app.services import market, memecoins
+
+logger = logging.getLogger("auto_entry")
+
+_STATE_FILE_PATH = Path(__file__).resolve().parent.parent.parent / "auto_entry_state.json"
+_LOCK = threading.RLock()
+_TICK_LOCK = threading.Lock()
+_DAEMON_THREAD: Optional[threading.Thread] = None
+
+_DEFAULT_STATE: dict[str, Any] = {
+    "status": "STOPPED",  # STOPPED | RUNNING | QUOTA_REACHED
+    "mode": "PAPER",      # PAPER | LIVE
+    "entry_amount_idr": 20000.0,
+    "entry_amount_usd": 1.10,
+    "max_entries": 5,
+    "slippage_pct": 1.0,
+    "min_safety_score": 70,
+    "target_source": "ALL_RADAR",  # ALL_RADAR | NEW_CREATIONS | FINAL_STRETCH | MIGRATED
+    "total_entries_count": 0,
+    "total_spent_idr": 0.0,
+    "total_spent_usd": 0.0,
+    "current_scanning_candidate": None,
+    "last_scan_time": None,
+    "last_entry_time": None,
+    "entries_history": [],
+    "scan_logs": [],
+    "updated_at": None,
+}
+
+_STATE: dict[str, Any] = {}
+
+
+def _load_persisted_state() -> None:
+    global _STATE
+    if _STATE:
+        return
+    try:
+        if _STATE_FILE_PATH.exists():
+            data = json.loads(_STATE_FILE_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                merged = _DEFAULT_STATE.copy()
+                merged.update(data)
+                _STATE = merged
+                return
+    except Exception as exc:
+        logger.warning(f"Failed to load auto_entry_state.json: {exc}")
+    _STATE = _DEFAULT_STATE.copy()
+
+
+def _save_persisted_state() -> None:
+    try:
+        _STATE["updated_at"] = datetime.now(timezone.utc).isoformat()
+        _STATE_FILE_PATH.write_text(json.dumps(_STATE, indent=2), encoding="utf-8")
+    except Exception as exc:
+        logger.warning(f"Failed to save auto_entry_state.json: {exc}")
+
+
+def _append_log(badge: str, token: str, message: str, level: str = "info") -> None:
+    now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+    entry = {
+        "id": f"{int(time.time() * 1000)}-{len(_STATE.get('scan_logs', []))}",
+        "time": now_str,
+        "badge": badge,  # SCAN | AUDIT | ENTRY | QUOTA | SYSTEM
+        "token": token,
+        "message": message,
+        "level": level,  # info | success | warn | danger
+    }
+    logs = _STATE.setdefault("scan_logs", [])
+    logs.insert(0, entry)
+    if len(logs) > 80:
+        logs.pop()
+
+
+def get_auto_entry_state() -> dict[str, Any]:
+    with _LOCK:
+        _load_persisted_state()
+        return json.loads(json.dumps(_STATE))
+
+
+def update_auto_entry_config(params: dict[str, Any]) -> dict[str, Any]:
+    with _LOCK:
+        _load_persisted_state()
+        if "entry_amount_idr" in params and params["entry_amount_idr"] is not None:
+            val = max(1000.0, float(params["entry_amount_idr"]))
+            _STATE["entry_amount_idr"] = val
+            fx_val = float(market.get_fx_rate().get("usd_idr") or 16500.0)
+            _STATE["entry_amount_usd"] = round(val / fx_val, 4) if fx_val > 0 else 1.0
+
+        if "entry_amount_usd" in params and params["entry_amount_usd"] is not None:
+            val_usd = max(0.1, float(params["entry_amount_usd"]))
+            _STATE["entry_amount_usd"] = val_usd
+            fx_val = float(market.get_fx_rate().get("usd_idr") or 16500.0)
+            _STATE["entry_amount_idr"] = round(val_usd * fx_val, 0)
+
+        if "max_entries" in params and params["max_entries"] is not None:
+            _STATE["max_entries"] = max(1, min(50, int(params["max_entries"])))
+
+        if "slippage_pct" in params and params["slippage_pct"] is not None:
+            _STATE["slippage_pct"] = max(0.1, min(25.0, float(params["slippage_pct"])))
+
+        if "min_safety_score" in params and params["min_safety_score"] is not None:
+            _STATE["min_safety_score"] = max(0, min(100, int(params["min_safety_score"])))
+
+        if "mode" in params and params["mode"]:
+            m = str(params["mode"]).upper()
+            if m in ("PAPER", "LIVE"):
+                _STATE["mode"] = m
+
+        if "target_source" in params and params["target_source"]:
+            _STATE["target_source"] = str(params["target_source"]).upper()
+
+        _save_persisted_state()
+        return json.loads(json.dumps(_STATE))
+
+
+def start_auto_entry(params: Optional[dict[str, Any]] = None, db: Optional[Session] = None) -> dict[str, Any]:
+    with _LOCK:
+        _load_persisted_state()
+        if params:
+            update_auto_entry_config(params)
+
+        # Check if already reached max entries
+        if _STATE["total_entries_count"] >= _STATE["max_entries"]:
+            _STATE["status"] = "QUOTA_REACHED"
+            _append_log(
+                "QUOTA",
+                "SYSTEM",
+                f"Batas maksimal entry sudah terpenuhi ({_STATE['total_entries_count']}/{_STATE['max_entries']}). Reset kuota untuk memulai kembali.",
+                "warn",
+            )
+        else:
+            _STATE["status"] = "RUNNING"
+            _append_log(
+                "SYSTEM",
+                "AUTO_ENTRY",
+                f"Bot Auto Entry AKTIF. Target: {_STATE['max_entries']} entry @ Rp {_STATE['entry_amount_idr']:,.0f} (Slippage: {_STATE['slippage_pct']}%, Min Score: {_STATE['min_safety_score']}).",
+                "success",
+            )
+
+        _save_persisted_state()
+
+    ensure_auto_entry_daemon()
+    return get_auto_entry_state()
+
+
+def stop_auto_entry() -> dict[str, Any]:
+    with _LOCK:
+        _load_persisted_state()
+        _STATE["status"] = "STOPPED"
+        _STATE["current_scanning_candidate"] = None
+        _append_log("SYSTEM", "AUTO_ENTRY", "Bot Auto Entry DIHENTIKAN oleh pengguna.", "warn")
+        _save_persisted_state()
+        return json.loads(json.dumps(_STATE))
+
+
+def reset_auto_entry_counter() -> dict[str, Any]:
+    with _LOCK:
+        _load_persisted_state()
+        _STATE["total_entries_count"] = 0
+        _STATE["total_spent_idr"] = 0.0
+        _STATE["total_spent_usd"] = 0.0
+        _STATE["entries_history"] = []
+        _STATE["current_scanning_candidate"] = None
+        if _STATE["status"] == "QUOTA_REACHED":
+            _STATE["status"] = "RUNNING"
+        _append_log("SYSTEM", "COUNTER", "Counter entry dan riwayat sesi telah di-reset ke 0.", "info")
+        _save_persisted_state()
+        return json.loads(json.dumps(_STATE))
+
+
+def _execute_auto_entry_tick(db: Session) -> dict[str, Any]:
+    """Single tick scanning and entry acquisition cycle with concurrency lock."""
+    if not _TICK_LOCK.acquire(blocking=False):
+        return {"status": "BUSY", "action": "tick_in_progress"}
+    try:
+        return _execute_auto_entry_tick_inner(db)
+    finally:
+        _TICK_LOCK.release()
+
+
+def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
+    with _LOCK:
+        _load_persisted_state()
+        status = _STATE.get("status", "STOPPED")
+        if status != "RUNNING":
+            return {"status": status, "action": "idle"}
+
+        total_count = _STATE.get("total_entries_count", 0)
+        max_entries = _STATE.get("max_entries", 5)
+
+        if total_count >= max_entries:
+            _STATE["status"] = "QUOTA_REACHED"
+            _STATE["current_scanning_candidate"] = None
+            _append_log(
+                "QUOTA",
+                "SYSTEM",
+                f"Batas maksimal entry ({max_entries}/{max_entries}) telah tercapai! Auto Entry selesai.",
+                "success",
+            )
+            _save_persisted_state()
+            return {"status": "QUOTA_REACHED", "action": "quota_reached"}
+
+        mode = _STATE.get("mode", "PAPER")
+        entry_idr = float(_STATE.get("entry_amount_idr", 20000.0))
+        slippage = float(_STATE.get("slippage_pct", 1.0))
+        min_score = int(_STATE.get("min_safety_score", 70))
+        target_src = _STATE.get("target_source", "ALL_RADAR")
+
+    # Fetch fresh candidate pool from pulse radar
+    try:
+        pulse_data = memecoins.get_pulse_feed()
+    except Exception as exc:
+        logger.warning(f"Auto entry failed to fetch pulse: {exc}")
+        return {"status": "RUNNING", "action": "pulse_error"}
+
+    new_cr = pulse_data.get("new_creations", [])
+    final_st = pulse_data.get("final_stretch", [])
+    migrated = pulse_data.get("migrated", [])
+
+    if target_src == "NEW_CREATIONS":
+        candidates = new_cr
+    elif target_src == "FINAL_STRETCH":
+        candidates = final_st
+    elif target_src == "MIGRATED":
+        candidates = migrated
+    else:
+        candidates = new_cr + final_st + migrated
+
+    with _LOCK:
+        entered_contracts = {
+            e.get("contract") for e in _STATE.get("entries_history", []) if e.get("contract")
+        }
+        entered_symbols = {
+            e.get("symbol") for e in _STATE.get("entries_history", []) if e.get("symbol")
+        }
+
+    # Filter candidate:
+    # 1. Not already entered in this session
+    # 2. Safety score >= min_score
+    # 3. Not a legacy token
+    eligible = []
+    for c in candidates:
+        sym = c.get("symbol") or c.get("base_symbol") or ""
+        ca = c.get("contract") or ""
+        score = int(c.get("safety_score", 0))
+        if sym in entered_symbols or ca in entered_contracts:
+            continue
+        if score < min_score:
+            continue
+        if market.is_legacy_token(sym):
+            continue
+        eligible.append(c)
+
+    if not eligible:
+        with _LOCK:
+            _STATE["last_scan_time"] = datetime.now(timezone.utc).isoformat()
+            if candidates:
+                cand = candidates[0]
+                _STATE["current_scanning_candidate"] = {
+                    "symbol": cand.get("symbol"),
+                    "name": cand.get("name"),
+                    "contract": cand.get("contract"),
+                    "safety_score": cand.get("safety_score"),
+                    "liquidity": cand.get("liquidity"),
+                    "price": cand.get("price"),
+                    "launchpad": cand.get("launchpad"),
+                }
+            _save_persisted_state()
+        return {"status": "RUNNING", "action": "no_eligible_candidate"}
+
+    # Pick candidate with highest safety score & liquidity
+    eligible.sort(key=lambda x: (int(x.get("safety_score", 0)), float(x.get("liquidity", 0))), reverse=True)
+    pick = eligible[0]
+
+    pick_sym = pick.get("symbol") or pick.get("base_symbol") or "TOKEN"
+    pick_ca = pick.get("contract") or ""
+    pick_score = int(pick.get("safety_score", 0))
+
+    with _LOCK:
+        _STATE["current_scanning_candidate"] = {
+            "symbol": pick_sym,
+            "name": pick.get("name", pick_sym),
+            "contract": pick_ca,
+            "safety_score": pick_score,
+            "liquidity": pick.get("liquidity"),
+            "price": pick.get("price"),
+            "launchpad": pick.get("launchpad"),
+        }
+        _append_log(
+            "AUDIT",
+            pick_sym,
+            f"Kandidat terpilih lolos filter: {pick_sym} (Score {pick_score}/100 • Liq ${pick.get('liquidity', 0):,.0f})",
+            "info",
+        )
+
+    # Execute Entry Snipe
+    try:
+        snipe_res = memecoins.execute_snipe(
+            db,
+            {
+                "symbol": pick_sym,
+                "contract": pick_ca,
+                "amount_idr": entry_idr,
+                "slippage_pct": slippage,
+                "mode": mode,
+                "anti_mev": True,
+                "priority_fee_sol": 0.001,
+            },
+        )
+    except Exception as exc:
+        err_msg = str(exc)
+        with _LOCK:
+            _append_log("WARN", pick_sym, f"Gagal mengeksekusi entry pada {pick_sym}: {err_msg}", "danger")
+            _save_persisted_state()
+        return {"status": "RUNNING", "action": "snipe_failed", "error": err_msg}
+
+    # Record filled entry
+    now_iso = datetime.now(timezone.utc).isoformat()
+    spent_idr = float(snipe_res.get("amount_idr") or entry_idr)
+    spent_usd = float(snipe_res.get("amount_usd") or (spent_idr / 16500.0))
+
+    entry_record = {
+        "id": f"entry-{int(time.time() * 1000)}",
+        "timestamp": now_iso,
+        "symbol": pick_sym,
+        "name": pick.get("name", pick_sym),
+        "contract": pick_ca,
+        "wallet_address": snipe_res.get("wallet_address") or snipe_res.get("wallet_name") or "Primary Trading Wallet",
+        "entry_price": snipe_res.get("entry_price"),
+        "entry_price_idr": snipe_res.get("entry_price_idr"),
+        "quantity": snipe_res.get("quantity"),
+        "amount_idr": spent_idr,
+        "amount_usd": spent_usd,
+        "slippage_pct": snipe_res.get("slippage_pct") or slippage,
+        "safety_score": pick_score,
+        "mode": mode,
+        "tx_hash": snipe_res.get("tx_hash") or "SIMULATED_FILLED",
+        "launchpad": pick.get("launchpad", "Raydium"),
+    }
+
+    with _LOCK:
+        _STATE["total_entries_count"] += 1
+        _STATE["total_spent_idr"] += spent_idr
+        _STATE["total_spent_usd"] += spent_usd
+        _STATE["last_entry_time"] = now_iso
+        _STATE["entries_history"].insert(0, entry_record)
+
+        new_total = _STATE["total_entries_count"]
+        max_ent = _STATE["max_entries"]
+
+        _append_log(
+            "ENTRY",
+            pick_sym,
+            f"⚡ Berhasil Auto Entry {pick_sym} senilai Rp {spent_idr:,.0f} (${spent_usd:.2f}) @ ${entry_record['entry_price']:.6f}. Posisi: {new_total}/{max_ent}",
+            "success",
+        )
+
+        if new_total >= max_ent:
+            _STATE["status"] = "QUOTA_REACHED"
+            _STATE["current_scanning_candidate"] = None
+            _append_log(
+                "QUOTA",
+                "SYSTEM",
+                f"Batas maksimal entry tercapai ({new_total}/{max_ent}). Pemindaian otomatis dihentikan.",
+                "success",
+            )
+
+        _save_persisted_state()
+
+    return {
+        "status": _STATE["status"],
+        "action": "entry_filled",
+        "entry": entry_record,
+        "counter": f"{_STATE['total_entries_count']}/{_STATE['max_entries']}",
+    }
+
+
+def trigger_manual_scan_tick(db: Session) -> dict[str, Any]:
+    return _execute_auto_entry_tick(db)
+
+
+def ensure_auto_entry_daemon() -> None:
+    """Daemon worker is managed asynchronously by main application lifespan worker."""
+    pass

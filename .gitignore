@@ -51,3 +51,4 @@ yarn-error.log*
 Thumbs.db
 
 services/api/bot_runtime_logs.json
+services/api/*_state.json
