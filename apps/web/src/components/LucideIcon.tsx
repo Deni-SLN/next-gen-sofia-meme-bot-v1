@@ -23,6 +23,22 @@ export function LucideIcon({ name, className = 'w-4 h-4' }: { name: string; clas
           <line x1="12" y1="22" x2="12" y2="18" />
         </svg>
       );
+    case 'target':
+      return (
+        <svg {...baseProps}>
+          <circle cx="12" cy="12" r="10" />
+          <circle cx="12" cy="12" r="6" />
+          <circle cx="12" cy="12" r="2" />
+        </svg>
+      );
+    case 'log-in':
+      return (
+        <svg {...baseProps}>
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+          <polyline points="10 17 15 12 10 7" />
+          <line x1="15" x2="3" y1="12" y2="12" />
+        </svg>
+      );
     case 'banknote':
       return (
         <svg {...baseProps}>
