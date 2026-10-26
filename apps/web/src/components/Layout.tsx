@@ -389,7 +389,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   if (checking) {
     return (
       <div className="min-h-screen bg-obsidian-950 text-slate-400 flex items-center justify-center font-sans text-xs tracking-wide">
-        Memuat ruang kerja Sofia Market 3.9...
+        Memuat ruang kerja Sofia Market 4.0...
       </div>
     );
   }
@@ -451,12 +451,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="font-semibold tracking-tight text-sm text-white flex items-center gap-1.5">
                   <span>SOFIA</span>
                   <span className="text-slate-400 font-normal">Market</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-obsidian-850 text-slate-400 border border-obsidian-700 font-mono">
-                    3.9
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono font-bold">
+                    4.0
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 hidden sm:block">
-                  Multi-Asset Quantitative Terminal
+                  Multi-Asset Quantitative Terminal • SFIA 4.0
                 </p>
               </div>
             </Link>
@@ -658,7 +658,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <aside className="relative w-64 max-w-[82vw] bg-obsidian-900 border-r border-obsidian-700 h-full flex flex-col justify-between p-4 overflow-y-auto z-10">
             <div className="space-y-5">
               <div className="flex items-center justify-between border-b border-obsidian-800 pb-3">
-                <span className="font-semibold text-sm text-white">Navigasi Sofia Market 3.9</span>
+                <span className="font-semibold text-sm text-white flex items-center gap-1.5">
+                  <span>Navigasi SOFIA Market</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono font-bold">
+                    4.0
+                  </span>
+                </span>
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(false)}

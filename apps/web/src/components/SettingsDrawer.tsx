@@ -225,7 +225,7 @@ export function SettingsDrawer({
               </span>
             </div>
             <p className="text-xs text-slate-400 font-mono">
-              Sofia Market 3.9 • Konfigurasi Terpusat
+              Sofia Market 4.0 • Konfigurasi Terpusat
             </p>
           </div>
         </div>

@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { LucideIcon } from '@/components/LucideIcon';
 import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
-type CategoryType = 'ALL' | 'MENUS' | 'CRYPTO' | 'STOCKS' | 'GOLD' | 'TECHNICAL';
+type CategoryType = 'ALL' | 'MEME_TIPS' | 'MENUS' | 'CRYPTO' | 'STOCKS' | 'GOLD' | 'TECHNICAL';
 
 interface EncyclopediaItem {
   id: string;
-  category: 'MENUS' | 'CRYPTO' | 'STOCKS' | 'GOLD' | 'TECHNICAL';
+  category: 'MEME_TIPS' | 'MENUS' | 'CRYPTO' | 'STOCKS' | 'GOLD' | 'TECHNICAL';
   title: string;
   subtitle?: string;
   tag: string;
@@ -22,6 +22,121 @@ interface EncyclopediaItem {
 }
 
 const ENCYCLOPEDIA_DATA: EncyclopediaItem[] = [
+  // ==========================================
+  // 0. TIPS & STRATEGI TRADING MEME COIN ON-CHAIN
+  // ==========================================
+  {
+    id: 'meme-marketcap-tiers',
+    category: 'MEME_TIPS',
+    title: 'Analisis Siklus Market Cap Meme Coin (Micro-Cap vs Graduation vs Mid-Cap)',
+    subtitle: 'Menakar Valuasi, Kapasitas Likuiditas & Ekspektasi Kelipatan Cuan',
+    tag: 'VALUASI MCAP',
+    badgeTone: 'amber',
+    routeLink: '/pulse',
+    routeLabel: 'Buka Radar Trenches & Pulse',
+    summary: 'Panduan wajib membaca valuasi Market Cap (MCap) sebelum entry di DEX Solana (Pump.fun, Raydium, DEXScreener) agar tidak menjadi exit liquidity bagi insider atau whale awal.',
+    details: [
+      'Tier 1: Micro-Cap / Bonding Curve (< $30K - $60K MCap): Fase paling awal di launchpad (Pump.fun/Moonshot). Potensi gain 10x-50x sangat cepat, namun secara statistik lebih dari 95% koin di tier ini gagal bertahan. Wajib gunakan alokasi mikro ("Lottery Ticket Sizing" misal Rp 15.000 s/d Rp 30.000 per posisi) dan jangan pernah menaruh porsi modal besar.',
+      'Tier 2: Graduation Threshold ($60K - $100K MCap): Fase transisi migrasi bonding curve ke Raydium AMM. Sering terjadi dump sesaat karena early buyer take profit dan developer membakar sisa bonding curve. Trader profesional sering menunggu retest support dan konfirmasi likuiditas terkunci sebelum masuk gelombang kedua.',
+      'Tier 3: Early Breakout ($100K - $500K MCap): Koin sudah memiliki volume organik stabil, trending di DexScreener, dan likuiditas pool mencapai $20K-$60K. Sangat ideal untuk swing trade 2x-5x dengan risk-reward yang jauh lebih terukur dibanding micro-cap.',
+      'Tier 4: Cult / Mid-Cap ($1M - $10M+ MCap): Koin dengan narasi kultus viral di Twitter/X dan TikTok, volume harian jutaan dolar, dan distribusi holder di atas 3.000-5.000 wallet. Risiko rug pull kontraktual sangat rendah, pergerakan lebih stabil layaknya altcoin.',
+    ],
+    formulaOrRule: 'Aturan Valuasi: Ekspektasi Profit = (Target MCap / Current MCap) - 1. Semakin kecil MCap saat entry, semakin ketat batasan alokasi modal (Maksimal 1-2% portofolio).',
+    tipsOrWarning: 'Jangan pernah membeli koin ber-MCap $10K dengan order besar ($1.000+) karena order Anda sendiri akan memicu slippage masif 25%+ dan seketika di-dump oleh holder lama.',
+  },
+  {
+    id: 'meme-liquidity-ratio',
+    category: 'MEME_TIPS',
+    title: 'Rasio Likuiditas terhadap Market Cap (Liq / MCap Ratio & Anti-Slippage)',
+    subtitle: 'Mendeteksi Kolam Tipis, Jebakan Harga Semu & Slippage Ekstrem',
+    tag: 'LIKUIDITAS ON-CHAIN',
+    badgeTone: 'cyan',
+    routeLink: '/auto-entry',
+    routeLabel: 'Buka Auto Entry Bot & Scanner',
+    summary: 'Likuiditas adalah uang kas riil (SOL/USDC) di smart contract yang siap membayar penjualan token Anda. Market Cap tinggi tanpa likuiditas memadai hanyalah ilusi angka di atas kertas.',
+    details: [
+      'Rasio Sehat (15% - 30% dari MCap): Menunjukkan kolam likuiditas solid yang mampu menampung aksi jual ribuan dolar tanpa memicu flash crash tajam pada grafik.',
+      'Jebakan Kolam Kering (< 10% dari MCap): Jika MCap $500K namun likuiditas pool hanya $8K (rasio < 2%), satu order jual $1.000 saja dapat merontokkan harga hingga 40-60%. Token seperti ini sangat berbahaya untuk dimasuki.',
+      'Volume to Liquidity Turnover: Jika Volume 5 menit mencapai 10x-30x lipat dari likuiditas yang tersedia tanpa ada kenaikan harga seimbang, waspadai indikasi bot wash trading otomatis yang sengaja dibuat dev untuk memanipulasi algoritma trending DexScreener.',
+    ],
+    formulaOrRule: 'Batas Minimum Aman: Likuiditas Pool DEX ≥ $15,000 USD dan Rasio (Likuiditas / Market Cap) ≥ 15%.',
+    tipsOrWarning: 'Selalu cek kolom Likuiditas di Sofia Market 4.0 sebelum klik snipe. Jangan tergiur persentase gain +1,000% jika likuiditas kas pool-nya hanya $300.',
+  },
+  {
+    id: 'meme-rugcheck-checklist',
+    category: 'MEME_TIPS',
+    title: 'Prosedur 30 Detik Audit Kontrak Anti-Rug (RugCheck & Shield)',
+    subtitle: 'Verifikasi Mint Authority, Freeze Authority & Ekstensi Token-2022',
+    tag: 'KEAMANAN KONTRAK',
+    badgeTone: 'emerald',
+    routeLink: '/rugcheck',
+    routeLabel: 'Buka Rug & Bundle Shield',
+    summary: 'Standar operasional 30 detik untuk memastikan smart contract koin tidak memiliki celah tersembunyi yang memungkinkan developer mencuri likuiditas atau membekukan saldo jual Anda.',
+    details: [
+      'Mint Authority (Wajib Revoked / Dimatikan): Jika mint authority masih aktif (Enabled), developer dapat mencetak triliunan token baru kapan saja secara gratis dan langsung membuangnya (dump) ke pool DEX hingga harga menjadi nol.',
+      'Freeze Authority (Wajib Revoked / Dimatikan): Jika freeze authority aktif, developer memiliki hak membekukan wallet pembeli sehingga Anda tidak bisa menjual token saat harga meroket (honeypot selektif).',
+      'LP Burn / Lock 100%: Likuiditas di Raydium harus dikirim ke alamat burn (Dead address) atau terkunci di smart contract resmi. Jika LP tidak di-burn, dev bisa mencabut pool (pull liquidity) sewaktu-waktu.',
+      'Bahaya Ekstensi Token-2022: Waspadai token Solana dengan ekstensi Token-2022 seperti TransferHook atau PermanentDelegate yang mengenakan potongan pajak jual dinamis 99% (Hidden Tax).',
+    ],
+    formulaOrRule: 'Kriteria Kontrak Lolos Audit: Mint Revoked = YES • Freeze Revoked = YES • LP Burned/Locked = 100% • Safety Score ≥ 75/100.',
+    tipsOrWarning: 'Sofia 4.0 otomatis memblokir token dengan celah honeypot ini melalui modul Rug & Bundle Shield dan Auto Entry Bot.',
+  },
+  {
+    id: 'meme-holder-clustering',
+    category: 'MEME_TIPS',
+    title: 'Analisis Distribusi Holder & Deteksi Sniper Cluster (BubbleMaps)',
+    subtitle: 'Membongkar Manipulasi Suplai Dev yang Dipecah ke Puluhan Wallet',
+    tag: 'INSIDER & CLUSTER',
+    badgeTone: 'rose',
+    routeLink: '/rugcheck',
+    routeLabel: 'Deteksi Cluster di RugCheck',
+    summary: 'Developer scammer zaman sekarang jarang memegang suplai koin dalam 1 wallet besar. Mereka menggunakan bot sniper untuk memecah 30-60% suplai ke 15-30 wallet baru saat peluncuran awal.',
+    details: [
+      'Top 10 Holder Threshold (< 20-25%): Di luar AMM liquidity pool, 10 wallet pemegang terbesar tidak boleh menguasai lebih dari 20-25% total suplai token.',
+      'Cluster Funding Source (Satu Induk Dana): Buka BubbleMaps atau Solscan untuk melacak dari mana SOL biaya gas wallet-wallet top holder berasal. Jika 15 wallet didanai oleh satu wallet induk yang sama sesaat sebelum rilis, itu adalah cluster sniper insider yang bersiap melakukan dump terkoordinasi.',
+      'Dev Holding (< 2-5%): Developer yang transparan idealnya membeli suplai di open market seperti trader lain atau memegang kurang dari 5% suplai untuk alokasi operasional/marketing bertahap.',
+    ],
+    formulaOrRule: 'Aturan Distribusi: Maksimal Top 10 Holder = 20% (eksklusif Pool DEX) • Cluster Terhubung = 0% • Dev Wallet ≤ 5%.',
+    tipsOrWarning: 'Jika melihat koin dengan Top 10 menguasai 50%+ suplai, setiap kenaikan harga akan dijadikan ajang likuidasi keluar (dumping) oleh segelintir insider.',
+  },
+  {
+    id: 'meme-freeroll-money-mgmt',
+    category: 'MEME_TIPS',
+    title: 'Strategi "Free Roll" & Money Management Koin Meme',
+    subtitle: 'Mengamankan Modal Pokok 100% dan Membiarkan Moonbag Berlari Tanpa Beban Mental',
+    tag: 'MONEY MANAGEMENT',
+    badgeTone: 'purple',
+    routeLink: '/auto-entry',
+    routeLabel: 'Buka Auto Entry Bot',
+    summary: 'Perbedaan mendasar antara trader meme yang konsisten profit vs degen yang selalu boncos terletak pada manajemen modal dan disiplin take profit saat mencapai kelipatan 2x.',
+    details: [
+      'Prinsip The Free Roll (Modal Keluar Saat 2x): Ketika koin yang Anda beli naik +100% (2x dari harga beli), segera jual 50% porsi token untuk menarik kembali 100% modal awal Anda. Sisa 50% token (disebut "Moonbag") kini adalah uang gratis murni dari pasar yang bisa dibiarkan berlari hingga 5x-10x tanpa beban risiko kehilangan uang pokok.',
+      'Ukuran Posisi Kecil Bertahap (Position Sizing 1-3%): Jangan pernah mempertaruhkan lebih dari 1% s/d 3% total portofolio Anda pada satu meme coin tunggal. Mengalokasikan seluruh saldo ke 1 koin baru sama saja dengan bunuh diri finansial.',
+      'Disiplin Cut Loss Cepat (-20% s/d -35%): Di pasar koin meme, jika narasi memudar atau dev berhenti memposting, harga tidak akan kembali ke atas. Potong kerugian dengan cepat sebelum drawdown mencapai -90%.',
+      'Gunakan Burner Wallet: Selalu pisahkan dompet trading degen dari dompet aset utama Anda untuk mencegah terkurasnya tabungan utama akibat menandatangani smart contract berbahaya.',
+    ],
+    formulaOrRule: 'Formula Free Roll: Jual 50% Qty saat Harga = 2x Entry Price. Modal Pokok = 100% Selamat di Kas Dompet.',
+    tipsOrWarning: 'Keserakahan menunggu 100x tanpa pernah take profit adalah penyebab utama trader memegang tas kosong (bagholders) hingga koin bernilai nol.',
+  },
+  {
+    id: 'meme-narrative-catalysts',
+    category: 'MEME_TIPS',
+    title: 'Katalis Narasi & Pelacak Smart Money (GMGN / Twitter CT / Inflow)',
+    subtitle: 'Menunggangi Gelombang Atensi & Viralitas Sebelum Retail Masuk',
+    tag: 'NARASI & MOMENTUM',
+    badgeTone: 'cyan',
+    routeLink: '/signals',
+    routeLabel: 'Buka Alpha Signals & Insights',
+    summary: 'Meme coin murni digerakkan oleh atensi sosial, humor internet, dan momentum aliran modal. Belajar mengenali narasi yang memiliki daya tahan vs sekadar koin tiruan (copycat) yang berumur 5 menit.',
+    details: [
+      'Kekuatan Narasi Orisinal: Koin pemenang selalu memiliki kaitan erat dengan tren internet global terkini, tokoh populer, peristiwa politik riil, atau meme kultus yang memiliki komunitas pembuat konten (meme makers) aktif.',
+      'Hindari Koin Copycat: Begitu ada 1 koin viral, akan bermunculan puluhan koin tiruan dengan nama mirip. Koin tiruan hampir 99% berakhir rug pull karena dev hanya ingin memanen sisa atensi.',
+      'Inflow Smart Money & GMGN Tracking: Gunakan radar Sofia 4.0 untuk memantau apakah ada wallet dengan rekam jejak profit tinggi (GMGN Smart Degens) yang sedang mengakumulasi koin tersebut secara diam-diam.',
+      'Rasio Pembeli vs Penjual (Buy/Sell Ratio > 60%): Periksa rasio transaksi 5 menit. Koin yang sedang dalam fase akumulasi sehat memiliki frekuensi buy order yang konsisten lebih banyak dibanding sell order.',
+    ],
+    formulaOrRule: 'Hukum Atensi Meme: Harga Bergerak Mengikuti Viralitas Media Sosial (Twitter/X, TikTok, Telegram) + Inflow Smart Money.',
+    tipsOrWarning: 'Jangan pernah membeli koin meme yang media sosialnya (Twitter/X & Telegram) mati, akunnya bot, atau kolom komentarnya dimatikan oleh admin.',
+  },
   // ==========================================
   // 1. PENJELASAN MENU SOFIA MARKET ANALYST
   // ==========================================
@@ -907,6 +1022,7 @@ const ENCYCLOPEDIA_DATA: EncyclopediaItem[] = [
 
 const CATEGORY_TABS: { id: CategoryType; label: string; icon: string; count: number }[] = [
   { id: 'ALL', label: 'Semua Istilah', icon: 'book', count: ENCYCLOPEDIA_DATA.length },
+  { id: 'MEME_TIPS', label: '🔥 Tips Trading Meme Coin', icon: 'zap', count: ENCYCLOPEDIA_DATA.filter((i) => i.category === 'MEME_TIPS').length },
   { id: 'MENUS', label: 'Menu Aplikasi', icon: 'layout-dashboard', count: ENCYCLOPEDIA_DATA.filter((i) => i.category === 'MENUS').length },
   { id: 'CRYPTO', label: 'Crypto & Web3', icon: 'cpu', count: ENCYCLOPEDIA_DATA.filter((i) => i.category === 'CRYPTO').length },
   { id: 'STOCKS', label: 'Saham BEI', icon: 'trending-up', count: ENCYCLOPEDIA_DATA.filter((i) => i.category === 'STOCKS').length },
@@ -961,10 +1077,10 @@ export default function EncyclopediaPage() {
   return (
     <>
       <Head>
-        <title>Ensiklopedia Pasar &amp; Glosarium — Sofia Market 3.9</title>
+        <title>Ensiklopedia Pasar &amp; Glosarium — Sofia Market 4.0 (SFIA 4.0)</title>
         <meta
           name="description"
-          content="Glosarium finansial komprehensif: panduan menu SOFIA, istilah kripto web3, saham BEI IHSG, pasar emas XAU Antam, dan indikator teknikal."
+          content="Glosarium finansial komprehensif: tips trading meme coin Solana on-chain, panduan menu SOFIA 4.0, istilah kripto web3, saham BEI IHSG, pasar emas XAU Antam, dan indikator teknikal."
         />
       </Head>
 
@@ -981,13 +1097,16 @@ export default function EncyclopediaPage() {
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                   {filteredItems.length} ISTILAH TERSEDIA
                 </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  🔥 TIPS MEME COIN ON-CHAIN
+                </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
                 <LucideIcon name="book-open" className="w-6 h-6 text-cyan-400" />
-                Ensiklopedia &amp; Glosarium Pasar SOFIA
+                Ensiklopedia &amp; Glosarium Pasar SOFIA 4.0
               </h1>
               <p className="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
-                Panduan komprehensif mengenai seluruh <strong>fitur menu aplikasi</strong>, mekanisme pasar <strong>Crypto &amp; Web3</strong>, perdagangan <strong>Saham BEI &amp; Valuasi</strong>, investasi <strong>Emas Batangan &amp; Logam Mulia</strong>, serta indikator <strong>Analisis Teknikal Kuantitatif</strong>.
+                Panduan komprehensif mengenai strategi <strong>Tips Trading Meme Coin &amp; Valuasi MCap</strong>, fitur menu <strong>Sofia 4.0</strong>, mekanisme pasar <strong>Crypto &amp; Web3</strong>, perdagangan <strong>Saham BEI &amp; Valuasi</strong>, investasi <strong>Emas Batangan &amp; Logam Mulia</strong>, serta indikator <strong>Analisis Teknikal Kuantitatif</strong>.
               </p>
             </div>
           </div>
