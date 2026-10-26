@@ -12,6 +12,15 @@ export default function PulsePage() {
   const [snipeFeedback, setSnipeFeedback] = useState<string>('');
   const [snipeError, setSnipeError] = useState<string>('');
   const [minSafety, setMinSafety] = useState<number>(0);
+  const [copiedAddressKey, setCopiedAddressKey] = useState<string | null>(null);
+
+  const handleCopyAddress = (address: string, key: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(address);
+      setCopiedAddressKey(key);
+      setTimeout(() => setCopiedAddressKey(null), 2500);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -102,12 +111,23 @@ export default function PulsePage() {
                       </span>
                       <span className="text-[10px] font-mono text-emerald-400">Umur {t.age}</span>
                     </div>
-                    <div className="text-xs text-slate-400 flex items-center gap-2">
+                    <div className="text-xs text-slate-400 flex flex-wrap items-center gap-1.5">
                       <span>{t.name}</span>
                       {t.contract && (
-                        <span className="text-[10px] font-mono text-slate-500" title={t.contract}>
-                          ({t.contract.slice(0, 6)}...{t.contract.slice(-4)})
-                        </span>
+                        <div className="flex items-center gap-1 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                          <span className="text-[10px] font-mono text-slate-400" title={t.contract}>
+                            CA: {t.contract.slice(0, 4)}...{t.contract.slice(-4)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyAddress(t.contract, t.contract)}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-mono flex items-center gap-1"
+                            title="Salin Mint Contract (CA)"
+                          >
+                            <LucideIcon name={copiedAddressKey === t.contract ? 'check' : 'copy'} className="w-2.5 h-2.5" />
+                            <span>{copiedAddressKey === t.contract ? '✓' : 'Salin'}</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                     <div className="text-xs font-mono font-bold text-slate-100 mt-1">

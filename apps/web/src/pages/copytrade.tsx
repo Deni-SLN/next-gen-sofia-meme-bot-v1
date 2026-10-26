@@ -7,7 +7,16 @@ import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 export default function CopyTradePage() {
   const isUltrawide = useUltrawide();
   const smQuery = useApiQuery(() => api.getSmartMoney(), []);
+  const [copiedId, setCopiedId] = React.useState<number | null>(null);
   const usdIdr = smQuery.data?.usd_idr || 16500;
+
+  const handleCopy = (address: string, id: number) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(address);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2500);
+    }
+  };
 
   const handleToggle = async (wallet: any) => {
     await api.toggleCopyWallet(wallet.id, !wallet.copy_enabled, wallet.max_copy_usd);
@@ -47,7 +56,18 @@ export default function CopyTradePage() {
                     </span>
                   )}
                 </div>
-                <div className="text-xs font-mono text-slate-500">{w.address}</div>
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+                  <span title={w.address}>{w.address}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(w.address, w.id)}
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 text-[10px] font-mono flex items-center gap-1 transition"
+                    title="Salin Alamat Dompet Whale"
+                  >
+                    <LucideIcon name={copiedId === w.id ? 'check' : 'copy'} className="w-3 h-3" />
+                    <span>{copiedId === w.id ? '✓ Tersalin' : 'Salin Wallet'}</span>
+                  </button>
+                </div>
                 <div className="text-xs font-mono text-amber-300 pt-1">🔔 Activity: {w.last_Action}</div>
               </div>
 

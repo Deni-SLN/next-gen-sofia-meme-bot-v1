@@ -11,6 +11,7 @@ export default function SignalsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('stocks');
   const [searchTarget, setSearchTarget] = useState<string>('SOL');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [radarFilter, setRadarFilter] = useState<'ALL' | 'MEME' | 'CRYPTO_STOCKS'>('ALL');
   const [isRefreshingInsights, setIsRefreshingInsights] = useState<boolean>(false);
 
   const insightsQuery = useApiQuery(() => api.getSignalInsights(), []);
@@ -515,61 +516,200 @@ export default function SignalsPage() {
             </div>
 
             {/* LIVE COMMUNITY TELEGRAM RADAR SIGNALS */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-obsidian-900 border border-obsidian-750 shadow-lg space-y-3.5">
-              <div className="flex items-center justify-between">
+            <div className="p-4 sm:p-5 rounded-2xl bg-obsidian-900 border border-obsidian-750 shadow-lg space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-0.5">
                   <h2 className="text-sm font-bold text-white flex items-center gap-2">
                     <LucideIcon name="radio" className="w-4 h-4 text-emerald-400" />
                     <span>Radar Alpha Komunitas Telegram Publik (Live Feed)</span>
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Sinyal terkurasi dari radar Telegram publik (Solana Trench, DexScreener Trending, Rick Burp Scanner, Whale Alert).
+                    Sinyal terkurasi dari radar Telegram publik (Solana Trench, DexScreener Trending, Rick Burp Scanner, Whale Alert). Dilengkapi fitur 1-klik salin CA dan Wallet Paus.
                   </p>
                 </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => telegramSignalsQuery.refetch()}
+                    className="px-2.5 py-1.5 rounded-lg bg-obsidian-950 border border-obsidian-700 text-slate-300 hover:text-white text-xs font-mono transition"
+                  >
+                    🔄 Refresh Radar
+                  </button>
+                </div>
+              </div>
+
+              {/* FILTER CHIPS (SEMUA / KHUSUS MEME COIN / CRYPTO & STOCKS) */}
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-obsidian-800 pb-3">
                 <button
                   type="button"
-                  onClick={() => telegramSignalsQuery.refetch()}
-                  className="px-2.5 py-1 rounded-lg bg-obsidian-950 border border-obsidian-700 text-slate-300 hover:text-white text-xs font-mono"
+                  onClick={() => setRadarFilter('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition font-mono ${
+                    radarFilter === 'ALL'
+                      ? 'bg-emerald-500 text-obsidian-950 font-extrabold shadow-sm'
+                      : 'bg-obsidian-950 text-slate-400 hover:text-white border border-obsidian-800'
+                  }`}
                 >
-                  🔄 Refresh Radar
+                  Semua Sinyal ({tgSignals.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRadarFilter('MEME')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition font-mono flex items-center gap-1.5 ${
+                    radarFilter === 'MEME'
+                      ? 'bg-amber-400 text-obsidian-950 font-extrabold shadow-sm'
+                      : 'bg-obsidian-950 text-amber-300/80 hover:text-amber-200 border border-amber-500/20'
+                  }`}
+                >
+                  <span>🐕 Khusus Meme Coin ({tgSignals.filter((s: any) => s.is_memecoin).length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRadarFilter('CRYPTO_STOCKS')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition font-mono ${
+                    radarFilter === 'CRYPTO_STOCKS'
+                      ? 'bg-cyan-500 text-obsidian-950 font-extrabold shadow-sm'
+                      : 'bg-obsidian-950 text-slate-400 hover:text-white border border-obsidian-800'
+                  }`}
+                >
+                  🏛️ Bluechip Crypto &amp; Saham ({tgSignals.filter((s: any) => !s.is_memecoin).length})
                 </button>
               </div>
 
-              <div className="space-y-2.5">
-                {tgSignals.map((sig: any) => (
-                  <div
-                    key={sig.id}
-                    className="p-3.5 rounded-xl bg-obsidian-950 border border-obsidian-800/80 hover:border-obsidian-700 flex flex-col md:flex-row md:items-center justify-between gap-3 transition"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-extrabold text-sm text-white">{sig.ticker}</span>
-                        <span className="text-xs text-slate-400 font-medium">({sig.name})</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                          {sig.direction}
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-500">
-                          • {sig.source}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed font-sans">{sig.message}</p>
-                      <div className="text-[11px] text-cyan-300 font-semibold pt-0.5">
-                        💡 Rekomendasi: {sig.suggested_action}
-                      </div>
-                    </div>
+              <div className="space-y-3">
+                {tgSignals
+                  .filter((sig: any) => {
+                    if (radarFilter === 'MEME') return sig.is_memecoin;
+                    if (radarFilter === 'CRYPTO_STOCKS') return !sig.is_memecoin;
+                    return true;
+                  })
+                  .map((sig: any) => {
+                    const isCaCopied = copiedKey === `ca-${sig.id}`;
+                    const isWalletCopied = copiedKey === `wallet-${sig.id}`;
+                    return (
+                      <div
+                        key={sig.id}
+                        className="p-4 rounded-xl bg-obsidian-950 border border-obsidian-800/80 hover:border-obsidian-700 transition shadow-sm space-y-3"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-extrabold text-base text-white">{sig.ticker}</span>
+                              <span className="text-xs text-slate-400 font-medium">({sig.name})</span>
+                              {sig.is_memecoin && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                  🐕 MEME COIN
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                {sig.direction}
+                              </span>
+                              {sig.chain && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-obsidian-900 text-cyan-300 border border-obsidian-800">
+                                  {sig.chain}
+                                </span>
+                              )}
+                              <span className="text-[10px] font-mono text-slate-500">
+                                • {sig.source}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300 leading-relaxed font-sans">{sig.message}</p>
+                            <div className="text-[11px] text-cyan-300 font-semibold pt-0.5">
+                              💡 Rekomendasi: {sig.suggested_action}
+                            </div>
+                          </div>
 
-                    <div className="flex items-center md:flex-col md:items-end justify-between gap-1 shrink-0 font-mono text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-500 text-[10px]">Safety:</span>
-                        <span className="font-bold text-emerald-400">{sig.safety_score}/100</span>
+                          <div className="flex items-center md:flex-col md:items-end justify-between gap-1 shrink-0 font-mono text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-500 text-[10px]">Safety:</span>
+                              <span className="font-bold text-emerald-400">{sig.safety_score}/100</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-500 text-[10px]">Confidence:</span>
+                              <span className="font-bold text-cyan-300">{sig.confidence_pct}%</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* DEDICATED COPY CONTRACT (CA) & WALLET ADDRESS BAR */}
+                        {(sig.contract_address || sig.wallet_address) && (
+                          <div className="p-2.5 rounded-lg bg-obsidian-900 border border-obsidian-800 flex flex-wrap items-center justify-between gap-2.5 text-xs font-mono">
+                            <div className="flex flex-wrap items-center gap-3">
+                              {/* 1-CLICK COPY MINT CONTRACT (CA) */}
+                              {sig.contract_address && (
+                                <div className="flex items-center gap-1.5 bg-obsidian-950 px-2 py-1 rounded border border-obsidian-800">
+                                  <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">
+                                    CA:
+                                  </span>
+                                  <span className="text-slate-300 text-[11px]" title={sig.contract_address}>
+                                    {sig.contract_address.slice(0, 6)}...{sig.contract_address.slice(-4)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyCommand(sig.contract_address, `ca-${sig.id}`)}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 ml-1 ${
+                                      isCaCopied
+                                        ? 'bg-emerald-500 text-obsidian-950 font-extrabold shadow-sm'
+                                        : 'bg-obsidian-900 hover:bg-obsidian-850 text-amber-300 border border-obsidian-750'
+                                    }`}
+                                    title="Salin Mint Contract Address (CA)"
+                                  >
+                                    <LucideIcon name={isCaCopied ? 'check' : 'copy'} className="w-3 h-3" />
+                                    <span>{isCaCopied ? '✓ CA Tersalin' : '📋 Salin CA'}</span>
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* 1-CLICK COPY WHALE / SMART MONEY WALLET */}
+                              {sig.wallet_address && (
+                                <div className="flex items-center gap-1.5 bg-obsidian-950 px-2 py-1 rounded border border-obsidian-800">
+                                  <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
+                                    {sig.wallet_label ? 'Whale Wallet:' : 'Wallet:'}
+                                  </span>
+                                  <span className="text-slate-300 text-[11px]" title={sig.wallet_address}>
+                                    {sig.wallet_address.slice(0, 6)}...{sig.wallet_address.slice(-4)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyCommand(sig.wallet_address, `wallet-${sig.id}`)}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition flex items-center gap-1 ml-1 ${
+                                      isWalletCopied
+                                        ? 'bg-emerald-500 text-obsidian-950 font-extrabold shadow-sm'
+                                        : 'bg-obsidian-900 hover:bg-obsidian-850 text-cyan-300 border border-obsidian-750'
+                                    }`}
+                                    title="Salin Alamat Dompet Whale / Smart Money"
+                                  >
+                                    <LucideIcon name={isWalletCopied ? 'check' : 'copy'} className="w-3 h-3" />
+                                    <span>{isWalletCopied ? '✓ Wallet Tersalin' : '📋 Salin Wallet'}</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* AUDIT SHORTCUT */}
+                            <div className="flex items-center gap-2">
+                              {sig.contract_address && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSearchTarget(sig.contract_address);
+                                    botQueryLinks.refetch();
+                                    if (typeof window !== 'undefined') {
+                                      window.scrollTo({ top: 180, behavior: 'smooth' });
+                                    }
+                                  }}
+                                  className="text-[10px] px-2.5 py-1 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 font-bold transition"
+                                  title="Isi alamat CA ke Generator Bot Telegram di atas"
+                                >
+                                  <LucideIcon name="zap" className="w-3 h-3" />
+                                  <span>Audit di Bot</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-500 text-[10px]">Confidence:</span>
-                        <span className="font-bold text-cyan-300">{sig.confidence_pct}%</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
               </div>
             </div>
 

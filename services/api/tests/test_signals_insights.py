@@ -71,3 +71,14 @@ class TestSignalsInsights(unittest.TestCase):
         data = resp.json()
         self.assertIn("crypto", data)
         self.assertEqual(len(data["crypto"]), 5)
+
+    def test_telegram_memecoin_signals_copy_wallet(self):
+        resp = self.client.get("/api/v1/telegram/signals")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("signals", data)
+        memecoins = [s for s in data["signals"] if s.get("is_memecoin")]
+        self.assertGreaterEqual(len(memecoins), 4)
+        for m in memecoins:
+            self.assertTrue(bool(m.get("contract_address")), f"Missing CA for {m.get('ticker')}")
+            self.assertTrue(bool(m.get("wallet_address")), f"Missing Wallet for {m.get('ticker')}")

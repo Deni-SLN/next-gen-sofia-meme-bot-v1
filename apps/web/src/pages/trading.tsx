@@ -101,6 +101,15 @@ export default function TradingPage() {
   const [isSniping, setIsSniping] = useState<boolean>(false);
   const [sellingKey, setSellingKey] = useState<string | null>(null);
   const [quickExitNotice, setQuickExitNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [copiedRadarCa, setCopiedRadarCa] = useState<string | null>(null);
+
+  const handleCopyCa = (ca: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(ca);
+      setCopiedRadarCa(ca);
+      setTimeout(() => setCopiedRadarCa(null), 2500);
+    }
+  };
 
   const newCreationsList: any[] = pulseQuery.data?.new_creations || [];
 
@@ -1041,8 +1050,21 @@ export default function TradingPage() {
                           </span>
                         </div>
                         {tok.contract && (
-                          <div className="text-[9px] text-slate-500 truncate mt-0.5" title={tok.contract}>
-                            CA: {tok.contract.slice(0, 6)}...{tok.contract.slice(-4)}
+                          <div className="flex items-center justify-between text-[9px] text-slate-400 mt-1 bg-obsidian-950 px-1.5 py-0.5 rounded border border-obsidian-850 font-mono">
+                            <span title={tok.contract} className="truncate max-w-[110px]">
+                              CA: {tok.contract.slice(0, 4)}...{tok.contract.slice(-4)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyCa(tok.contract);
+                              }}
+                              className="text-[9px] text-cyan-300 hover:text-white font-bold ml-1 transition"
+                              title="Salin Mint Contract (CA)"
+                            >
+                              {copiedRadarCa === tok.contract ? '✓' : '📋 Salin'}
+                            </button>
                           </div>
                         )}
                       </div>
