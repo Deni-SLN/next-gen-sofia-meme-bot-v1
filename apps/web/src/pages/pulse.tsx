@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { api, useApiQuery, formatIdr, formatUsd, getTradingMode } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
@@ -8,15 +9,41 @@ import { useUltrawide } from '@/lib/useUltrawide';
 export default function PulsePage() {
   const isUltrawide = useUltrawide();
   const pulseQuery = useApiQuery(() => api.getPulse(), []);
-  const [presetIdr, setPresetIdr] = useState<number>(30000);
   const [mode, setMode] = useState<'PAPER' | 'LIVE'>('PAPER');
-  const [snipeFeedback, setSnipeFeedback] = useState<string>('');
-  const [snipeError, setSnipeError] = useState<string>('');
   const [minSafety, setMinSafety] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeColumnTab, setActiveColumnTab] = useState<'ALL' | 'NEW' | 'MID' | 'MIGRATED'>('ALL');
+  const [activeColumnTab, setActiveColumnTab] = useState<'MICRO' | 'MID' | 'GRADUATE' | 'MAJOR' | 'ALL'>('MICRO');
+  const [autoScan, setAutoScan] = useState<boolean>(false);
+  const [countdown, setCountdown] = useState<number>(10);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [isSnipingKey, setIsSnipingKey] = useState<string | null>(null);
+  const [lastScannedTime, setLastScannedTime] = useState<string>('');
+
+  const refetchPulse = pulseQuery.refetch;
+
+  useEffect(() => {
+    if (pulseQuery.data) {
+      const now = new Date();
+      setLastScannedTime(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }
+  }, [pulseQuery.data]);
+
+  // Auto-scan timer (10 detik interval sesuai engine)
+  useEffect(() => {
+    if (!autoScan) {
+      setCountdown(10);
+      return;
+    }
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          refetchPulse();
+          return 10;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [autoScan, refetchPulse]);
 
   const handleCopyText = (text: string, key: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -29,70 +56,15 @@ export default function PulsePage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setMode(getTradingMode());
-      const saved = localStorage.getItem('sofia_quickbuy_idr');
-      if (saved) setPresetIdr(Number(saved));
-      const handler = (e: any) => setPresetIdr(Number(e.detail));
       const modeHandler = (e: any) => setMode(e.detail);
-      window.addEventListener('sofia-preset-idr-change', handler);
       window.addEventListener('sofia-mode-change', modeHandler);
       return () => {
-        window.removeEventListener('sofia-preset-idr-change', handler);
         window.removeEventListener('sofia-mode-change', modeHandler);
       };
     }
   }, []);
 
-  const handleSelectPreset = (val: number) => {
-    setPresetIdr(val);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sofia_quickbuy_idr', String(val));
-    }
-  };
-
   const usdIdr = pulseQuery.data?.fx?.usd_idr || 16500;
-
-  const handleQuickSnipe = async (token: any) => {
-    const tokenKey = token.contract || token.symbol;
-    setIsSnipingKey(tokenKey);
-    setSnipeFeedback('');
-    setSnipeError('');
-    try {
-      const res = await api.snipeToken({
-        symbol: token.base_symbol || token.symbol,
-        contract: token.contract || undefined,
-        amount_idr: presetIdr,
-        price: token.price,
-        slippage_pct: 15,
-        priority_fee_sol: 0.005,
-        anti_mev: true,
-        mode: mode,
-      });
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('sofia-bot-trade-executed', { detail: res }));
-      }
-      setSnipeFeedback(
-        res.mode === 'LIVE'
-          ? `⚡ [LIVE ON-CHAIN] Berhasil beli ${Number(res.quantity).toLocaleString()} ${res.symbol} @ ${formatUsd(
-              res.entry_price
-            )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)} (${formatUsd(
-              res.amount_usd
-            )}) • Tx: ${String(res.tx_hash || '').slice(0, 16)}... • Sisa Kas Live: ${formatIdr(
-              res.live_cash_remaining_idr
-            )}`
-          : `⚡ [PAPER SIMULASI] Berhasil beli ${Number(res.quantity).toLocaleString()} ${res.symbol} pada harga market asli ${formatUsd(
-              res.entry_price
-            )} (${formatIdr(res.entry_price_idr)}) senilai ${formatIdr(res.amount_idr)} (${formatUsd(
-              res.amount_usd
-            )}). Sisa Kas Paper: ${formatIdr(res.paper_cash_remaining_idr)}.`
-      );
-      setTimeout(() => setSnipeFeedback(''), 8000);
-    } catch (err: any) {
-      setSnipeError(err?.message || 'Gagal melakukan snipe');
-      setTimeout(() => setSnipeError(''), 6000);
-    } finally {
-      setIsSnipingKey(null);
-    }
-  };
 
   // Filter helper for search query & min safety
   const filterTokens = (list: any[]) => {
@@ -108,28 +80,84 @@ export default function PulsePage() {
     });
   };
 
-  const newTokens = useMemo(() => filterTokens(pulseQuery.data?.new_creations || []), [pulseQuery.data?.new_creations, minSafety, searchQuery]);
-  const midTokens = useMemo(() => filterTokens(pulseQuery.data?.final_stretch || []), [pulseQuery.data?.final_stretch, minSafety, searchQuery]);
-  const migratedTokens = useMemo(() => filterTokens(pulseQuery.data?.migrated || []), [pulseQuery.data?.migrated, minSafety, searchQuery]);
+  // ENGINE RECOMMENDATION RANKING FORMULA
+  // Menghitung bobot rekomendasi berdasarkan RugShield safety score, volume 5m, bonding progress, dan smart money
+  const getRecommendationScore = (t: any): number => {
+    const safety = Number(t.safety_score) || 50;
+    const vol = Number(t.volume_5m) || 0;
+    const bonding = Number(t.bonding_curve_pct) || 0;
+    const smart = (Number(t.gmgn_smart_degens) || 0) * 12;
+    const mintSafe = t.mint_revoked ? 20 : 0;
+    const lpSafe = t.lp_burned ? 20 : 0;
+    const volScore = Math.min(60, Math.log10(Math.max(1, vol)) * 12);
+    return (safety * 1.5) + (bonding * 0.35) + volScore + smart + mintSafe + lpSafe;
+  };
 
-  const totalRawCount =
-    (pulseQuery.data?.new_creations?.length || 0) +
-    (pulseQuery.data?.final_stretch?.length || 0) +
-    (pulseQuery.data?.migrated?.length || 0);
+  // Sort dari yang paling rekomendasi & batasi maksimal 10 koin
+  const sortAndLimitTokens = (list: any[], limit = 10) => {
+    return [...list]
+      .sort((a, b) => getRecommendationScore(b) - getRecommendationScore(a))
+      .slice(0, limit);
+  };
 
-  const totalSafeCount = [
-    ...(pulseQuery.data?.new_creations || []),
-    ...(pulseQuery.data?.final_stretch || []),
-    ...(pulseQuery.data?.migrated || []),
-  ].filter((t) => (t.safety_score || 0) >= 75).length;
+  const allRawTokens = useMemo(() => {
+    return [
+      ...(pulseQuery.data?.new_creations || []),
+      ...(pulseQuery.data?.final_stretch || []),
+      ...(pulseQuery.data?.migrated || []),
+    ];
+  }, [pulseQuery.data]);
 
-  const renderTokenCard = (t: any) => {
+  const microTokens = useMemo(() => {
+    const filtered = filterTokens(
+      allRawTokens.filter((t) => (t.market_cap || 0) < 100000 || t.is_new_creation)
+    );
+    return sortAndLimitTokens(filtered, 10);
+  }, [allRawTokens, minSafety, searchQuery]);
+
+  const midTokens = useMemo(() => {
+    const filtered = filterTokens(
+      allRawTokens.filter((t) => (t.market_cap || 0) >= 100000 && (t.market_cap || 0) < 1000000)
+    );
+    return sortAndLimitTokens(filtered, 10);
+  }, [allRawTokens, minSafety, searchQuery]);
+
+  const graduateTokens = useMemo(() => {
+    const filtered = filterTokens(
+      allRawTokens.filter(
+        (t) =>
+          ((t.bonding_curve_pct || 0) >= 100 ||
+            t.lp_burned ||
+            String(t.launchpad || '').toLowerCase().includes('raydium') ||
+            String(t.launchpad || '').toLowerCase().includes('pumpswap')) &&
+          (t.market_cap || 0) < 1000000
+      )
+    );
+    return sortAndLimitTokens(filtered, 10);
+  }, [allRawTokens, minSafety, searchQuery]);
+
+  const majorTokens = useMemo(() => {
+    const filtered = filterTokens(allRawTokens.filter((t) => (t.market_cap || 0) >= 1000000));
+    return sortAndLimitTokens(filtered, 10);
+  }, [allRawTokens, minSafety, searchQuery]);
+
+  const allFilteredTokens = useMemo(() => {
+    const filtered = filterTokens(allRawTokens);
+    return sortAndLimitTokens(filtered, 10);
+  }, [allRawTokens, minSafety, searchQuery]);
+
+  const totalRawCount = allRawTokens.length;
+
+  const totalSafeCount = allRawTokens.filter((t) => (t.safety_score || 0) >= 75).length;
+
+  const renderTokenCard = (t: any, index?: number) => {
     const isSafe = (t.safety_score || 0) >= 75;
     const isWarning = (t.safety_score || 0) >= 55 && (t.safety_score || 0) < 75;
     const cardKey = t.contract || t.symbol;
     const isCaCopied = copiedKey === `ca-${cardKey}`;
     const isCreatorCopied = copiedKey === `creator-${cardKey}`;
-    const isSnipingThis = isSnipingKey === cardKey;
+    const isCardCaCopied = copiedKey === `card-ca-${cardKey}`;
+    const rank = index !== undefined ? index + 1 : undefined;
 
     const safetyBadgeStyle = isSafe
       ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
@@ -142,11 +170,26 @@ export default function PulsePage() {
         key={cardKey}
         className="rounded-2xl p-4 bg-obsidian-900 border border-obsidian-750 hover:border-obsidian-650 transition-all duration-200 shadow-md space-y-3.5 flex flex-col justify-between"
       >
-        {/* TOP ROW: SYMBOL, LAUNCHPAD, AGE & SAFETY BADGE */}
+        {/* TOP ROW: SYMBOL, RANK, LAUNCHPAD, AGE & SAFETY BADGE */}
         <div className="space-y-2.5">
           <div className="flex items-start justify-between gap-2">
             <div className="space-y-0.5">
               <div className="flex flex-wrap items-center gap-1.5">
+                {rank !== undefined && (
+                  <span
+                    className={`text-[10px] font-mono font-black px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                      rank === 1
+                        ? 'bg-amber-400 text-obsidian-950 border-amber-400 shadow-sm'
+                        : rank <= 3
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                        : 'bg-obsidian-950 text-slate-400 border-obsidian-800'
+                    }`}
+                    title={`Peringkat #${rank} Rekomendasi Engine Sofia`}
+                  >
+                    <span>#{rank}</span>
+                    {rank === 1 && <span className="text-[9px]">★ TOP</span>}
+                  </span>
+                )}
                 <span className="font-black text-base text-white tracking-tight">{t.symbol}</span>
                 {t.launchpad && (
                   <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-obsidian-950 text-cyan-300 border border-obsidian-800">
@@ -299,21 +342,32 @@ export default function PulsePage() {
           </div>
         </div>
 
-        {/* BOTTOM ACTION SECTION: 1-CLICK SNIPE & DEX LINKS */}
+        {/* BOTTOM ACTION SECTION: SALIN CA & LINK AUTO ENTRY */}
         <div className="pt-2 border-t border-obsidian-800 space-y-2">
-          <button
-            type="button"
-            disabled={isSnipingThis}
-            onClick={() => handleQuickSnipe(t)}
-            className="w-full py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-obsidian-800 text-obsidian-950 font-mono font-black text-xs transition shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2"
-          >
-            <LucideIcon name="zap" className="w-3.5 h-3.5 text-obsidian-950" />
-            <span>
-              {isSnipingThis
-                ? 'Mengeksekusi Snipe...'
-                : `⚡ 1-Klik Snipe ${formatIdr(presetIdr)} (${formatUsd(presetIdr / usdIdr)})`}
-            </span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleCopyText(t.contract || '', `card-ca-${cardKey}`)}
+              className={`flex-1 py-2 px-3 rounded-xl font-mono font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-sm ${
+                isCardCaCopied
+                  ? 'bg-emerald-500 text-obsidian-950 shadow-emerald-500/20'
+                  : 'bg-obsidian-950 hover:bg-obsidian-850 text-cyan-300 border border-obsidian-750 hover:border-cyan-500/40'
+              }`}
+              title="Salin Mint Contract Address (CA)"
+            >
+              <LucideIcon name={isCardCaCopied ? 'check' : 'copy'} className="w-3.5 h-3.5" />
+              <span>{isCardCaCopied ? '✓ CA Tersalin' : 'Salin CA'}</span>
+            </button>
+
+            <Link
+              href="/auto-entry"
+              className="px-2.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:border-amber-400 font-mono text-xs font-bold transition flex items-center gap-1 shrink-0"
+              title="Buka menu Auto Entry Bot untuk snipe & auto buy"
+            >
+              <LucideIcon name="target" className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Auto Entry</span>
+            </Link>
+          </div>
 
           <div className="flex items-center justify-between text-[11px] font-mono pt-0.5">
             <div className="flex items-center gap-2">
@@ -360,35 +414,27 @@ export default function PulsePage() {
 
   const renderColumn = (title: string, subtitle: string, badgeDot: string, tokens: any[]) => {
     return (
-      <div className="bg-obsidian-950 border border-obsidian-800 rounded-2xl flex flex-col overflow-hidden shadow-lg">
-        {/* COLUMN HEADER */}
-        <div className="p-3.5 sm:p-4 border-b border-obsidian-800 flex items-center justify-between bg-obsidian-900/70">
-          <div className="space-y-0.5">
-            <div className="font-bold text-sm text-white flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${badgeDot}`} />
-              <span>{title}</span>
-            </div>
-            <div className="text-[11px] text-slate-400">{subtitle}</div>
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between text-xs font-mono px-0.5 text-slate-400">
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${badgeDot}`} />
+            <span className="font-bold text-slate-100">{title}</span>
+            <span className="text-slate-500 hidden sm:inline">— {subtitle}</span>
           </div>
-          <span className="px-2.5 py-0.5 rounded-lg bg-obsidian-950 border border-obsidian-750 text-xs font-mono font-bold text-cyan-300">
-            {tokens.length} Koin
-          </span>
+          <div className="flex items-center gap-2 font-mono text-[11px]">
+            <span className="text-amber-300 font-bold">Top {tokens.length} Rekomendasi</span>
+            <span className="text-slate-600">·</span>
+            <span className="text-slate-400">Max 10</span>
+          </div>
         </div>
 
-        {/* COLUMN CONTENT */}
-        <div
-          className={
-            isUltrawide
-              ? 'p-3.5 grid grid-cols-1 xl:grid-cols-2 gap-3.5 overflow-y-auto max-h-[78vh]'
-              : 'p-3.5 space-y-3.5 overflow-y-auto max-h-[78vh]'
-          }
-        >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {tokens.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500 font-mono bg-obsidian-900/30 rounded-xl border border-obsidian-850">
+            <div className="col-span-full p-8 text-center text-xs text-slate-500 font-mono bg-obsidian-900/40 rounded-xl border border-obsidian-850">
               Tidak ada koin yang sesuai dengan filter di kategori ini.
             </div>
           ) : (
-            tokens.map((t) => renderTokenCard(t))
+            tokens.map((t, idx) => renderTokenCard(t, idx))
           )}
         </div>
       </div>
@@ -398,279 +444,280 @@ export default function PulsePage() {
   return (
     <>
       <Head>
-        <title>Trenches &amp; Pulse Radar | Sofia Market 4.0</title>
+        <title>Trenches &amp; Pulse Radar | Sofia Market 4.1</title>
       </Head>
 
-      <div className="space-y-5 pb-12">
-        {/* HERO HEADER */}
-        <div className="bg-gradient-to-r from-obsidian-900 via-obsidian-900 to-obsidian-850 border border-obsidian-750 rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight flex items-center gap-2">
-                <LucideIcon name="zap" className="w-6 h-6 text-amber-400" />
-                <span>Trenches &amp; Pulse Radar</span>
-              </h1>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                DEXSCREENER V1
-              </span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                GMGN.AI TRENCH
-              </span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                100% REAL MARKET
-              </span>
+      <div className="space-y-3 pb-12">
+        {/* COMPACT MINIMALIST HEADER & CONTROLS */}
+        <div className="bg-obsidian-900/90 border border-obsidian-800 rounded-xl px-3.5 py-2.5 shadow-sm flex flex-wrap items-center justify-between gap-2.5">
+          {/* TITLE & LIVE INLINE STATS */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1.5 font-bold text-slate-100 text-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <LucideIcon name="zap" className="w-4 h-4 text-amber-400" />
+              <span>Pulse Radar</span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
-              Pemantauan harga on-chain, umur token baru rilis di DEX, likuiditas Raydium/PumpSwap, dan audit keselamatan RugShield secara live. Eksekusi 1-klik snipe langsung menggunakan modal Paper atau Live wallet.
-            </p>
+
+            <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-slate-400 border-l border-obsidian-800 pl-2.5">
+              <span className="text-amber-300 font-bold">Top 10 Rekomendasi</span>
+              <span className="text-slate-600">·</span>
+              <span>{totalRawCount} Radar</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-emerald-400">🛡️ {totalSafeCount} Aman</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-slate-300 font-bold">{formatIdr(usdIdr)}</span>
+              {lastScannedTime && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span className={pulseQuery.isFetching ? 'text-cyan-400 font-bold animate-pulse' : 'text-slate-400'}>
+                    {pulseQuery.isFetching ? '⚡ Memindai...' : `Update: ${lastScannedTime}`}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* TELEMETRY MINI STATUS */}
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono shrink-0">
-            <div className="bg-obsidian-950 px-3 py-2 rounded-xl border border-obsidian-800">
-              <span className="text-[10px] text-slate-500 block">KURS USD/IDR</span>
-              <span className="font-bold text-white font-mono">{formatIdr(usdIdr)}</span>
-            </div>
-            <div className="bg-obsidian-950 px-3 py-2 rounded-xl border border-obsidian-800">
-              <span className="text-[10px] text-slate-500 block">MODE TRADING</span>
-              <span
-                className={`font-bold font-mono ${
-                  mode === 'LIVE' ? 'text-rose-400' : 'text-cyan-300'
-                }`}
+          {/* RIGHT CONTROLS: 10S AUTO-SCAN / STOP SCAN, REFRESH, MODE & AUTO ENTRY */}
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+            {/* 10-DETIK AUTO-SCAN / STOP SCAN BUTTON */}
+            {autoScan ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoScan(false);
+                  setCountdown(10);
+                }}
+                className="px-2.5 py-1 rounded-lg border border-rose-500/70 bg-rose-950/80 hover:bg-rose-900 text-rose-200 ring-2 ring-rose-500/30 transition flex items-center gap-1.5 shadow-sm font-bold animate-pulse"
+                title="Klik untuk menghentikan pemindaian otomatis"
               >
-                {mode === 'LIVE' ? '⚡ LIVE SOLANA' : '📄 PAPER SIMULASI'}
+                <span className="w-2 h-2 rounded-sm bg-rose-400" />
+                <span>⏹ Stop Scan ({countdown}s)</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoScan(true);
+                  setCountdown(10);
+                  pulseQuery.refetch();
+                }}
+                className="px-2.5 py-1 rounded-lg border border-emerald-500/50 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 transition flex items-center gap-1.5 shadow-sm font-bold"
+                title="Mulai pemindaian otomatis setiap 10 detik"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span>▶ Jalankan Scan (10s)</span>
+              </button>
+            )}
+
+            {/* REFRESH BUTTON */}
+            <button
+              type="button"
+              onClick={() => pulseQuery.refetch()}
+              className="p-1.5 rounded-lg border border-obsidian-800 bg-obsidian-950 hover:bg-obsidian-850 text-slate-300"
+              title="Refresh live data"
+            >
+              <LucideIcon name="refresh-cw" className={`w-3.5 h-3.5 ${pulseQuery.isFetching ? 'animate-spin' : ''}`} />
+            </button>
+
+            {/* TRADING MODE BADGE */}
+            <span
+              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                mode === 'LIVE'
+                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                  : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+              }`}
+            >
+              {mode === 'LIVE' ? 'LIVE' : 'PAPER'}
+            </span>
+
+            {/* SCREENING BADGE */}
+            <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+              RADAR SCREENING
+            </span>
+
+            {/* LINK KE MENU AUTO ENTRY UNTUK SNIPING */}
+            <Link
+              href="/auto-entry"
+              className="px-2.5 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-mono text-xs font-bold transition flex items-center gap-1.5"
+              title="Buka menu Auto Entry Bot untuk mengeksekusi sniper token"
+            >
+              <LucideIcon name="target" className="w-3.5 h-3.5 text-amber-400" />
+              <span>Menu Auto Entry ↗</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* COMPACT MINIMALIST TAB BAR & FILTERS */}
+        <div className="bg-obsidian-900/90 border border-obsidian-800 rounded-xl p-1.5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-2">
+          {/* CATEGORY TABS */}
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setActiveColumnTab('MICRO')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+                activeColumnTab === 'MICRO'
+                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-obsidian-850'
+              }`}
+            >
+              <span>🌱 Micro Cap</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-sky-950/80 text-[10px] font-mono text-sky-300">
+                {microTokens.length}
               </span>
-            </div>
-          </div>
-        </div>
+            </button>
 
-        {/* FEEDBACK TOASTS */}
-        {snipeFeedback && (
-          <div className="p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs sm:text-sm font-mono flex items-center gap-2 shadow-lg">
-            <LucideIcon name="check" className="w-4 h-4 shrink-0 text-emerald-400" />
-            <span>{snipeFeedback}</span>
-          </div>
-        )}
-        {snipeError && (
-          <div className="p-4 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs sm:text-sm font-mono flex items-center gap-2 shadow-lg">
-            <LucideIcon name="alert-circle" className="w-4 h-4 shrink-0 text-rose-400" />
-            <span>🛡️ {snipeError}</span>
-          </div>
-        )}
+            <button
+              type="button"
+              onClick={() => setActiveColumnTab('MID')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+                activeColumnTab === 'MID'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-obsidian-850'
+              }`}
+            >
+              <span>⚡ Mid Cap</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-950/80 text-[10px] font-mono text-amber-300">
+                {midTokens.length}
+              </span>
+            </button>
 
-        {/* 4 SUMMARY STAT CARDS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-          <div className="p-3.5 sm:p-4 rounded-xl bg-obsidian-900 border border-obsidian-750 shadow-md space-y-1">
-            <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 flex items-center justify-between">
-              <span>TOTAL TOKEN RADAR</span>
-              <span className="w-2 h-2 rounded-full bg-cyan-400" />
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-white font-mono">
-              {totalRawCount} Koin
-            </div>
-            <div className="text-[10px] text-slate-500">Live feed dari Solana DEX</div>
+            <button
+              type="button"
+              onClick={() => setActiveColumnTab('GRADUATE')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+                activeColumnTab === 'GRADUATE'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-obsidian-850'
+              }`}
+            >
+              <span>🎓 Graduate</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-purple-950/80 text-[10px] font-mono text-purple-300">
+                {graduateTokens.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveColumnTab('MAJOR')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+                activeColumnTab === 'MAJOR'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-obsidian-850'
+              }`}
+            >
+              <span>💎 Major</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-emerald-950/80 text-[10px] font-mono text-emerald-300">
+                {majorTokens.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveColumnTab('ALL')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${
+                activeColumnTab === 'ALL'
+                  ? 'bg-obsidian-800 text-white border border-obsidian-700 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-obsidian-850'
+              }`}
+            >
+              <span>Semua</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-obsidian-950 text-[10px] font-mono text-slate-300">
+                {allFilteredTokens.length}
+              </span>
+            </button>
           </div>
 
-          <div className="p-3.5 sm:p-4 rounded-xl bg-obsidian-900 border border-obsidian-750 shadow-md space-y-1">
-            <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 flex items-center justify-between">
-              <span>PASANGAN BARU RILIS</span>
-              <span className="w-2 h-2 rounded-full bg-sky-400" />
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-sky-400 font-mono">
-              {pulseQuery.data?.new_creations?.length || 0} Pool
-            </div>
-            <div className="text-[10px] text-slate-500">Koin menit &amp; jam pertama</div>
-          </div>
-
-          <div className="p-3.5 sm:p-4 rounded-xl bg-obsidian-900 border border-obsidian-750 shadow-md space-y-1">
-            <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 flex items-center justify-between">
-              <span>MID-CAP &amp; BONDING</span>
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-amber-400 font-mono">
-              {pulseQuery.data?.final_stretch?.length || 0} Pool
-            </div>
-            <div className="text-[10px] text-slate-500">Akselerasi volume aktif</div>
-          </div>
-
-          <div className="p-3.5 sm:p-4 rounded-xl bg-obsidian-900 border border-obsidian-750 shadow-md space-y-1">
-            <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 flex items-center justify-between">
-              <span>LOLOS SHIELD (≥ 75)</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
-              {totalSafeCount} Koin
-            </div>
-            <div className="text-[10px] text-slate-500">
-              {totalRawCount > 0 ? `${Math.round((totalSafeCount / totalRawCount) * 100)}% aman di-snipe` : 'Audit otomatis'}
-            </div>
-          </div>
-        </div>
-
-        {/* INTERACTIVE CONTROLS TOOLBAR */}
-        <div className="rounded-2xl bg-obsidian-900 border border-obsidian-750 p-4 shadow-lg space-y-3.5">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            {/* SEARCH INPUT */}
-            <div className="relative flex-1 max-w-md">
+          {/* SEARCH & SHIELD FILTER */}
+          <div className="flex items-center gap-2">
+            <div className="relative w-full sm:w-48">
               <LucideIcon
                 name="search"
-                className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
+                className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2"
               />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari simbol, nama koin, atau paste CA..."
-                className="w-full pl-9 pr-8 py-2 rounded-xl bg-obsidian-950 border border-obsidian-750 text-white placeholder-slate-500 font-mono text-xs focus:outline-none focus:border-cyan-400"
+                placeholder="Cari simbol / CA..."
+                className="w-full pl-7 pr-6 py-1 rounded-lg bg-obsidian-950 border border-obsidian-800 text-white placeholder-slate-500 font-mono text-[11px] focus:outline-none focus:border-cyan-400"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
                 >
                   ✕
                 </button>
               )}
             </div>
 
-            {/* CONTROLS: SHIELD FILTER + REFRESH */}
-            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-              <span className="text-slate-400 flex items-center gap-1 font-bold">
-                <LucideIcon name="shield-check" className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Filter Shield:</span>
-              </span>
-              {[0, 60, 75, 85].map((score) => (
+            <div className="flex items-center gap-1 text-[11px] font-mono shrink-0">
+              <span className="text-slate-500 hidden sm:inline">Shield:</span>
+              {[0, 75].map((score) => (
                 <button
                   key={score}
                   type="button"
                   onClick={() => setMinSafety(score)}
-                  className={`px-2.5 py-1.5 rounded-lg transition font-bold ${
+                  className={`px-2 py-0.5 rounded text-[11px] transition font-mono ${
                     minSafety === score
-                      ? 'bg-emerald-500 text-obsidian-950 shadow-sm'
+                      ? 'bg-emerald-500 text-obsidian-950 font-bold'
                       : 'bg-obsidian-950 text-slate-400 hover:text-white border border-obsidian-800'
                   }`}
                 >
-                  {score === 0 ? 'Semua' : `≥ ${score}`}
+                  {score === 0 ? 'All' : '≥75'}
                 </button>
               ))}
-
-              <button
-                type="button"
-                onClick={() => pulseQuery.refetch()}
-                className="ml-auto lg:ml-2 px-3 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5 transition font-bold"
-                title="Pembaruan manual data pool DEX"
-              >
-                <LucideIcon name="refresh-cw" className="w-3.5 h-3.5" />
-                <span>Refresh Live</span>
-              </button>
-            </div>
-          </div>
-
-          {/* NOMINAL SNIPE CHIPS ROW */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-obsidian-800 text-xs font-mono">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-slate-400 flex items-center gap-1 font-bold">
-                <LucideIcon name="banknote" className="w-3.5 h-3.5 text-amber-400" />
-                <span>Nominal 1-Klik Snipe:</span>
-              </span>
-              {[15000, 25000, 30000, 50000, 100000].map((nominal) => (
-                <button
-                  key={nominal}
-                  type="button"
-                  onClick={() => handleSelectPreset(nominal)}
-                  className={`px-2.5 py-1 rounded-lg transition font-bold ${
-                    presetIdr === nominal
-                      ? 'bg-amber-400 text-obsidian-950 shadow-sm'
-                      : 'bg-obsidian-950 hover:bg-obsidian-850 text-slate-300 border border-obsidian-800'
-                  }`}
-                >
-                  {formatIdr(nominal)}
-                </button>
-              ))}
-              <span className="text-[11px] text-slate-500 ml-1">
-                (≈ {formatUsd(presetIdr / usdIdr)})
-              </span>
-            </div>
-
-            {/* MOBILE COLUMN TAB SWITCHER */}
-            <div className="lg:hidden flex items-center gap-1 bg-obsidian-950 p-1 rounded-xl border border-obsidian-800 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => setActiveColumnTab('ALL')}
-                className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-lg text-[11px] font-bold ${
-                  activeColumnTab === 'ALL' ? 'bg-obsidian-800 text-white' : 'text-slate-400'
-                }`}
-              >
-                Semua
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveColumnTab('NEW')}
-                className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-lg text-[11px] font-bold ${
-                  activeColumnTab === 'NEW' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'
-                }`}
-              >
-                🌱 Baru ({newTokens.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveColumnTab('MID')}
-                className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-lg text-[11px] font-bold ${
-                  activeColumnTab === 'MID' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400'
-                }`}
-              >
-                ⚡ Mid-Cap ({midTokens.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveColumnTab('MIGRATED')}
-                className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-lg text-[11px] font-bold ${
-                  activeColumnTab === 'MIGRATED' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'
-                }`}
-              >
-                🚀 Graduated ({migratedTokens.length})
-              </button>
             </div>
           </div>
         </div>
 
-        {/* 3-COLUMN RADAR GRIDS */}
+        {/* RADAR CONTENT PER SELECTED TAB */}
         <QueryState
           isLoading={pulseQuery.isLoading}
           isError={pulseQuery.isError}
           error={pulseQuery.error}
           hasData={Boolean(pulseQuery.data)}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* COLUMN 1: MICRO-CAP & NEW CREATIONS */}
-            {(activeColumnTab === 'ALL' || activeColumnTab === 'NEW') &&
-              renderColumn(
-                '🌱 Micro-Cap & New Pairs',
-                'Pasangan meme coin baru rilis & kapitalisasi mikro',
-                'bg-sky-400',
-                newTokens
-              )}
+          {activeColumnTab === 'MICRO' &&
+            renderColumn(
+              '🌱 Micro-Cap (<$100K MCap)',
+              'Pasangan meme coin baru rilis & kapitalisasi mikro trenches',
+              'bg-sky-400',
+              microTokens
+            )}
 
-            {/* COLUMN 2: MID-CAP MOMENTUM & BONDING CURVE */}
-            {(activeColumnTab === 'ALL' || activeColumnTab === 'MID') &&
-              renderColumn(
-                '⚡ Mid-Cap Momentum (PumpSwap / DEX)',
-                'Token dengan akselerasi volume & likuiditas aktif',
-                'bg-amber-400',
-                midTokens
-              )}
+          {activeColumnTab === 'MID' &&
+            renderColumn(
+              '⚡ Mid-Cap ($100K – $1M MCap)',
+              'Token dengan akselerasi volume & likuiditas yang bertumbuh',
+              'bg-amber-400',
+              midTokens
+            )}
 
-            {/* COLUMN 3: GRADUATED & MAJOR RAYDIUM LIQUIDITY */}
-            {(activeColumnTab === 'ALL' || activeColumnTab === 'MIGRATED') &&
-              renderColumn(
-                '🚀 Graduated & Major Liquidity',
-                'Pool DEX likuiditas besar & lulus bonding curve',
-                'bg-emerald-400',
-                migratedTokens
-              )}
-          </div>
+          {activeColumnTab === 'GRADUATE' &&
+            renderColumn(
+              '🎓 Graduate (Raydium / DEX Migrated)',
+              'Pool likuiditas yang telah lulus bonding curve & migrasi ke AMM',
+              'bg-purple-400',
+              graduateTokens
+            )}
+
+          {activeColumnTab === 'MAJOR' &&
+            renderColumn(
+              '💎 Major Liquidity (>$1M MCap)',
+              'Token mapan dengan kapitalisasi besar & likuiditas bluechip',
+              'bg-emerald-400',
+              majorTokens
+            )}
+
+          {activeColumnTab === 'ALL' &&
+            renderColumn(
+              '🌐 Semua Token Radar',
+              'Seluruh token aktif yang terdeteksi secara real-time pada radar',
+              'bg-cyan-400',
+              allFilteredTokens
+            )}
         </QueryState>
       </div>
     </>

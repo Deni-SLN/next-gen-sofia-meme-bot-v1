@@ -203,7 +203,7 @@ export default function SettingsPage() {
   return (
     <>
       <Head>
-        <title>Pengaturan Sistem &amp; Kredensial API — Sofia Market 4.0</title>
+        <title>Pengaturan Sistem &amp; Kredensial API — Sofia Market 4.1</title>
       </Head>
 
       <div className="space-y-5 pb-12">
@@ -217,7 +217,7 @@ export default function SettingsPage() {
                 Pengaturan Sistem &amp; Kredensial
               </h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
-                Sofia Market 4.0
+                Sofia Market 4.1
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">

@@ -97,8 +97,20 @@ def _ensure_column_migrations() -> None:
 
 
 def init_db() -> None:
-    Base.metadata.create_all(bind=engine)
-    _ensure_column_migrations()
+    global engine, SessionLocal
+    try:
+        Base.metadata.create_all(bind=engine)
+        _ensure_column_migrations()
+    except Exception as e:
+        # Graceful fallback to local SQLite if remote PostgreSQL fails or exceeds quota
+        if not str(engine.url).startswith("sqlite"):
+            print(f"[DB FALLBACK] Remote DB connection failed ({e}). Falling back to local SQLite.")
+            engine = create_engine("sqlite:///./sofia_trade.db", connect_args={"check_same_thread": False})
+            SessionLocal.configure(bind=engine)
+            Base.metadata.create_all(bind=engine)
+            _ensure_column_migrations()
+        else:
+            raise
 
     with SessionLocal() as db:
         # 1. Bot State singleton

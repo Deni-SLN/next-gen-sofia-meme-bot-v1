@@ -1,6 +1,6 @@
 {
-  "name": "sofia-market-4.0-web",
-  "version": "4.0.0",
+  "name": "sofia-market-4.1-web",
+  "version": "4.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

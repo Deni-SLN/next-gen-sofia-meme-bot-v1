@@ -5,11 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ROOT_DIR = Path(__file__).resolve().parents[4]
 _API_DIR = Path(__file__).resolve().parents[2]
-_DEFAULT_NEON_URL = (
-    "postgresql+psycopg://neondb_owner:npg_RDIYro7b4CsM@"
-    "ep-weathered-forest-aomnfoor-pooler.c-2.ap-southeast-1.aws.neon.tech/"
-    "neondb?sslmode=require&channel_binding=require"
-)
+_DEFAULT_NEON_URL = "sqlite:///./sofia_trade.db"
 
 
 def _normalize_db_url(url: str) -> str:
@@ -23,7 +19,7 @@ def _normalize_db_url(url: str) -> str:
 
 class Settings(BaseSettings):
     app_name: str = "Sofia Market 3.9"
-    version: str = "3.9.0"
+    version: str = "4.1.0"
     debug: bool = False
     database_url: str = _DEFAULT_NEON_URL
     admin_password: str = "changeme"
