@@ -113,14 +113,21 @@ def run_analysis(
     lows = [c.low for c in candles]
     vols = [c.volume for c in candles]
 
-    rsi_val = rsi(closes) if len(closes) >= 15 else None
+    rsi_val = rsi(closes) if len(closes) >= 15 else (rsi(closes, max(3, len(closes) - 1)) if len(closes) >= 5 else None)
     macd_res = macd(closes) if len(closes) >= 35 else macd(closes, 5, 10, 5)
-    atr_val = atr(highs, lows, closes) if len(closes) >= 15 else None
+    atr_val = atr(highs, lows, closes) if len(closes) >= 15 else (atr(highs, lows, closes, max(3, len(closes) - 1)) if len(closes) >= 5 else None)
     ema9 = ema(closes, 9) if len(closes) >= 9 else None
     ema21 = ema(closes, 21) if len(closes) >= 21 else None
-    vol_ratio = volume_ratio(vols) if len(vols) >= 21 else None
-    structure = market_structure(closes, highs, lows) if len(closes) >= 10 else None
-    sr = support_resistance(highs, lows) if len(closes) >= 10 else None
+    vol_ratio = (
+        volume_ratio(vols)
+        if len(vols) >= 21
+        else (volume_ratio(vols, max(3, len(vols) - 1)) if len(vols) >= 5 else None)
+    )
+    if vol_ratio is None and latest and _finite(latest.volume_5m) and _finite(latest.volume_1h) and latest.volume_1h > 0:
+        avg_5m = latest.volume_1h / 12.0
+        vol_ratio = latest.volume_5m / avg_5m if avg_5m > 0 else None
+    structure = market_structure(closes, highs, lows) if len(closes) >= 10 else (market_structure(closes, highs, lows, lookback=1) if len(closes) >= 5 else None)
+    sr = support_resistance(highs, lows) if len(closes) >= 10 else (support_resistance(highs, lows, lookback=1) if len(closes) >= 5 else None)
 
     price = latest.price_usd if latest else None
     liq = latest.liquidity_usd if latest else None
@@ -134,6 +141,8 @@ def run_analysis(
 
     rules = get_risk_rules(db)
     # Safety-critical inputs come from the chain, never from the model.
+    if onchain_facts is None:
+        onchain_facts = onchain_service.get_or_fetch(db, token)
     chain = onchain_service.evidence_for_risk(onchain_facts)
     risk = assess_risk(
         RiskInput(

@@ -137,7 +137,7 @@ def refresh_wallet_balances(
     wallet_ids: list[str] | None = None,
 ) -> dict:
     """Read and record balances for the BOT wallet and the MAIN wallet."""
-    from app.services.wallet_service import get_main_wallet
+    from app.services.wallet_service import get_bot_wallet, get_main_wallet
 
     targets: list[WalletAccount] = []
     if wallet_ids:
@@ -146,12 +146,7 @@ def refresh_wallet_balances(
             if wallet is not None:
                 targets.append(wallet)
     else:
-        bot = (
-            db.query(WalletAccount)
-            .filter(WalletAccount.wallet_role == "BOT")
-            .order_by(WalletAccount.created_at.asc())
-            .first()
-        )
+        bot = get_bot_wallet(db)
         if bot is not None:
             targets.append(bot)
         main = get_main_wallet(db)

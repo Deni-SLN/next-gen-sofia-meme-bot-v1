@@ -21,7 +21,13 @@ def _now() -> datetime:
 
 
 def job_discovery(session_factory) -> dict:
-    """Discover + ingest Solana pairs from DEX Screener into the local DB."""
+    """Discover + ingest Solana pairs from DEX Screener into the local DB.
+
+    Also refreshes market snapshots for any currently OPEN positions whose
+    token was not in the trending slice, so held positions do not turn STALE
+    when they rotate out of top trending.
+    """
+    from app.models.trading import Position
     from app.providers.market.dexscreener import DexScreenerProvider
     from app.services.market_service import ingest_pairs
     from app.services.provider_service import record_provider_health
@@ -35,8 +41,28 @@ def job_discovery(session_factory) -> dict:
             record_provider_health("dexscreener", ok=False, error=str(e)[:200])
             log.warning("discovery failed: %s", e)
             return {"ok": False, "error": str(e)[:200]}
+
+        seen_mints = {p.mint_address for p in pairs if p.mint_address}
+        open_mints = {
+            p.mint_address
+            for p in db.query(Position).filter(Position.status == "OPEN").all()
+            if p.mint_address and p.mint_address not in seen_mints
+        }
+        extra_pairs = []
+        for mint in open_mints:
+            try:
+                fetched = asyncio.run(dex.token_pairs(mint))
+                if fetched:
+                    fetched.sort(key=lambda x: x.liquidity_usd or 0.0, reverse=True)
+                    extra_pairs.append(fetched[0])
+            except Exception as e:  # noqa: BLE001
+                log.warning("open position refresh failed for %s: %s", mint, e)
+
         result = ingest_pairs(db, pairs)
-        log.info("discovery ingested: %s", result)
+        if extra_pairs:
+            # Ingest open-position snapshots without dropping them on discovery filters
+            ingest_pairs(db, extra_pairs, filters={"allow_incomplete": True})
+        log.info("discovery ingested: %s (open refreshed: %s)", result, len(extra_pairs))
         return {"ok": True, **result}
     finally:
         db.close()
@@ -54,6 +80,7 @@ def job_analysis(session_factory, use_ai: bool = False) -> dict:
     """
     from app.models.analysis import AnalysisRun
     from app.models.market import Token, TokenPair
+    from app.services import onchain_service
     from app.services.agent_service import run_narrative_agents
     from app.services.analysis_service import run_analysis
 
@@ -76,11 +103,14 @@ def job_analysis(session_factory, use_ai: bool = False) -> dict:
             if recent and recent.created_at and (_now() - _aware(recent.created_at)).total_seconds() < 300:
                 continue
             try:
-                run = run_analysis(db, token, pair)
+                facts = onchain_service.get_or_fetch(db, token)
+                run = run_analysis(db, token, pair, onchain_facts=facts)
                 analyzed += 1
                 if use_ai:
                     # Narrative only. Never re-derives the decision or score.
-                    payload = run_narrative_agents(db, token, pair, run=run)
+                    payload = run_narrative_agents(
+                        db, token, pair, onchain=facts.to_json() if facts else None, run=run
+                    )
                     if payload["agents"]:
                         run.ai_summary = {
                             **(run.ai_summary or {}),

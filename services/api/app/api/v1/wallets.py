@@ -411,7 +411,7 @@ def evaluate_sweep_endpoint(payload: dict | None = None, db: Session = Depends(g
     wallet_id = (payload or {}).get("wallet_id")
     assets = _parse_assets((payload or {}).get("assets"))
     if wallet_id is None:
-        bot = db.query(WalletAccount).filter(WalletAccount.wallet_role == "BOT").order_by(WalletAccount.created_at).first()
+        bot = ws.get_bot_wallet(db)
         if bot is None:
             raise NotFoundError("wallet", "BOT wallet not registered")
         wallet_id = bot.id

@@ -220,6 +220,24 @@ def test_triggers_take_profit_on_a_fresh_mark(db):
     assert decision.target_price == pytest.approx(TARGET1)
 
 
+def test_multi_target_holds_past_t1_and_trails_or_takes_t2(db):
+    position, pair = _position(db, targets=(14.0, 16.0))
+    # Reaching T1 holds for T2 upside while recording the mark
+    _mark(db, pair, 14.5)
+    val1 = _valuation(db, position)
+    dec1 = evaluate_exit(position, exit_plan(db, position), val1)
+    assert dec1.action == ACTION_HOLD
+
+    # Pulling back to T1 after having crossed T1 triggers trailing take profit at T1
+    position.mark_price = 14.5
+    db.commit()
+    _mark(db, pair, 13.9)
+    val2 = _valuation(db, position)
+    dec2 = evaluate_exit(position, exit_plan(db, position), val2)
+    assert dec2.action == ACTION_TAKE_PROFIT
+    assert dec2.target_price == pytest.approx(14.0)
+
+
 def test_triggers_stop_loss_on_a_fresh_mark(db):
     position, pair = _position(db)
     _mark(db, pair, STOP - 1)

@@ -9,7 +9,7 @@ const groups: { title: string; links: { to: string; label: string }[] }[] = [
   {
     title: "Analysis Engine",
     links: [
-      { to: "/scanner", label: "Market Scanner" },
+      { to: "/scanner", label: "Trenches & Pulse Radar" },
       { to: "/tokens", label: "Token Explorer" },
       { to: "/signals", label: "Signal Center" },
       { to: "/watchlist", label: "Watchlist" },

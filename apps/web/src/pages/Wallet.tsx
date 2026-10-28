@@ -31,6 +31,9 @@ export default function Wallet() {
   const wallets = useQuery({ queryKey: ["wallets"], queryFn: () => get<{ items: WalletItem[] }>("/api/v1/wallets") });
   const [selected, setSelected] = useState<string>("");
   const walletId = selected || wallets.data?.items?.[0]?.id || "";
+  const [asset, setAsset] = useState("SOL");
+  const [amount, setAmount] = useState("1");
+  const assetDecimals = asset === "SOL" ? 9 : 6;
 
   const balances = useQuery({
     queryKey: ["wallet-balances", walletId],
@@ -42,14 +45,39 @@ export default function Wallet() {
   });
 
   const reserve = useQuery({
-    queryKey: ["wallet-reserve", walletId],
-    queryFn: () => get<{ reserve: Record<string, number>; reasons?: string[] }>(`/api/v1/wallets/${walletId}/reserve`),
+    queryKey: ["wallet-reserve", walletId, asset],
+    queryFn: async () => {
+      const raw = await get<{
+        wallet_id: string;
+        asset: string;
+        reserve_policy: string;
+        open_position_exposure_atomic: number;
+        pending_outflows_atomic: number;
+        estimated_fees_atomic: number;
+        operational_buffer_atomic: number;
+        total_atomic: number;
+        total_ui: number;
+      }>(`/api/v1/wallets/${walletId}/reserve?asset=${asset}`);
+      // Flatten into the render shape the card expects.
+      return {
+        reserve: {
+          open_position_exposure_atomic: raw.open_position_exposure_atomic,
+          pending_outflows_atomic: raw.pending_outflows_atomic,
+          estimated_fees_atomic: raw.estimated_fees_atomic,
+          operational_buffer_atomic: raw.operational_buffer_atomic,
+          total_atomic: raw.total_atomic,
+          total_ui: raw.total_ui,
+          reserve_policy: raw.reserve_policy,
+        },
+        reasons: [] as string[],
+      };
+    },
     enabled: Boolean(walletId),
   });
 
   const transfers = useQuery({
     queryKey: ["wallet-transfers"],
-    queryFn: () => get<{ items: { id: string; state: string; trigger_type: string; asset: string; amount_atomic: number; estimated_fee_atomic: number; created_at: string | null; failure_reason: string | null }[] }>(
+    queryFn: () => get<{ items: { id: string; state: string; trigger_type: string; asset: string; amount_atomic: number; amount_ui: number | null; estimated_fee_atomic: number; created_at: string | null; failure_reason: string | null }[] }>(
       "/api/v1/wallet-transfers?limit=25",
     ),
   });
@@ -69,8 +97,20 @@ export default function Wallet() {
     onError: (e: Error) => setWithdrawMsg(e.message),
   });
 
-  const [asset, setAsset] = useState("SOL");
-  const [amount, setAmount] = useState("1");
+  const submitWithdraw = () => {
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) {
+      setWithdrawMsg("Jumlah harus angka positif.");
+      return;
+    }
+    withdraw.mutate({
+      source_wallet_id: walletId,
+      asset,
+      // Intent API works in integer atomic units, never binary float.
+      amount_atomic: Math.round(n * 10 ** assetDecimals),
+      idempotency_key: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -190,9 +230,7 @@ export default function Wallet() {
             />
           </label>
           <button
-            onClick={() =>
-              withdraw.mutate({ source_wallet_id: walletId, asset, amount: Number(amount) })
-            }
+            onClick={submitWithdraw}
             disabled={!walletId || withdraw.isPending}
             className="rounded-md bg-sky-700 px-3 py-1.5 text-sm font-medium hover:bg-sky-600 disabled:opacity-50"
           >
@@ -228,7 +266,11 @@ export default function Wallet() {
               {(transfers.data?.items ?? []).map((t) => (
                 <tr key={t.id} className="border-t border-zinc-800/60">
                   <td className="py-1.5 font-mono text-xs">{t.asset}</td>
-                  <td className="text-right font-mono">{t.amount_atomic}</td>
+                  <td className="text-right font-mono">
+                    {t.amount_ui != null
+                      ? `${t.amount_ui.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${t.asset}`
+                      : `${t.amount_atomic} (atomic)`}
+                  </td>
                   <td className="text-xs">{t.trigger_type}</td>
                   <td>
                     <Badge level={STATUS_TONE[t.state] ?? "mute"}>{t.state}</Badge>

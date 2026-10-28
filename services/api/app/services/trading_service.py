@@ -88,9 +88,15 @@ def process_signal_for_trading(db: Session, signal_id: str) -> dict:
 
     fee_pct = (signal.fee_assumptions or {}).get("taker_fee_pct", 0.003) * 100
     slip_pct = (signal.slippage_assumption or 0.005) * 100
+    risk_cfg = get_risk_config(db)
     impact_pct = None
-    if liq and liq > 0 and signal.entry_reference:
-        impact_pct = signal.entry_reference / (liq + signal.entry_reference) * 100
+    if liq and liq > 0:
+        est_alloc = min(
+            float(risk_cfg.get("max_position_allocation_usd", 200.0)),
+            max(0.0, eq.equity * float(risk_cfg.get("max_position_pct_of_equity", 10.0)) / 100.0),
+        )
+        if est_alloc > 0:
+            impact_pct = est_alloc / (liq + est_alloc) * 100
 
     decision = evaluate_risk_gate(
         RiskGateInput(
@@ -116,7 +122,7 @@ def process_signal_for_trading(db: Session, signal_id: str) -> dict:
             market_data_age_seconds=data_age,
             valuation_complete=eq.is_complete,
         ),
-        config=get_risk_config(db),
+        config=risk_cfg,
     )
 
     intent = OrderIntent(

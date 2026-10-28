@@ -388,6 +388,86 @@ def test_ledger_realized_pnl_counts(db, wallets):
     assert ws.eligible_realized_profit_atomic(db, "SOL") == usd_to_atomic(10.0)
 
 
+def test_usdc_profit_uses_one_to_one_usd_conversion(db, wallets):
+    ws.record_balance_snapshot(db, wallets["bot"].id, "USDC", 500_000_000, USDC_MINT)
+    _closed_position(db, realized_pnl=100.0)
+    # 100 USD = 100_000_000 micro-USDC (6 decimals), 50% sweepable = 50_000_000
+    assert ws.eligible_realized_profit_atomic(db, "USDC") == 100_000_000
+    ev = ws.evaluate_sweep(db, wallets["bot"].id, "USDC")
+    assert ev.sweepable_atomic == 50_000_000
+
+
+def test_get_bot_wallet_returns_the_active_bot(db, wallets):
+    assert ws.get_bot_wallet(db).id == wallets["bot"].id
+    assert ws.get_bot_wallet(db).wallet_role == "BOT"
+    wallets["bot"].status = "PAUSED"
+    db.commit()
+    assert ws.get_bot_wallet(db) is None, "a non-ACTIVE bot wallet is not a sweep source"
+
+
+def test_get_main_wallet_is_deterministic(db, wallets):
+    assert ws.get_main_wallet(db).id == wallets["main"].id
+    assert ws.get_main_wallet(db).is_allowlisted == 1
+
+
+# ----------------------------- Policy inheritance -----------------------------
+
+
+def test_set_policy_inherits_fields_it_does_not_change(db, wallets):
+    """A partial update must not silently reset the other policy fields."""
+    ws.set_policy(db, "op", {"sweep_percent": 25, "min_sweep_atomic": 0})
+    ws.set_policy(db, "op", {"cooldown_seconds": 60})
+    p = ws.get_policy(db)
+    assert p.sweep_percent == 25, "unchanged field was reset by the second update"
+    assert p.cooldown_seconds == 60
+    assert p.version == 3, "each update is a new immutable version"
+    assert list(p.allowed_assets) == list(ws.ALLOWED_ASSETS)
+
+
+def test_set_policy_audit_lists_only_the_changed_fields(db, wallets):
+    ws.set_policy(db, "op", {"sweep_percent": 30})
+    from app.models.ops import AuditLog
+
+    row = db.query(AuditLog).filter(AuditLog.action == "update_wallet_policy").order_by(
+        AuditLog.created_at.desc()
+    ).first()
+    assert row is not None
+    assert row.metadata_json["changed"] == ["sweep_percent"]
+    assert row.metadata_json["version"] == 2
+
+
+# ----------------------------- Sweep percent -----------------------------
+
+
+def test_sweep_uses_the_policy_percent_not_a_hardcoded_half(db, wallets):
+    """Regression: evaluate_sweep used 0.5 regardless of policy.sweep_percent."""
+    ws.record_balance_snapshot(db, wallets["bot"].id, "SOL", 10_000_000_000, SOL_MINT)
+    _closed_position(db, realized_pnl=100.0)
+    ws.set_policy(db, "op", {"sweep_percent": 25, "min_sweep_atomic": 0})
+    ev = ws.evaluate_sweep(db, wallets["bot"].id, "SOL")
+    assert ev.eligible_realized_atomic == usd_to_atomic(100.0)
+    assert ev.sweepable_atomic == ev.eligible_realized_atomic * 25 // 100
+
+
+def test_zero_sweep_percent_sweeps_nothing(db, wallets):
+    ws.record_balance_snapshot(db, wallets["bot"].id, "SOL", 10_000_000_000, SOL_MINT)
+    _closed_position(db, realized_pnl=100.0)
+    ws.set_policy(db, "op", {"sweep_percent": 0, "min_sweep_atomic": 0})
+    ev = ws.evaluate_sweep(db, wallets["bot"].id, "SOL")
+    assert ev.sweepable_atomic == 0
+
+
+# ----------------------------- Missing snapshot fails closed -----------------------------
+
+
+def test_creating_an_intent_without_a_balance_snapshot_fails_closed(db, wallets):
+    """A None snapshot must be a ValidationError, not an AttributeError 500."""
+    with pytest.raises(ValidationError) as exc:
+        ws.create_withdrawal_intent(db, "op", wallets["bot"].id, "SOL", 1_000_000, "no-snap-key")
+    assert "snapshot" in str(exc.value).lower()
+    assert db.query(WithdrawalIntent).count() == 0
+
+
 # ----------------------------- Auto sweep -----------------------------
 
 

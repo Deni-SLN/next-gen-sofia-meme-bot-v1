@@ -196,16 +196,32 @@ def evaluate_exit(
             plan_source=plan.source,
         )
 
-    for target in plan.target_prices:
-        if mark >= target:
+    if plan.target_prices:
+        highest_target = plan.target_prices[-1]
+        if mark >= highest_target:
             return ExitDecision(
                 action=ACTION_TAKE_PROFIT,
-                reason=f"mark {mark:.6g} at or above target {target:.6g}",
+                reason=f"mark {mark:.6g} at or above target {highest_target:.6g}",
                 mark_price=mark,
-                target_price=target,
+                target_price=highest_target,
                 unrealized_pnl=valuation.unrealized_pnl,
                 plan_source=plan.source,
             )
+
+        # Dynamic floor once price has already crossed an earlier target (e.g. T1):
+        # if previous mark reached >= T1 and current mark pulls back to T1, lock in T1 profit.
+        prev_mark = position.mark_price
+        if len(plan.target_prices) > 1 and _finite_positive(prev_mark):
+            t1 = plan.target_prices[0]
+            if prev_mark >= t1 and mark <= t1:
+                return ExitDecision(
+                    action=ACTION_TAKE_PROFIT,
+                    reason=f"mark {mark:.6g} trailed back to T1 {t1:.6g} after peak {prev_mark:.6g}",
+                    mark_price=mark,
+                    target_price=t1,
+                    unrealized_pnl=valuation.unrealized_pnl,
+                    plan_source=plan.source,
+                )
 
     return ExitDecision(
         action=ACTION_HOLD,
@@ -407,21 +423,31 @@ def _offer_profit_sweep(db: Session, position: Position, realized: float) -> Non
     if realized <= 0:
         return
     from app.core.logging import get_logger
-    from app.services.wallet_service import evaluate_and_record_sweep, get_main_wallet
+    from app.services.wallet_service import (
+        evaluate_and_record_sweep,
+        get_bot_wallet,
+        get_main_wallet,
+    )
 
     try:
-        wallet = get_main_wallet(db)
-        if wallet is None:
+        main_wallet = get_main_wallet(db)
+        if main_wallet is None:
             get_logger("position_manager").info(
                 "no MAIN wallet registered; profit of %.6f not offered for sweep", realized
             )
             return
+        bot_wallet = get_bot_wallet(db)
+        source_wallet = bot_wallet or main_wallet
         for asset in ("SOL", "USDC"):
             result = evaluate_and_record_sweep(
-                db, "system", f"position:{position.id}", wallet.id, asset
+                db, "system", f"position:{position.id}", source_wallet.id, asset
             )
             get_logger("position_manager").info(
-                "sweep %s for position %s: %s", asset, position.id, result.get("status")
+                "sweep %s for position %s (source=%s): %s",
+                asset,
+                position.id,
+                source_wallet.wallet_role,
+                result.get("status"),
             )
     except Exception:  # noqa: BLE001
         get_logger("position_manager").exception(
@@ -524,6 +550,14 @@ def run_position_lifecycle(
     now = now or datetime.now(UTC)
     recovered = recover_stalled_exits(db, mode, now=now)
 
+    positions = (
+        db.query(Position)
+        .filter(Position.mode == mode, Position.status == STATUS_OPEN)
+        .order_by(Position.opened_at.asc())
+        .all()
+    )
+    prev_marks = {p.id: p.mark_price for p in positions}
+
     valuations = {
         v.position_id: v
         for v in refresh_open_positions(db, mode, now=now, max_age_seconds=max_age_seconds)
@@ -531,17 +565,15 @@ def run_position_lifecycle(
 
     closed: list[dict] = []
     held: list[dict] = []
-    positions = (
-        db.query(Position)
-        .filter(Position.mode == mode, Position.status == STATUS_OPEN)
-        .order_by(Position.opened_at.asc())
-        .all()
-    )
 
     for position in positions:
         valuation = valuations.get(position.id)
         plan = exit_plan(db, position)
+        saved_mark = position.mark_price
+        if prev_marks.get(position.id) is not None:
+            position.mark_price = prev_marks[position.id]
         decision = evaluate_exit(position, plan, valuation)
+        position.mark_price = saved_mark
 
         if not decision.should_exit:
             held.append(

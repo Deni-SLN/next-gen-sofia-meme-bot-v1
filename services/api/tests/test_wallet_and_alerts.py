@@ -101,7 +101,7 @@ def _destination(db) -> WalletAccount:
 
 
 def test_balance_reads_come_from_the_chain(db):
-    bot, _ = _wallets(db)
+    bot, main = _wallets(db)
     rpc = FakeRpc(sol=2_000_000_000, token=25_000_000)
     reads = refresh_wallet_balances(db, provider=rpc)
     assert reads["ok"] == 4 and reads["unknown"] == 0
@@ -112,6 +112,8 @@ def test_balance_reads_come_from_the_chain(db):
     assert sol.balance_atomic == 2_000_000_000
     assert sol.status == "OK"
     assert rpc.calls  # the chain was actually consulted
+    # Both BOT and MAIN wallets must be refreshed, so the sweep source stays current.
+    assert {s.wallet_account_id for s in snaps} == {bot.id, main.id}
 
 
 def test_failed_read_records_unknown_not_zero(db):
@@ -205,7 +207,7 @@ def test_balances_endpoint_records_reads_over_http(client, db, monkeypatch):
     import app.services.wallet_balance_service as balance_service
 
     monkeypatch.setattr(balance_service, "SolanaRPCProvider", lambda *a, **k: FakeRpc(sol=3_000_000, token=7_000_000))
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
 
     r = client.post("/api/v1/wallets/balances/refresh")
     assert r.status_code == 200, r.text
@@ -217,6 +219,7 @@ def test_balances_endpoint_records_reads_over_http(client, db, monkeypatch):
     # proves is that the endpoint writes snapshots at all - before Tahap 5 it
     # could only ever answer UNAVAILABLE.
     assert db.query(WalletBalanceSnapshot).count() >= 4
+    assert {s.wallet_account_id for s in db.query(WalletBalanceSnapshot).all()} == {bot.id, main.id}
 
 
 def test_balances_endpoint_reports_unknown_when_the_chain_is_unreachable(client, db, monkeypatch):
@@ -275,9 +278,9 @@ def test_closing_a_profit_offers_a_sweep(db):
     """The trigger that did not exist before Tahap 5."""
     from app.models.wallet import ProfitSweepEvent
 
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
     position = _closed_profit(db, realized=100.0)
-    ws.record_balance_snapshot(db, main.id, "USDC", 1_000_000, USDC_MINT)
+    ws.record_balance_snapshot(db, bot.id, "USDC", 1_000_000, USDC_MINT)
     ws.set_sweep_enabled(db, True, "test")
 
     from app.services.position_manager import _offer_profit_sweep
@@ -293,9 +296,9 @@ def test_the_sweep_trigger_is_idempotent(db):
     from app.models.wallet import ProfitSweepEvent
     from app.services.position_manager import _offer_profit_sweep
 
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
     position = _closed_profit(db, realized=100.0)
-    ws.record_balance_snapshot(db, main.id, "USDC", 1_000_000, USDC_MINT)
+    ws.record_balance_snapshot(db, bot.id, "USDC", 1_000_000, USDC_MINT)
     ws.set_sweep_enabled(db, True, "test")
 
     for _ in range(3):
@@ -303,6 +306,36 @@ def test_the_sweep_trigger_is_idempotent(db):
 
     usdc = [e for e in db.query(ProfitSweepEvent).all() if e.asset == "USDC"]
     assert len(usdc) == 1, "one close must produce one sweep event per asset"
+
+
+def test_the_sweep_source_is_the_bot_wallet(db):
+    """Profit sweep must draw from the BOT wallet, not the MAIN treasury.
+
+    Regression: `_offer_profit_sweep` used MAIN as both source and destination,
+    which would sweep the treasury into itself and never touch bot funds.
+    """
+    from app.models.wallet import WithdrawalIntent
+    from app.services.position_manager import _offer_profit_sweep
+
+    bot, main = _wallets(db)
+    position = _closed_profit(db, realized=100.0)
+    ws.record_balance_snapshot(db, bot.id, "USDC", 500_000_000, USDC_MINT)
+    ws.record_balance_snapshot(db, main.id, "USDC", 500_000_000, USDC_MINT)
+    ws.set_sweep_enabled(db, True, "test")
+    ws.set_wallet_enabled(db, True, "test")
+
+    _offer_profit_sweep(db, position, 100.0)
+
+    intents = db.query(WithdrawalIntent).filter(WithdrawalIntent.trigger_type == "AUTO_SWEEP").all()
+    usdc_intents = [i for i in intents if i.asset == "USDC"]
+    assert usdc_intents, "expected an AUTO_SWEEP intent for USDC"
+    for intent in usdc_intents:
+        assert intent.source_wallet_id == bot.id, (
+            "sweep must source from the BOT wallet, not MAIN"
+        )
+        assert intent.destination_wallet_id == main.id, (
+            "sweep must destination the allowlisted MAIN treasury"
+        )
 
 
 def test_closing_a_profit_through_the_lifecycle_records_a_sweep(db):
@@ -327,7 +360,7 @@ def test_closing_a_profit_through_the_lifecycle_records_a_sweep(db):
             observed_at=datetime.now(UTC) - timedelta(seconds=5),
         )
     )
-    ws.record_balance_snapshot(db, main.id, "USDC", 1_000_000, USDC_MINT)
+    ws.record_balance_snapshot(db, bot.id, "USDC", 1_000_000, USDC_MINT)
     ws.set_sweep_enabled(db, True, "test")
     state = get_bot_state(db)
     state["status"] = "RUNNING"
@@ -413,7 +446,7 @@ def test_a_loss_is_never_offered_for_sweep(db):
     from app.models.wallet import ProfitSweepEvent
     from app.services.position_manager import _offer_profit_sweep
 
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
     position = _closed_profit(db, realized=-50.0)
     _offer_profit_sweep(db, position, -50.0)
     assert db.query(ProfitSweepEvent).count() == 0
@@ -424,9 +457,9 @@ def test_sweep_is_recorded_as_skipped_while_the_gate_is_off(db):
     from app.models.wallet import ProfitSweepEvent
     from app.services.position_manager import _offer_profit_sweep
 
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
     position = _closed_profit(db, realized=100.0)
-    ws.record_balance_snapshot(db, main.id, "USDC", 1_000_000, USDC_MINT)
+    ws.record_balance_snapshot(db, bot.id, "USDC", 1_000_000, USDC_MINT)
     ws.set_sweep_enabled(db, False, "test")
 
     _offer_profit_sweep(db, position, 100.0)
@@ -442,28 +475,28 @@ def test_sweep_is_recorded_as_skipped_while_the_gate_is_off(db):
 
 def test_sweep_is_skipped_without_a_fresh_balance(db):
     """No usable balance -> no sweep, and the reason says so."""
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
     _closed_profit(db, realized=100.0)
-    evaluation = ws.evaluate_sweep(db, main.id, "USDC")
+    evaluation = ws.evaluate_sweep(db, bot.id, "USDC")
     assert evaluation.sweepable_atomic == 0
     assert any("balance" in r.lower() or "unavailable" in r.lower() for r in evaluation.reasons)
 
 
 def test_sweep_is_skipped_when_the_only_balance_is_unknown(db):
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
     _closed_profit(db, realized=100.0)
     persist_reads(
         db,
-        [BalanceRead(wallet_id=main.id, asset="USDC", ok=False, reason="rpc down")],
+        [BalanceRead(wallet_id=bot.id, asset="USDC", ok=False, reason="rpc down")],
     )
-    evaluation = ws.evaluate_sweep(db, main.id, "USDC")
+    evaluation = ws.evaluate_sweep(db, bot.id, "USDC")
     assert evaluation.sweepable_atomic == 0
 
 
 def test_dynamic_reserve_never_goes_below_the_operational_buffer(db):
-    _bot, main = _wallets(db)
-    ws.record_balance_snapshot(db, main.id, "SOL", 1_000_000, WSOL_MINT)
-    reserve = ws.compute_dynamic_reserve(db, main.id, "SOL")
+    bot, main = _wallets(db)
+    ws.record_balance_snapshot(db, bot.id, "SOL", 1_000_000, WSOL_MINT)
+    reserve = ws.compute_dynamic_reserve(db, bot.id, "SOL")
     assert reserve.operational_buffer_atomic > 0
     assert reserve.total_atomic >= reserve.operational_buffer_atomic
 
@@ -472,11 +505,11 @@ def test_live_transfer_gate_stays_off(db):
     """Reaching READY_TO_SIGN must be impossible without the on-chain gate."""
     from app.core.errors import ForbiddenError
 
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
     dest = _destination(db)
-    ws.record_balance_snapshot(db, main.id, "SOL", 10_000_000, WSOL_MINT)
+    ws.record_balance_snapshot(db, bot.id, "SOL", 10_000_000, WSOL_MINT)
     intent = ws.create_withdrawal_intent(
-        db, "operator", main.id, "SOL", 1_000_000, "gate-test-1",
+        db, "operator", bot.id, "SOL", 1_000_000, "gate-test-1",
         trigger_type="MANUAL", destination_wallet_id=dest.id,
     )
     intent_id = intent["intent"]["id"]
@@ -488,14 +521,14 @@ def test_live_transfer_gate_stays_off(db):
 
 def test_opening_the_gate_does_not_skip_validation(db):
     """With the gate on and a real balance, validation still runs every check."""
-    _bot, main = _wallets(db)
+    bot, main = _wallets(db)
     dest = _destination(db)
 
     # Gate on, but no balance was ever read.
     ws.set_wallet_enabled(db, True, "operator")
     report = ws.validate_transfer(
         db,
-        source_wallet_id=main.id,
+        source_wallet_id=bot.id,
         destination_wallet_id=dest.id,
         asset="SOL",
         amount_atomic=1_000_000,
@@ -505,10 +538,10 @@ def test_opening_the_gate_does_not_skip_validation(db):
     assert "balance" in " ".join(report["failed_checks"]).lower()
 
     # Gate on, balance present, but the amount exceeds it.
-    ws.record_balance_snapshot(db, main.id, "SOL", 100_000, WSOL_MINT)
+    ws.record_balance_snapshot(db, bot.id, "SOL", 100_000, WSOL_MINT)
     over = ws.validate_transfer(
         db,
-        source_wallet_id=main.id,
+        source_wallet_id=bot.id,
         destination_wallet_id=dest.id,
         asset="SOL",
         amount_atomic=10_000_000,

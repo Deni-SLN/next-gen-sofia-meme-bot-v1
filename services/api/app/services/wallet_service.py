@@ -177,7 +177,17 @@ def set_policy(db: Session, actor: str, payload: dict) -> WalletPolicyVersion:
     if current is None:
         current = default_policy(db, actor)
 
-    values: dict = {}
+    values: dict = {
+        "sweep_percent": current.sweep_percent,
+        "allowed_assets": list(current.allowed_assets or list(ALLOWED_ASSETS)),
+        "reserve_policy": current.reserve_policy or "DYNAMIC",
+        "min_sweep_atomic": current.min_sweep_atomic,
+        "per_transfer_cap_atomic": current.per_transfer_cap_atomic,
+        "daily_cap_atomic": current.daily_cap_atomic,
+        "cooldown_seconds": current.cooldown_seconds,
+        "destination_wallet_id": current.destination_wallet_id,
+    }
+    changed_keys: list[str] = []
     for field, (lo, hi) in POLICY_LIMITS.items():
         if field not in payload:
             continue
@@ -187,6 +197,7 @@ def set_policy(db: Session, actor: str, payload: dict) -> WalletPolicyVersion:
         if raw < lo or (hi is not None and raw > hi):
             raise ValidationError(f"{field} out of range [{lo}, {hi}]")
         values[field] = raw
+        changed_keys.append(field)
 
     if "allowed_assets" in payload:
         assets = payload["allowed_assets"]
@@ -196,11 +207,13 @@ def set_policy(db: Session, actor: str, payload: dict) -> WalletPolicyVersion:
         if bad:
             raise ValidationError(f"assets outside the locked allowlist {ALLOWED_ASSETS}: {bad}")
         values["allowed_assets"] = list(assets)
+        changed_keys.append("allowed_assets")
 
     if "reserve_policy" in payload:
         if payload["reserve_policy"] != "DYNAMIC":
             raise ValidationError("reserve_policy is locked to DYNAMIC in V1")
         values["reserve_policy"] = "DYNAMIC"
+        changed_keys.append("reserve_policy")
 
     if "destination_wallet_id" in payload:
         dest = db.get(WalletAccount, payload["destination_wallet_id"])
@@ -209,6 +222,7 @@ def set_policy(db: Session, actor: str, payload: dict) -> WalletPolicyVersion:
         if dest.wallet_role != "MAIN" or not dest.is_allowlisted:
             raise ValidationError("destination must be an allowlisted MAIN wallet")
         values["destination_wallet_id"] = dest.id
+        changed_keys.append("destination_wallet_id")
 
     current.enabled = 0  # policy versions are immutable once superseded
     new_version = WalletPolicyVersion(
@@ -219,7 +233,7 @@ def set_policy(db: Session, actor: str, payload: dict) -> WalletPolicyVersion:
     )
     db.add(new_version)
     db.commit()
-    write_audit(actor, "update_wallet_policy", "wallet_policy_version", new_version.id, {"changed": sorted(values), "version": new_version.version}, db)
+    write_audit(actor, "update_wallet_policy", "wallet_policy_version", new_version.id, {"changed": sorted(changed_keys), "version": new_version.version}, db)
     return new_version
 
 
@@ -272,6 +286,16 @@ def get_main_wallet(db: Session) -> WalletAccount | None:
     return (
         db.query(WalletAccount)
         .filter(WalletAccount.wallet_role == "MAIN", WalletAccount.is_allowlisted == 1)
+        .order_by(WalletAccount.created_at.asc())
+        .first()
+    )
+
+
+def get_bot_wallet(db: Session) -> WalletAccount | None:
+    return (
+        db.query(WalletAccount)
+        .filter(WalletAccount.wallet_role == "BOT", WalletAccount.status == "ACTIVE")
+        .order_by(WalletAccount.created_at.asc())
         .first()
     )
 
@@ -354,6 +378,17 @@ class ReserveBreakdown:
     total_atomic: int
 
 
+def _usd_to_atomic(usd: float, asset: str) -> int:
+    """Convert a USD notional into integer atomic units for `asset`.
+
+    SOL uses the conservative 100 USD/SOL marker; USDC is 1 USD/USDC.
+    """
+    if usd <= 0:
+        return 0
+    divisor = 100.0 if asset == "SOL" else 1.0
+    return int(round(usd * (10 ** asset_decimals(asset)) / divisor))
+
+
 def compute_dynamic_reserve(db: Session, wallet_id: str, asset: str, fee_atomic: int = 0) -> ReserveBreakdown:
     """Reserve = open exposure + pending outflows + fees + op buffer.
 
@@ -364,7 +399,7 @@ def compute_dynamic_reserve(db: Session, wallet_id: str, asset: str, fee_atomic:
     exposure_usd = sum(abs(p.quantity * (p.average_entry_price or 0.0)) for p in open_positions)
     # Conservative USD->atomic mapping uses a configured notional rate marker.
     # The reserve is intentionally approximate-up: it only ever REDUCES sweepable.
-    exposure_atomic = int(round(exposure_usd * (10 ** asset_decimals(asset)) / 100.0)) if exposure_usd else 0
+    exposure_atomic = _usd_to_atomic(exposure_usd, asset) if exposure_usd else 0
     pending = (
         db.query(WithdrawalIntent)
         .filter(
@@ -407,7 +442,7 @@ def eligible_realized_profit_atomic(db: Session, asset: str) -> int:
         db.query(AccountingEvent).filter(AccountingEvent.event_type == "REALIZED_PNL").all()
     )
     total_usd = max(realized_usd, 0.0) + max(ledger_pnl, 0.0)
-    gross_atomic = int(round(total_usd * (10 ** asset_decimals(asset)) / 100.0)) if total_usd > 0 else 0
+    gross_atomic = _usd_to_atomic(total_usd, asset)
     swept = sum(
         s.sweep_amount_atomic for s in
         db.query(ProfitSweepEvent).filter(ProfitSweepEvent.asset == asset).all()
@@ -438,7 +473,9 @@ def evaluate_sweep(db: Session, wallet_id: str, asset: str) -> SweepEvaluation:
     # buffer, so subtracting pending again would double-count it and zero out a
     # sweep that is genuinely affordable.
     cushion = available - reserve.total_atomic - fee
-    sweep_target = min(int(eligible * 0.5), cushion) if cushion > 0 else 0
+    policy = get_policy(db)
+    sweep_pct = (policy.sweep_percent if policy and policy.sweep_percent is not None else 50)
+    sweep_target = min(int(eligible * sweep_pct // 100), cushion) if cushion > 0 else 0
 
     reasons: list[str] = []
     if eligible <= 0:
@@ -448,7 +485,7 @@ def evaluate_sweep(db: Session, wallet_id: str, asset: str) -> SweepEvaluation:
             f"dynamic reserve {reserve.total_atomic} + fee {fee} "
             f"exceeds available {available}"
         )
-    if policy := get_policy(db):
+    if policy:
         if policy.min_sweep_atomic and sweep_target and sweep_target < policy.min_sweep_atomic:
             reasons.append(
                 f"sweepable {sweep_target} is below the policy minimum {policy.min_sweep_atomic}"
@@ -690,6 +727,11 @@ def create_withdrawal_intent(
 def _persist_intent(db, actor, source, dest, asset, amount_atomic, idempotency_key, trigger_type, payload, snap) -> dict:
     from app.services.audit_service import write_audit
 
+    if snap is None:
+        raise ValidationError(
+            "on-chain balance snapshot missing or stale -> fail closed",
+            details={"wallet_id": source.id, "asset": asset},
+        )
     fee = 5_000  # lamports estimate; USDC fee still paid from SOL
     reserve = compute_dynamic_reserve(db, source.id, asset, fee_atomic=fee)
     if snap.spendable_atomic < amount_atomic + reserve.total_atomic:

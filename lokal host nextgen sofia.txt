@@ -1,0 +1,12 @@
+lokal host nextgen sofia
+
+
+terminal 2
+cd "D:\nextgentsofia trade\apps\web"
+npm run dev
+
+
+
+terminal 1
+cd "D:\nextgentsofia trade\services\api"
+python -m uvicorn app.main:app --reload --port 8000
