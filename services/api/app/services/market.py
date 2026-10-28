@@ -1,5 +1,6 @@
 import json
 import random
+import re
 import time
 import urllib.request
 import urllib.parse
@@ -214,6 +215,66 @@ def is_legacy_token(symbol_or_base: str) -> bool:
     return clean in LEGACY_ESTABLISHED_TOKENS
 
 
+# ── STRICT CHARITY / DONATION TOKEN FILTER ───────────────────────────
+# Prohibit all charity, donation, nonprofit, and humanitarian tokens
+# from Pulse Radar feeds and Auto Entry execution to prevent donation-scam rugs.
+CHARITY_KEYWORDS = {
+    "CHARITY", "CHARITIES", "DONATE", "DONATION", "DONATIONS", "DONATING",
+    "GIVEBACK", "FOUNDATION", "NONPROFIT", "NGO", "PHILANTHROPY",
+    "PHILANTHROPIC", "HUMANITARIAN", "UNICEF", "REDCROSS", "RED CROSS",
+    "YAYASAN", "DONASI", "SEDEKAH", "ZAKAT", "ORPHAN", "ORPHANAGE",
+    "ANIMALRESCUE", "SAVETHEKIDS", "SAVETHECHILDREN", "SAVECHILDREN",
+    "SAVETHEOCEAN", "SAVEDOGS", "SAVECATS", "SAVETHEEARTH", "SAVETHEPLANET",
+    "SAVEPLANET", "SAVEEARTH", "HUNGERRELIEF", "CLEANWATER", "RELIEF",
+}
+
+_CHARITY_PATTERNS = [
+    r"\bCHARIT(Y|IES)\b",
+    r"\bDONAT(E|ES|ED|ING|ION|IONS)\b",
+    r"\bGIVEBACK\b",
+    r"\bFOUNDATION\b",
+    r"\bNON[- ]?PROFIT\b",
+    r"\bNGO\b",
+    r"\bPHILANTHROP(Y|IC)\b",
+    r"\bHUMANITARIAN\b",
+    r"\bORPHAN(AGE)?\b",
+    r"\bSAVETHE[A-Z0-9]*\b",
+    r"\bSAVE[-_ ]?(THE)?[-_ ]?(KIDS|CHILDREN|DOGS|CATS|ANIMALS|OCEAN|EARTH|PLANET|WORLD)\b",
+    r"\bANIMAL[-_ ]?RESCUE\b",
+    r"\bFEED[-_ ]?(THE)?[-_ ]?(POOR|HUNGRY|CHILDREN|KIDS|WORLD)\b",
+    r"\b(YAYASAN|DONASI|SEDEKAH|ZAKAT)\b",
+    r"\b(AID|DISASTER)[-_ ]?RELIEF\b",
+    r"\bCLEAN[-_ ]?WATER\b",
+]
+
+_CHARITY_REGEX = re.compile("|".join(_CHARITY_PATTERNS), re.IGNORECASE)
+
+
+def is_charity_token(symbol_or_base: str = "", name: str = "", description: str = "") -> bool:
+    """
+    Return True if the token appears to be a charity, donation, or philanthropy token.
+    Such tokens are strictly prohibited from radar feeds and auto-entry due to extreme scam/dump risk.
+    """
+    sym = (symbol_or_base or "").strip().upper()
+    nm = (name or "").strip().upper()
+    desc = (description or "").strip().upper()
+    full_text = f"{sym} {nm} {desc}".strip()
+    if not full_text:
+        return False
+
+    clean_sym = sym.split("/")[0].strip()
+    # Check if exact ticker or subwords match charity prefixes
+    for prefix in ("CHARITY", "DONATE", "DONATION", "GIVEBACK", "SAVETHE", "YAYASAN", "NONPROFIT"):
+        if prefix in clean_sym:
+            return True
+
+    for word in clean_sym.split():
+        if word in CHARITY_KEYWORDS:
+            return True
+
+    return bool(_CHARITY_REGEX.search(full_text))
+
+
 def get_fx_rate() -> dict:
     """Fetch real-time USD/IDR rate from open.er-api.com with 5-minute cache."""
     now = time.time()
@@ -364,12 +425,14 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     smart_degen_buys = max(1, min(24, int((buys_5m // 2) + (2 if has_socials else 0) + (2 if change_5m > 0 else 0))))
 
     is_legacy = is_legacy_token(base_sym)
-    is_new_creation = (not is_legacy) and (age_hours <= 6.0 or (is_bonding_dex and mcap <= 250000.0)) and (mcap <= 600000.0)
+    token_name = str(base.get("name") or "Meme Token")
+    is_charity = is_charity_token(base_sym, token_name)
+    is_new_creation = (not is_legacy) and (not is_charity) and (age_hours <= 6.0 or (is_bonding_dex and mcap <= 250000.0)) and (mcap <= 600000.0)
 
     return {
         "symbol": symbol,
         "base_symbol": base_sym,
-        "name": base.get("name", "Meme Token"),
+        "name": token_name,
         "contract": base_addr,
         "pair_address": pair.get("pairAddress", ""),
         "chain": chain_id.capitalize(),
@@ -379,6 +442,7 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "age_minutes": age_minutes,
         "is_new_creation": is_new_creation,
         "is_legacy_token": is_legacy,
+        "is_charity": is_charity,
         "price": price_usd,
         "price_idr": round(price_usd * usd_idr, 4),
         "market_cap": round(mcap, 2),
@@ -435,6 +499,9 @@ def fetch_dexscreener_tokens_by_addresses(addresses: list[str], usd_idr: float, 
                 if price_usd <= 0:
                     continue
                 tok = _pair_to_token(p, usd_idr, discovery_tag=discovery_tag)
+                # Filter out charity / donation coins
+                if tok.get("is_charity") or is_charity_token(tok.get("symbol"), tok.get("name")):
+                    continue
                 key = tok["contract"] or tok["symbol"]
                 if key in seen:
                     continue
@@ -489,10 +556,12 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 20) -> l
     except Exception:
         pass
 
-    # Strictly filter for brand-new meme coins (never legacy tokens like BONK or invalid quote pairs)
+    # Strictly filter for brand-new meme coins (never legacy tokens like BONK, and NO charity coins)
     fresh_creations: list[dict] = []
     for tok in discovered:
         if is_legacy_token(tok.get("symbol") or tok.get("base_symbol", "")):
+            continue
+        if tok.get("is_charity") or is_charity_token(tok.get("symbol"), tok.get("name")):
             continue
         # Must be relatively young (<= 12 hours, or on Pump.fun bonding curve with MCap < $500k)
         if tok["age_hours"] <= 12.0 and tok["market_cap"] <= 800000.0:
@@ -535,6 +604,9 @@ def fetch_dexscreener_search(query: str, limit: int = 20, allow_bonding_curve: b
         if raw_liq < 500 and not (allow_bonding_curve and ("pump" in dex_id or mcap >= 2000)):
             continue
         tok = _pair_to_token(p, usd_idr)
+        # Exclude charity coins from search results
+        if tok.get("is_charity") or is_charity_token(tok.get("symbol"), tok.get("name")):
+            continue
         key = tok["contract"] or tok["symbol"]
         if key in seen:
             continue
@@ -759,19 +831,23 @@ def get_live_pulse_feed() -> dict:
 
     fresh_new_tokens = []
     if _RADAR_POOL_PERSISTENT:
+        # Strictly purge any charity or donation tokens from persistent pool
+        _RADAR_POOL_PERSISTENT = [
+            t for t in _RADAR_POOL_PERSISTENT
+            if not (t.get("is_charity") or is_charity_token(t.get("symbol") or t.get("base_symbol"), t.get("name")))
+        ]
         all_tokens = [_apply_live_micro_tick(t, usd_idr) for t in _RADAR_POOL_PERSISTENT]
     else:
         all_tokens = []
 
-    # Rotate in fresh incoming candidate tokens from _ROTATING_RADAR_POOL
+    # Rotate in fresh incoming candidate tokens from _ROTATING_RADAR_POOL (verified non-charity)
     rotating_idx = _SCAN_TICK_COUNTER % len(_ROTATING_RADAR_POOL)
     incoming_token = dict(_ROTATING_RADAR_POOL[rotating_idx])
-    incoming_token["price_idr"] = incoming_token["price"] * usd_idr
-    incoming_token["market_cap_idr"] = incoming_token["market_cap"] * usd_idr
-    incoming_token = _apply_live_micro_tick(incoming_token, usd_idr)
-
-    # Insert incoming token near top of candidate stream
-    all_tokens.insert(0, incoming_token)
+    if not (incoming_token.get("is_charity") or is_charity_token(incoming_token.get("symbol"), incoming_token.get("name"))):
+        incoming_token["price_idr"] = incoming_token["price"] * usd_idr
+        incoming_token["market_cap_idr"] = incoming_token["market_cap"] * usd_idr
+        incoming_token = _apply_live_micro_tick(incoming_token, usd_idr)
+        all_tokens.insert(0, incoming_token)
     _RADAR_POOL_PERSISTENT = all_tokens
 
     if not all_tokens:
@@ -912,6 +988,10 @@ def get_live_pulse_feed() -> dict:
     migrated: list[dict] = []
 
     for t in all_tokens:
+        # Strictly reject charity / donation coins
+        if t.get("is_charity") or is_charity_token(t.get("symbol") or t.get("base_symbol"), t.get("name")):
+            continue
+
         _register_token_cache(t, now)
 
         is_leg = is_legacy_token(t["base_symbol"])

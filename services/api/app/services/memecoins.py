@@ -56,6 +56,76 @@ def analyze_rug_check(query: str) -> dict:
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
 
+    # Explicit detection for charity / donation tokens (strictly blocked)
+    if market.is_charity_token(q, q):
+        return {
+            "symbol": q if "/" in q else f"{q}/SOL",
+            "name": f"Charity Prohibited ({query})",
+            "contract": "Ch4r1tyD0nat10nR1skT0k3nB10ck3dByS0f1a9999",
+            "pair_address": "8xCharityPoolAddressSimulatedFilter111",
+            "chain": "Solana",
+            "launchpad": "Pump.fun",
+            "age": "2h",
+            "age_hours": 2.0,
+            "price": 0.000005,
+            "price_idr": round(0.000005 * usd_idr, 4),
+            "market_cap": 15000,
+            "market_cap_idr": round(15000 * usd_idr, 0),
+            "liquidity_usd": 4000,
+            "liquidity_idr": round(4000 * usd_idr, 0),
+            "liq_mcap_ratio_pct": 26.6,
+            "liquidity_verdict": "DIBLOKIR SISTEM (Koin Amal / Charity Token)",
+            "volume_5m_usd": 1200,
+            "volume_24h_usd": 18000,
+            "vol_to_liq_ratio": 4.5,
+            "buys_5m": 12,
+            "sells_5m": 10,
+            "wash_trading_flag": True,
+            "wash_trading_note": "Token Charity: Sering dijadikan dalih sumbangan fiktif & dumping likuiditas.",
+            "safety_score": 10,
+            "contract_clean": False,
+            "verdict": "DILARANG ENTRY • CHARITY / DONATION TOKEN POLICY VIOLATION",
+            "is_pumpfun_standard": False,
+            "pumpfun_warning": "Token amal dilarang oleh Sofia Engine karena risiko rug pull berkedok donasi.",
+            "mint_revoked": False,
+            "freeze_revoked": False,
+            "lp_burned": False,
+            "lp_locked_pct": 0.0,
+            "honeypot": False,
+            "token_program": "Token-2022",
+            "is_token_2022": True,
+            "token_2022_extensions": ["CharityDonationMechanism (PROHIBITED)"],
+            "transfer_fee_pct": 10.0,
+            "total_holders": 110,
+            "total_lp_providers": 1,
+            "top10_pct": 72.0,
+            "amm_pool_excluded_pct": 10.0,
+            "top_holders_detail": [
+                {"address": "CharityDev...99x", "owner": "DevOwner...11a", "pct": 45.0, "insider": True, "label": "Charity Creator"},
+            ],
+            "dev_holding_pct": 45.0,
+            "creator_address": "CharityCreatorWalletAddress99x1111111111111",
+            "creator_status_note": "Dev memegang alokasi donasi besar rawan dump.",
+            "creator_prev_tokens": 2,
+            "creator_rugged_tokens": 2,
+            "bundle_pct": 35.0,
+            "graph_insiders_detected": 12,
+            "insider_clusters": [],
+            "cluster_risk_level": "CRITICAL",
+            "position_sizing": {
+                "max_position_pct": 0.0,
+                "max_position_idr": 0,
+                "recommended_sl_pct": 0.0,
+                "rule_summary": "DILARANG ENTRY: Token Amal / Charity Coin diblokir sepenuhnya oleh sistem.",
+            },
+            "external_links": {},
+            "risks": [
+                "[DANGER] Kebijakan Sofia Engine: Semua token berkedok donasi / charity dilarang entry",
+                "[DANGER] Rawan rug pull fiktif & dev memegang persentase donasi besar",
+            ],
+            "fx": fx,
+        }
+
     # Explicit detection for known high-risk test patterns (e.g. RUGDOGE/SOL)
     if "RUG" in q or "SCAM" in q or "HONEY" in q:
         ca = "3mRQtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgRug"

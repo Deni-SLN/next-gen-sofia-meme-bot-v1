@@ -257,7 +257,9 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
             continue
         if score < min_score:
             continue
-        if market.is_legacy_token(sym):
+        if market.is_legacy_token(sym) or t.get("is_charity") or market.is_charity_token(sym, t.get("name")):
+            continue
+        if c.get("is_charity") or market.is_charity_token(sym, c.get("name")):
             continue
         eligible.append(c)
 
@@ -516,7 +518,7 @@ def get_scanned_memecoins(
             continue
         seen.add(key)
 
-        if market.is_legacy_token(sym):
+        if market.is_legacy_token(sym) or t.get("is_charity") or market.is_charity_token(sym, t.get("name")):
             continue
 
         profit_meta = compute_profit_potential(t)
@@ -618,6 +620,18 @@ def execute_single_token_auto_entry(
     """Execute rapid single-token auto entry directly from the scanner view."""
     with _LOCK:
         _load_persisted_state()
+        token_symbol = symbol or "TOKEN"
+        token_name = name or token_symbol
+
+        # Strict block on charity / donation tokens
+        if market.is_charity_token(token_symbol, token_name):
+            _append_log("BLOCKED", token_symbol, "Auto Entry ditolak: Koin amal / charity dilarang oleh filter kebijakan Sofia Trade.", "danger")
+            _save_persisted_state()
+            return {
+                "success": False,
+                "error": f"Eksekusi dibatalkan: Token {token_symbol} terindikasi sebagai koin amal / charity yang dilarang oleh filter keamanan Sofia Trade Engine.",
+            }
+
         total_count = _STATE.get("total_entries_count", 0)
         max_entries = _STATE.get("max_entries", 5)
 
@@ -631,8 +645,6 @@ def execute_single_token_auto_entry(
         mode = _STATE.get("mode", "PAPER")
         entry_idr = float(_STATE.get("entry_amount_idr", 20000.0))
         slippage = float(_STATE.get("slippage_pct", 1.0))
-        token_symbol = symbol or "TOKEN"
-        token_name = name or token_symbol
 
     try:
         snipe_res = memecoins.execute_snipe(

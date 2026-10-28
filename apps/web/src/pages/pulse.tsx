@@ -66,10 +66,25 @@ export default function PulsePage() {
 
   const usdIdr = pulseQuery.data?.fx?.usd_idr || 16500;
 
+  // Anti-Charity / Donation coin client detection filter
+  const isCharityTokenClient = (sym?: string, name?: string): boolean => {
+    const s = String(sym || '').toLowerCase();
+    const n = String(name || '').toLowerCase();
+    const cleanSym = s.split('/')[0].trim();
+
+    for (const prefix of ['charity', 'donate', 'donation', 'giveback', 'savethe', 'yayasan', 'nonprofit']) {
+      if (cleanSym.includes(prefix)) return true;
+    }
+    const charityPattern = /\b(charity|charities|donate|donates|donation|donations|donating|giveback|foundation|nonprofit|non-profit|ngo|philanthropy|philanthropic|humanitarian|unicef|yayasan|donasi|sedekah|zakat|orphan|orphanage|animalrescue|disaster relief)\b/i;
+    return charityPattern.test(s) || charityPattern.test(n);
+  };
+
   // Filter helper for search query & min safety
   const filterTokens = (list: any[]) => {
     if (!list) return [];
     return list.filter((t) => {
+      // Strictly prohibit charity and donation coins
+      if (t.is_charity || isCharityTokenClient(t.symbol, t.name)) return false;
       if (t.safety_score < minSafety) return false;
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
@@ -464,6 +479,8 @@ export default function PulsePage() {
               <span>{totalRawCount} Radar</span>
               <span className="text-slate-600">·</span>
               <span className="text-emerald-400">🛡️ {totalSafeCount} Aman</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-rose-400 font-bold" title="Koin Amal / Charity otomatis diblokir sistem">🚫 Anti-Charity</span>
               <span className="text-slate-600">·</span>
               <span className="text-slate-300 font-bold">{formatIdr(usdIdr)}</span>
               {lastScannedTime && (
