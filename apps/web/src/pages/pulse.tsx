@@ -14,9 +14,31 @@ export default function PulsePage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeColumnTab, setActiveColumnTab] = useState<'MICRO' | 'MID' | 'GRADUATE' | 'MAJOR' | 'ALL'>('MICRO');
   const [autoScan, setAutoScan] = useState<boolean>(false);
-  const [countdown, setCountdown] = useState<number>(10);
+  const [countdown, setCountdown] = useState<number>(5);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [lastScannedTime, setLastScannedTime] = useState<string>('');
+  const [copiedAddresses, setCopiedAddresses] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('sofia_copied_wallets');
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const copiedSet = useMemo(() => new Set(copiedAddresses.map((a) => a.toLowerCase())), [copiedAddresses]);
+
+  const handleResetCopied = () => {
+    setCopiedAddresses([]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('sofia_copied_wallets');
+      } catch {}
+    }
+  };
 
   const refetchPulse = pulseQuery.refetch;
 
@@ -27,17 +49,17 @@ export default function PulsePage() {
     }
   }, [pulseQuery.data]);
 
-  // Auto-scan timer (10 detik interval sesuai engine)
+  // Auto-scan timer (5 detik interval sesuai instruksi engine)
   useEffect(() => {
     if (!autoScan) {
-      setCountdown(10);
+      setCountdown(5);
       return;
     }
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           refetchPulse();
-          return 10;
+          return 5;
         }
         return prev - 1;
       });
@@ -45,11 +67,36 @@ export default function PulsePage() {
     return () => clearInterval(timer);
   }, [autoScan, refetchPulse]);
 
-  const handleCopyText = (text: string, key: string) => {
+  // Handle copy text & sembunyikan wallet/token yang sudah dicopy alamatnya dari scanner
+  const handleCopyText = (text: string, key: string, tokenData?: any) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(text);
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2500);
+
+      const toAdd: string[] = [];
+      const cleanText = (text || '').trim().toLowerCase();
+      if (cleanText.length >= 10) toAdd.push(cleanText);
+      if (tokenData?.contract) {
+        const c = String(tokenData.contract).trim().toLowerCase();
+        if (c.length >= 10) toAdd.push(c);
+      }
+      if (tokenData?.creator_address) {
+        const ca = String(tokenData.creator_address).trim().toLowerCase();
+        if (ca.length >= 10) toAdd.push(ca);
+      }
+
+      if (toAdd.length > 0) {
+        setCopiedAddresses((prev) => {
+          const next = Array.from(new Set([...prev, ...toAdd]));
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('sofia_copied_wallets', JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        });
+      }
     }
   };
 
@@ -66,25 +113,32 @@ export default function PulsePage() {
 
   const usdIdr = pulseQuery.data?.fx?.usd_idr || 16500;
 
-  // Anti-Charity / Donation coin client detection filter
-  const isCharityTokenClient = (sym?: string, name?: string): boolean => {
+  // Anti-Charity, Donasi & Mayhem token detection filter
+  const isExcludedTokenClient = (sym?: string, name?: string): boolean => {
     const s = String(sym || '').toLowerCase();
     const n = String(name || '').toLowerCase();
     const cleanSym = s.split('/')[0].trim();
 
-    for (const prefix of ['charity', 'donate', 'donation', 'giveback', 'savethe', 'yayasan', 'nonprofit']) {
+    for (const prefix of ['charity', 'donate', 'donation', 'giveback', 'savethe', 'yayasan', 'nonprofit', 'mayhem', 'donasi']) {
       if (cleanSym.includes(prefix)) return true;
     }
-    const charityPattern = /\b(charity|charities|donate|donates|donation|donations|donating|giveback|foundation|nonprofit|non-profit|ngo|philanthropy|philanthropic|humanitarian|unicef|yayasan|donasi|sedekah|zakat|orphan|orphanage|animalrescue|disaster relief)\b/i;
-    return charityPattern.test(s) || charityPattern.test(n);
+    const excludedPattern = /\b(charity|charities|donate|donates|donation|donations|donating|giveback|foundation|nonprofit|non-profit|ngo|philanthropy|philanthropic|humanitarian|unicef|yayasan|donasi|sedekah|zakat|orphan|orphanage|animalrescue|disaster relief|mayhem|mayhems)\b/i;
+    return excludedPattern.test(s) || excludedPattern.test(n);
   };
 
-  // Filter helper for search query & min safety
+  // Filter helper for search query, min safety, exclusion, and hiding copied wallets
   const filterTokens = (list: any[]) => {
     if (!list) return [];
     return list.filter((t) => {
-      // Strictly prohibit charity and donation coins
-      if (t.is_charity || isCharityTokenClient(t.symbol, t.name)) return false;
+      // 1. Sembunyikan jika kontrak atau wallet creator sudah pernah disalin
+      const contractLower = String(t.contract || '').trim().toLowerCase();
+      const creatorLower = String(t.creator_address || '').trim().toLowerCase();
+      if (contractLower && copiedSet.has(contractLower)) return false;
+      if (creatorLower && copiedSet.has(creatorLower)) return false;
+
+      // 2. Blokir ketat koin amal, donasi, dan mayhem
+      if (t.is_charity || isExcludedTokenClient(t.symbol, t.name)) return false;
+
       if (t.safety_score < minSafety) return false;
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
@@ -238,13 +292,13 @@ export default function PulsePage() {
               </span>
               <button
                 type="button"
-                onClick={() => handleCopyText(t.contract, `ca-${cardKey}`)}
+                onClick={() => handleCopyText(t.contract, `ca-${cardKey}`, t)}
                 className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono transition flex items-center gap-1 ${
                   isCaCopied
                     ? 'bg-emerald-500 text-obsidian-950'
                     : 'bg-obsidian-900 hover:bg-obsidian-850 text-amber-300 border border-obsidian-750'
                 }`}
-                title="Salin Mint Contract (CA)"
+                title="Salin Mint Contract (CA) & Sembunyikan dari Radar"
               >
                 <LucideIcon name={isCaCopied ? 'check' : 'copy'} className="w-2.5 h-2.5" />
                 <span>{isCaCopied ? '✓ Tersalin' : 'Salin CA'}</span>
@@ -260,13 +314,13 @@ export default function PulsePage() {
               </span>
               <button
                 type="button"
-                onClick={() => handleCopyText(t.creator_address, `creator-${cardKey}`)}
+                onClick={() => handleCopyText(t.creator_address, `creator-${cardKey}`, t)}
                 className={`px-1.5 py-0.2 rounded text-[9px] font-bold transition flex items-center gap-0.5 ${
                   isCreatorCopied
                     ? 'bg-cyan-400 text-obsidian-950'
                     : 'bg-obsidian-900 hover:bg-obsidian-800 text-cyan-300 border border-obsidian-750'
                 }`}
-                title="Salin Alamat Wallet Dev/Creator"
+                title="Salin Alamat Wallet Dev/Creator & Sembunyikan dari Radar"
               >
                 <LucideIcon name={isCreatorCopied ? 'check' : 'copy'} className="w-2 h-2" />
                 <span>{isCreatorCopied ? '✓' : 'Dev Wallet'}</span>
@@ -362,13 +416,13 @@ export default function PulsePage() {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => handleCopyText(t.contract || '', `card-ca-${cardKey}`)}
+              onClick={() => handleCopyText(t.contract || '', `card-ca-${cardKey}`, t)}
               className={`flex-1 py-2 px-3 rounded-xl font-mono font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-sm ${
                 isCardCaCopied
                   ? 'bg-emerald-500 text-obsidian-950 shadow-emerald-500/20'
                   : 'bg-obsidian-950 hover:bg-obsidian-850 text-cyan-300 border border-obsidian-750 hover:border-cyan-500/40'
               }`}
-              title="Salin Mint Contract Address (CA)"
+              title="Salin Mint Contract Address (CA) & Sembunyikan dari Radar"
             >
               <LucideIcon name={isCardCaCopied ? 'check' : 'copy'} className="w-3.5 h-3.5" />
               <span>{isCardCaCopied ? '✓ CA Tersalin' : 'Salin CA'}</span>
@@ -480,7 +534,22 @@ export default function PulsePage() {
               <span className="text-slate-600">·</span>
               <span className="text-emerald-400">🛡️ {totalSafeCount} Aman</span>
               <span className="text-slate-600">·</span>
-              <span className="text-rose-400 font-bold" title="Koin Amal / Charity otomatis diblokir sistem">🚫 Anti-Charity</span>
+              <span className="text-rose-400 font-bold" title="Koin Amal, Donasi, dan Mayhem otomatis diblokir sistem">
+                🚫 Anti-Charity / Mayhem
+              </span>
+              {copiedAddresses.length > 0 && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <button
+                    type="button"
+                    onClick={handleResetCopied}
+                    className="px-1.5 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1 transition"
+                    title="Klik untuk mereset dan menampilkan kembali token/wallet yang sudah disalin"
+                  >
+                    <span>👁️ Disalin: {copiedAddresses.length} (Reset)</span>
+                  </button>
+                </>
+              )}
               <span className="text-slate-600">·</span>
               <span className="text-slate-300 font-bold">{formatIdr(usdIdr)}</span>
               {lastScannedTime && (
@@ -494,15 +563,15 @@ export default function PulsePage() {
             </div>
           </div>
 
-          {/* RIGHT CONTROLS: 10S AUTO-SCAN / STOP SCAN, REFRESH, MODE & AUTO ENTRY */}
+          {/* RIGHT CONTROLS: 5S AUTO-SCAN / STOP SCAN, REFRESH, MODE & AUTO ENTRY */}
           <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-            {/* 10-DETIK AUTO-SCAN / STOP SCAN BUTTON */}
+            {/* 5-DETIK AUTO-SCAN / STOP SCAN BUTTON */}
             {autoScan ? (
               <button
                 type="button"
                 onClick={() => {
                   setAutoScan(false);
-                  setCountdown(10);
+                  setCountdown(5);
                 }}
                 className="px-2.5 py-1 rounded-lg border border-rose-500/70 bg-rose-950/80 hover:bg-rose-900 text-rose-200 ring-2 ring-rose-500/30 transition flex items-center gap-1.5 shadow-sm font-bold animate-pulse"
                 title="Klik untuk menghentikan pemindaian otomatis"
@@ -515,14 +584,14 @@ export default function PulsePage() {
                 type="button"
                 onClick={() => {
                   setAutoScan(true);
-                  setCountdown(10);
+                  setCountdown(5);
                   pulseQuery.refetch();
                 }}
                 className="px-2.5 py-1 rounded-lg border border-emerald-500/50 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 transition flex items-center gap-1.5 shadow-sm font-bold"
-                title="Mulai pemindaian otomatis setiap 10 detik"
+                title="Mulai pemindaian otomatis setiap 5 detik"
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>▶ Jalankan Scan (10s)</span>
+                <span>▶ Jalankan Scan (5s)</span>
               </button>
             )}
 

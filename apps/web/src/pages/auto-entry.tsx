@@ -428,8 +428,8 @@ export default function AutoEntryPage() {
                   <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
                     Safe Shield: <strong>{scannedData?.high_safety_count || 0}</strong>
                   </span>
-                  <span className="px-2 py-1 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30" title="Token Amal / Charity dilarang oleh Sofia Trade Engine">
-                    🚫 Anti-Charity
+                  <span className="px-2 py-1 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30" title="Token Amal, Donasi, dan Mayhem dilarang oleh Sofia Trade Engine">
+                    🚫 Anti-Charity / Mayhem
                   </span>
                 </div>
               </div>
