@@ -200,7 +200,7 @@ export default function AutoEntryPage() {
   return (
     <>
       <Head>
-        <title>Auto Entry Bot &amp; Meme Coin Scanner | Sofia Market 4.1.2</title>
+        <title>Auto Entry Bot &amp; Meme Coin Scanner | Sofia Market 4.1.3</title>
       </Head>
 
       <div className="space-y-6 pb-12">
@@ -227,7 +227,7 @@ export default function AutoEntryPage() {
                 PELUANG CUAN &amp; KEAMANAN
               </span>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                SOFIA 4.1.2
+                SOFIA 4.1.3
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">

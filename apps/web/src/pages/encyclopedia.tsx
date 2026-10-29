@@ -60,7 +60,7 @@ const ENCYCLOPEDIA_DATA: EncyclopediaItem[] = [
       'Volume to Liquidity Turnover: Jika Volume 5 menit mencapai 10x-30x lipat dari likuiditas yang tersedia tanpa ada kenaikan harga seimbang, waspadai indikasi bot wash trading otomatis yang sengaja dibuat dev untuk memanipulasi algoritma trending DexScreener.',
     ],
     formulaOrRule: 'Batas Minimum Aman: Likuiditas Pool DEX ≥ $15,000 USD dan Rasio (Likuiditas / Market Cap) ≥ 15%.',
-    tipsOrWarning: 'Selalu cek kolom Likuiditas di Sofia Market 4.1.2 sebelum klik snipe. Jangan tergiur persentase gain +1,000% jika likuiditas kas pool-nya hanya $300.',
+    tipsOrWarning: 'Selalu cek kolom Likuiditas di Sofia Market 4.1.3 sebelum klik snipe. Jangan tergiur persentase gain +1,000% jika likuiditas kas pool-nya hanya $300.',
   },
   {
     id: 'meme-rugcheck-checklist',
@@ -79,7 +79,7 @@ const ENCYCLOPEDIA_DATA: EncyclopediaItem[] = [
       'Bahaya Ekstensi Token-2022: Waspadai token Solana dengan ekstensi Token-2022 seperti TransferHook atau PermanentDelegate yang mengenakan potongan pajak jual dinamis 99% (Hidden Tax).',
     ],
     formulaOrRule: 'Kriteria Kontrak Lolos Audit: Mint Revoked = YES • Freeze Revoked = YES • LP Burned/Locked = 100% • Safety Score ≥ 75/100.',
-    tipsOrWarning: 'Sofia 4.1.2 otomatis memblokir token dengan celah honeypot ini melalui modul Rug & Bundle Shield dan Auto Entry Bot.',
+    tipsOrWarning: 'Sofia 4.1.3 otomatis memblokir token dengan celah honeypot ini melalui modul Rug & Bundle Shield dan Auto Entry Bot.',
   },
   {
     id: 'meme-holder-clustering',
@@ -131,7 +131,7 @@ const ENCYCLOPEDIA_DATA: EncyclopediaItem[] = [
     details: [
       'Kekuatan Narasi Orisinal: Koin pemenang selalu memiliki kaitan erat dengan tren internet global terkini, tokoh populer, peristiwa politik riil, atau meme kultus yang memiliki komunitas pembuat konten (meme makers) aktif.',
       'Hindari Koin Copycat: Begitu ada 1 koin viral, akan bermunculan puluhan koin tiruan dengan nama mirip. Koin tiruan hampir 99% berakhir rug pull karena dev hanya ingin memanen sisa atensi.',
-      'Inflow Smart Money & GMGN Tracking: Gunakan radar Sofia 4.1.2 untuk memantau apakah ada wallet dengan rekam jejak profit tinggi (GMGN Smart Degens) yang sedang mengakumulasi koin tersebut secara diam-diam.',
+      'Inflow Smart Money & GMGN Tracking: Gunakan radar Sofia 4.1.3 untuk memantau apakah ada wallet dengan rekam jejak profit tinggi (GMGN Smart Degens) yang sedang mengakumulasi koin tersebut secara diam-diam.',
       'Rasio Pembeli vs Penjual (Buy/Sell Ratio > 60%): Periksa rasio transaksi 5 menit. Koin yang sedang dalam fase akumulasi sehat memiliki frekuensi buy order yang konsisten lebih banyak dibanding sell order.',
     ],
     formulaOrRule: 'Hukum Atensi Meme: Harga Bergerak Mengikuti Viralitas Media Sosial (Twitter/X, TikTok, Telegram) + Inflow Smart Money.',
@@ -1077,10 +1077,10 @@ export default function EncyclopediaPage() {
   return (
     <>
       <Head>
-        <title>Ensiklopedia Pasar &amp; Glosarium — Sofia Market 4.1.2 (SFIA 4.1.2)</title>
+        <title>Ensiklopedia Pasar &amp; Glosarium — Sofia Market 4.1.3 (SFIA 4.1.3)</title>
         <meta
           name="description"
-          content="Glosarium finansial komprehensif: tips trading meme coin Solana on-chain, panduan menu SOFIA 4.1.2, istilah kripto web3, saham BEI IHSG, pasar emas XAU Antam, dan indikator teknikal."
+          content="Glosarium finansial komprehensif: tips trading meme coin Solana on-chain, panduan menu SOFIA 4.1.3, istilah kripto web3, saham BEI IHSG, pasar emas XAU Antam, dan indikator teknikal."
         />
       </Head>
 
@@ -1103,10 +1103,10 @@ export default function EncyclopediaPage() {
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
                 <LucideIcon name="book-open" className="w-6 h-6 text-cyan-400" />
-                Ensiklopedia &amp; Glosarium Pasar SOFIA 4.1.2
+                Ensiklopedia &amp; Glosarium Pasar SOFIA 4.1.3
               </h1>
               <p className="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
-                Panduan komprehensif mengenai strategi <strong>Tips Trading Meme Coin &amp; Valuasi MCap</strong>, fitur menu <strong>Sofia 4.1.2</strong>, mekanisme pasar <strong>Crypto &amp; Web3</strong>, perdagangan <strong>Saham BEI &amp; Valuasi</strong>, investasi <strong>Emas Batangan &amp; Logam Mulia</strong>, serta indikator <strong>Analisis Teknikal Kuantitatif</strong>.
+                Panduan komprehensif mengenai strategi <strong>Tips Trading Meme Coin &amp; Valuasi MCap</strong>, fitur menu <strong>Sofia 4.1.3</strong>, mekanisme pasar <strong>Crypto &amp; Web3</strong>, perdagangan <strong>Saham BEI &amp; Valuasi</strong>, investasi <strong>Emas Batangan &amp; Logam Mulia</strong>, serta indikator <strong>Analisis Teknikal Kuantitatif</strong>.
               </p>
             </div>
           </div>

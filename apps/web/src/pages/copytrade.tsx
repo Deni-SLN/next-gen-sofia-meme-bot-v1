@@ -196,7 +196,7 @@ export default function CopyTradePage() {
   return (
     <>
       <Head>
-        <title>Top 10 Smart Money &amp; Whale Auto Copy-Trade | Sofia Market 4.1.2</title>
+        <title>Top 10 Smart Money &amp; Whale Auto Copy-Trade | Sofia Market 4.1.3</title>
       </Head>
 
       <div className="space-y-5 pb-12">

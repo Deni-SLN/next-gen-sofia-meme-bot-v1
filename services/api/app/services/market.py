@@ -1551,7 +1551,7 @@ def live_rug_audit(query: str) -> dict:
             shield_req = urllib.request.Request(
                 shield_rpc,
                 data=rpc_payload,
-                headers={"Content-Type": "application/json", "User-Agent": "SofiaMarket-FluxRPC/4.1.2"},
+                headers={"Content-Type": "application/json", "User-Agent": "SofiaMarket-FluxRPC/4.1.3"},
             )
             with urllib.request.urlopen(shield_req, timeout=5) as shield_resp:
                 shield_data = json.loads(shield_resp.read().decode("utf-8"))

@@ -52,7 +52,7 @@ export default function SignalsPage() {
   return (
     <>
       <Head>
-        <title>Alpha Signals &amp; Market Insights | Sofia Market 4.1.2</title>
+        <title>Alpha Signals &amp; Market Insights | Sofia Market 4.1.3</title>
       </Head>
 
       <div className="space-y-5 pb-10">
@@ -66,7 +66,7 @@ export default function SignalsPage() {
                 Alpha Signals &amp; Market Insights
               </h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                SOFIA 4.1.2
+                SOFIA 4.1.3
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">

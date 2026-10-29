@@ -389,7 +389,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   if (checking) {
     return (
       <div className="min-h-screen bg-obsidian-950 text-slate-400 flex items-center justify-center font-sans text-xs tracking-wide">
-        Memuat ruang kerja Sofia Market 4.1.2...
+        Memuat ruang kerja Sofia Market 4.1.3...
       </div>
     );
   }
@@ -452,11 +452,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <span>SOFIA</span>
                   <span className="text-slate-400 font-normal hidden xs:inline sm:inline">Market</span>
                   <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono font-bold">
-                    4.1.2
+                    4.1.3
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 hidden sm:block">
-                  Multi-Asset Quantitative Terminal • SFIA 4.1.2
+                  Multi-Asset Quantitative Terminal • SFIA 4.1.3
                 </p>
               </div>
             </Link>
@@ -661,7 +661,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <span className="font-semibold text-sm text-white flex items-center gap-1.5">
                   <span>Navigasi SOFIA Market</span>
                   <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono font-bold">
-                    4.1.2
+                    4.1.3
                   </span>
                 </span>
                 <button

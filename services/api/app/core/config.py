@@ -18,8 +18,8 @@ def _normalize_db_url(url: str) -> str:
 
 
 class Settings(BaseSettings):
-    app_name: str = "Sofia Market 4.1.2"
-    version: str = "4.1.2"
+    app_name: str = "Sofia Market 4.1.3"
+    version: str = "4.1.3"
     debug: bool = False
     database_url: str = _DEFAULT_NEON_URL
     admin_password: str = "changeme"

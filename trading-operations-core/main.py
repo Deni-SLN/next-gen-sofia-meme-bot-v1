@@ -1,6 +1,6 @@
 """
 /opt/data/projects/trading-operations-core/main.py
-Trading Operations Core Engine (v4.1.2)
+Trading Operations Core Engine (v4.1.3)
 Implements all execution paths: Jupiter v6, Orca Whirlpools, Bybit V5 CEX,
 Paper Simulation Engine, Signal Processor, Service Watchdog, and Webhook Receiver.
 """
@@ -45,7 +45,7 @@ def create_core_app() -> FastAPI:
     """Create standalone FastAPI application for Trading Operations Core Engine."""
     app = FastAPI(
         title="Sofia Trading Operations Core Engine",
-        version="4.1.2",
+        version="4.1.3",
         description=(
             "Multi-Venue Execution Core (Jupiter v6, Orca Whirlpools CLMM, Bybit V5 CEX) "
             "with isolated Paper Simulation Engine, Webhook Signal Processor, and KPI Watchdog."
@@ -59,7 +59,7 @@ def create_core_app() -> FastAPI:
         pe = get_default_paper_engine()
         return {
             "status": "ok",
-            "version": "4.1.2",
+            "version": "4.1.3",
             "engine": "trading-operations-core",
             "venues": ["JUPITER", "ORCA", "BYBIT"],
             "circuit_breaker_tripped": wd.circuit_breaker_tripped,
@@ -140,7 +140,7 @@ def run_self_test() -> dict[str, Any]:
     })
 
     return {
-        "engine_version": "4.1.2",
+        "engine_version": "4.1.3",
         "health_probes": probes,
         "executions": {
             "jupiter_v6_swap": {
