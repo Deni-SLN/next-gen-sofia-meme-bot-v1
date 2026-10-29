@@ -18,6 +18,11 @@ def get_journal_summary(
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
 
+    from app.services import wallets as wallet_svc
+    primary_sol_wallet = wallet_svc.get_or_ensure_primary_solana_wallet(db)
+    active_sol_address = primary_sol_wallet.address or wallet_svc.DEFAULT_USER_SOLANA_WALLET
+    active_sol_name = primary_sol_wallet.name or "Dompet Utama Solana (Pengaturan Sistem)"
+
     # Calculate real Live Trading Wallet capital (SOL + USDC + Active Holdings)
     live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=True)
     initial_capital_usd = float(live_eq.get("live_total_equity_usd") or 0.0)
@@ -142,6 +147,7 @@ def get_journal_summary(
             "status": t.status,
             "result": res_label,
             "tx_hash": t.tx_hash or "",
+            "wallet_address": active_sol_address if (t.chain or "Solana") == "Solana" else "",
             "notes": t.notes or "",
             "opened_at": t.opened_at.isoformat() if t.opened_at else None,
             "closed_at": t.closed_at.isoformat() if t.closed_at else None,
@@ -150,6 +156,9 @@ def get_journal_summary(
     return {
         "usd_idr": usd_idr,
         "mode": "LIVE",
+        "wallet_address": active_sol_address,
+        "wallet_chain": "Solana",
+        "wallet_name": active_sol_name,
         # 4 Core Cards requested by user
         "initial_capital_usd": round(initial_capital_usd, 2),
         "initial_capital_idr": initial_capital_idr,
@@ -181,6 +190,10 @@ def export_journal_csv(db: Session) -> str:
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
 
+    from app.services import wallets as wallet_svc
+    primary_sol_wallet = wallet_svc.get_or_ensure_primary_solana_wallet(db)
+    active_sol_address = primary_sol_wallet.address or wallet_svc.DEFAULT_USER_SOLANA_WALLET
+
     query = select(Trade).where(Trade.mode == "LIVE").order_by(
         Trade.closed_at.desc().nullslast(),
         Trade.opened_at.desc().nullslast(),
@@ -199,6 +212,7 @@ def export_journal_csv(db: Session) -> str:
         "Waktu Tutup",
         "Koin / Token",
         "Network / Chain",
+        "Wallet Solana",
         "Posisi",
         "Jumlah (Qty)",
         "Harga Eksekusi ($)",
@@ -242,6 +256,7 @@ def export_journal_csv(db: Session) -> str:
             t.closed_at.strftime("%Y-%m-%d %H:%M:%S") if t.closed_at else "",
             t.symbol,
             t.chain or "Solana",
+            active_sol_address if (t.chain or "Solana") == "Solana" else "",
             (t.side or "sell").upper(),
             qty,
             f"{px:.8f}".rstrip("0").rstrip(".") if px < 1 else f"{px:.4f}",

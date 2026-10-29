@@ -451,6 +451,11 @@ export const api = {
     }),
   getWallets: () => request<any>('/wallets'),
   getLiveWalletStatus: () => request<any>('/wallets/live-status'),
+  setPrimarySolanaWallet: (address: string, name?: string) =>
+    request<any>('/wallets/primary-solana', {
+      method: 'POST',
+      body: JSON.stringify({ address, name: name || 'Dompet Utama Solana (Pengaturan Sistem)' }),
+    }),
   createWallet: (data: any) =>
     request<any>('/wallets', { method: 'POST', body: JSON.stringify(data) }),
   updateWallet: (walletId: number, data: any) =>

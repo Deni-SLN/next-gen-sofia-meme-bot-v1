@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { api, useApiQuery, formatIdr, formatUsd } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
+
+const DEFAULT_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
 
 export default function JournalPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -11,6 +14,8 @@ export default function JournalPage() {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [actionMsg, setActionMsg] = useState<string>('');
   const [actionErr, setActionErr] = useState<string>('');
+  const [solanaWallet, setSolanaWallet] = useState<string>(DEFAULT_SOL_WALLET);
+  const [copiedWalletKey, setCopiedWalletKey] = useState<string | null>(null);
 
   const [downloading, setDownloading] = useState<boolean>(false);
 
@@ -40,16 +45,40 @@ export default function JournalPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const savedSol = localStorage.getItem('sofia_sol_addr');
+      const resolvedSol =
+        !savedSol || savedSol === 'BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8'
+          ? DEFAULT_SOL_WALLET
+          : savedSol;
+      localStorage.setItem('sofia_sol_addr', resolvedSol);
+      setSolanaWallet(resolvedSol);
+      api.setPrimarySolanaWallet(resolvedSol).catch(() => {});
+
       const tradeHandler = () => journalQuery.refetch();
+      const walletHandler = (e: any) => {
+        if (e?.detail) setSolanaWallet(String(e.detail));
+        journalQuery.refetch();
+      };
       window.addEventListener('sofia-bot-trade-executed', tradeHandler);
+      window.addEventListener('sofia-solana-wallet-updated', walletHandler);
       return () => {
         window.removeEventListener('sofia-bot-trade-executed', tradeHandler);
+        window.removeEventListener('sofia-solana-wallet-updated', walletHandler);
       };
     }
   }, []);
 
   const d = journalQuery.data;
   const usdIdr = d?.usd_idr || 17949;
+  const activeSolanaWallet = solanaWallet || d?.wallet_address || DEFAULT_SOL_WALLET;
+
+  const handleCopyWallet = (text: string, key: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedWalletKey(key);
+      setTimeout(() => setCopiedWalletKey(null), 2500);
+    }
+  };
 
   const handleDownloadExcel = async () => {
     try {
@@ -156,6 +185,48 @@ export default function JournalPage() {
         </div>
       </div>
 
+      {/* RECORDED SOLANA WALLET BAR (LINKED TO SYSTEM SETTINGS & CREDENTIALS) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-purple-950/35 via-obsidian-900 to-obsidian-900 border border-purple-500/35 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-extrabold">
+            🟣 WALLET SOLANA TERCATAT
+          </span>
+          <span className="text-slate-400 text-[11px]">Alamat Dompet:</span>
+          <code className="px-2 py-0.5 rounded bg-obsidian-950 border border-obsidian-800 text-emerald-300 font-bold select-all text-[11px]">
+            {activeSolanaWallet}
+          </code>
+          <button
+            type="button"
+            onClick={() => handleCopyWallet(activeSolanaWallet, 'header-sol')}
+            className="px-2 py-0.5 rounded bg-obsidian-950 hover:bg-obsidian-800 text-cyan-300 border border-obsidian-750 text-[10px] font-bold flex items-center gap-1 transition"
+            title="Salin Alamat Wallet Solana"
+          >
+            <LucideIcon name={copiedWalletKey === 'header-sol' ? 'check' : 'copy'} className="w-3 h-3" />
+            <span>{copiedWalletKey === 'header-sol' ? '✓ Tersalin' : 'Salin Wallet'}</span>
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <a
+            href={`https://solscan.io/account/${activeSolanaWallet}`}
+            target="_blank"
+            rel="noreferrer"
+            className="px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-850 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1 transition"
+          >
+            <span>Solscan Account</span>
+            <span>↗</span>
+          </a>
+          <Link
+            href="/settings?tab=wallet"
+            className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1 transition"
+            title="Ubah alamat wallet Solana di Pengaturan Sistem & Kredensial"
+          >
+            <LucideIcon name="sliders" className="w-3 h-3" />
+            <span>Pengaturan &amp; Kredensial</span>
+          </Link>
+        </div>
+      </div>
+
 
       {actionMsg && (
         <div className="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs">
@@ -186,9 +257,11 @@ export default function JournalPage() {
               <span className="text-xs text-slate-400">≈ {formatIdr(d?.initial_capital_idr)}</span>
             </div>
             <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5">
-              <span>Hot Wallets (Solana + Base)</span>
+              <span title={activeSolanaWallet}>
+                Solana: <strong className="text-purple-300">{activeSolanaWallet.slice(0, 6)}...{activeSolanaWallet.slice(-4)}</strong>
+              </span>
               <span className="text-emerald-400 flex items-center gap-1">
-                <LucideIcon name="shield-check" className="w-3 h-3" /> Siap Trading
+                <LucideIcon name="shield-check" className="w-3 h-3" /> Tercatat
               </span>
             </div>
           </div>
@@ -369,6 +442,7 @@ export default function JournalPage() {
                 <tr>
                   <th className="py-2 px-2.5">Waktu &amp; ID</th>
                   <th className="py-2 px-2.5">Koin</th>
+                  <th className="py-2 px-2.5">Wallet Solana</th>
                   <th className="py-2 px-2.5">Aksi</th>
                   <th className="py-2 px-2.5">Qty</th>
                   <th className="py-2 px-2.5">Harga</th>
@@ -383,7 +457,7 @@ export default function JournalPage() {
               <tbody className="divide-y divide-obsidian-800/60 font-mono">
                 {(d?.trades || []).length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="py-6 text-center text-slate-400 text-xs">
+                    <td colSpan={12} className="py-6 text-center text-slate-400 text-xs">
                       Belum ada transaksi live bot yang sesuai dengan filter pencarian.
                     </td>
                   </tr>
@@ -392,6 +466,7 @@ export default function JournalPage() {
                     const isWin = t.result === 'WIN';
                     const isLoss = t.result === 'LOSS';
                     const isSolana = t.chain === 'Solana';
+                    const rowWallet = t.wallet_address || activeSolanaWallet;
                     const explorerUrl = isSolana
                       ? `https://solscan.io/tx/${t.tx_hash}`
                       : `https://basescan.org/tx/${t.tx_hash}`;
@@ -432,6 +507,22 @@ export default function JournalPage() {
                               {t.notes}
                             </div>
                           )}
+                        </td>
+
+                        <td className="py-2 px-2.5">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-purple-300 font-bold" title={rowWallet}>
+                              {rowWallet.slice(0, 5)}...{rowWallet.slice(-4)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyWallet(rowWallet, `row-w-${t.id}`)}
+                              className="px-1 py-0.2 rounded bg-obsidian-950 hover:bg-obsidian-800 text-cyan-300 border border-obsidian-750 text-[9px]"
+                              title={`Salin Wallet: ${rowWallet}`}
+                            >
+                              {copiedWalletKey === `row-w-${t.id}` ? '✓' : '📋'}
+                            </button>
+                          </div>
                         </td>
 
                         <td className="py-2 px-2.5">

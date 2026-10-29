@@ -10,6 +10,58 @@ from app.services import market, portfolio, treasury
 _SPL_TTL_SECONDS = 60.0
 _BG_SYNC_LOCK = threading.Lock()
 _BG_SYNC_RUNNING = False
+DEFAULT_USER_SOLANA_WALLET = "8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos"
+
+
+def get_or_ensure_primary_solana_wallet(db: Session) -> Wallet:
+    """Return the user's primary Solana wallet recorded in system settings (defaulting to 8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos)."""
+    w = (
+        db.execute(
+            select(Wallet)
+            .where(
+                Wallet.chain == "Solana",
+                Wallet.gate == "trading",
+                ~Wallet.name.contains("Modal Paper"),
+            )
+            .order_by(Wallet.id.asc())
+        )
+        .scalars()
+        .first()
+    )
+    if not w:
+        w = Wallet(
+            name="Dompet Utama Solana (Pengaturan Sistem)",
+            address=DEFAULT_USER_SOLANA_WALLET,
+            chain="Solana",
+            balance=0.0,
+            token="SOL",
+            gate="trading",
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(w)
+        db.commit()
+        db.refresh(w)
+    elif not w.address or w.address == "BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8":
+        w.address = DEFAULT_USER_SOLANA_WALLET
+        w.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(w)
+    return w
+
+
+def set_primary_solana_wallet(db: Session, address: str, name: str | None = None) -> dict:
+    """Update or create the primary Solana wallet from System Settings & Credentials and sync on-chain."""
+    clean_addr = (address or "").strip() or DEFAULT_USER_SOLANA_WALLET
+    w = get_or_ensure_primary_solana_wallet(db)
+    w.address = clean_addr
+    if name:
+        w.name = name.strip()
+    w.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(w)
+    _trigger_bg_onchain_wallet_sync(clean_addr)
+    fx = market.get_fx_rate()
+    return _wallet_to_dict(w, fx["usd_idr"])
 
 
 def _trigger_bg_onchain_wallet_sync(trading_addr: str | None = None) -> None:

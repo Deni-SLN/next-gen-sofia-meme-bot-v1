@@ -185,5 +185,33 @@ def init_db() -> None:
             )
             db.add(treasury)
 
+        # 5. Ensure user's primary Solana Wallet (8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos) is registered
+        default_sol_addr = "8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos"
+        sol_wallet = (
+            db.execute(
+                select(Wallet).where(
+                    Wallet.chain == "Solana",
+                    Wallet.gate == "trading",
+                    ~Wallet.name.contains("Modal Paper"),
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if not sol_wallet:
+            sol_wallet = Wallet(
+                name="Dompet Utama Solana (Pengaturan Sistem)",
+                address=default_sol_addr,
+                chain="Solana",
+                balance=0.0,
+                token="SOL",
+                gate="trading",
+                updated_at=datetime.now(timezone.utc),
+            )
+            db.add(sol_wallet)
+        elif not sol_wallet.address or sol_wallet.address == "BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8":
+            sol_wallet.address = default_sol_addr
+            sol_wallet.updated_at = datetime.now(timezone.utc)
+
         db.commit()
 

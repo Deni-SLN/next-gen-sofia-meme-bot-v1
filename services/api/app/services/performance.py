@@ -172,6 +172,11 @@ def get_daily_calendar(
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
 
+    from app.services import wallets as wallet_svc
+    primary_sol_wallet = wallet_svc.get_or_ensure_primary_solana_wallet(db)
+    active_sol_address = primary_sol_wallet.address or wallet_svc.DEFAULT_USER_SOLANA_WALLET
+    active_sol_name = primary_sol_wallet.name or "Dompet Utama Solana (Pengaturan Sistem)"
+
     stmt = select(Trade).where(Trade.status == "closed")
     mode_clean = (mode or "ALL").upper().strip()
     if mode_clean in ("PAPER", "LIVE"):
@@ -195,6 +200,8 @@ def get_daily_calendar(
             "symbol": t.symbol,
             "side": t.side,
             "mode": t.mode,
+            "chain": t.chain or "Solana",
+            "wallet_address": active_sol_address if (t.chain or "Solana") == "Solana" else "",
             "price": t.price,
             "price_idr": round(t.price * usd_idr, 2),
             "quantity": t.quantity,
@@ -324,6 +331,11 @@ def get_daily_calendar(
         "year": y,
         "month": m,
         "month_label": f"{month_names_id[m]} {y}",
+        "tracked_wallet": {
+            "address": active_sol_address,
+            "chain": "Solana",
+            "name": active_sol_name,
+        },
         "summary": {
             "total_pnl_usd": round(month_total_pnl_usd, 4),
             "total_pnl_idr": round(month_total_pnl_usd * usd_idr, 0),

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { api, useApiQuery, formatIdr, formatUsd, getTradingMode } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
 import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
+
+const DEFAULT_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
 
 export default function CalendarPage() {
   const isUltrawide = useUltrawide();
@@ -11,12 +14,31 @@ export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
   const [tradePage, setTradePage] = useState<number>(1);
+  const [solanaWallet, setSolanaWallet] = useState<string>(DEFAULT_SOL_WALLET);
+  const [copiedWalletKey, setCopiedWalletKey] = useState<string | null>(null);
   const TRADES_PER_PAGE = 20;
 
   useEffect(() => {
     // Default to the current global trading mode
     const initialMode = getTradingMode();
     setSelectedMode(initialMode === 'LIVE' ? 'LIVE' : 'PAPER');
+
+    if (typeof window !== 'undefined') {
+      const savedSol = localStorage.getItem('sofia_sol_addr');
+      const resolvedSol =
+        !savedSol || savedSol === 'BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8'
+          ? DEFAULT_SOL_WALLET
+          : savedSol;
+      localStorage.setItem('sofia_sol_addr', resolvedSol);
+      setSolanaWallet(resolvedSol);
+      api.setPrimarySolanaWallet(resolvedSol).catch(() => {});
+
+      const walletHandler = (e: any) => {
+        if (e?.detail) setSolanaWallet(String(e.detail));
+      };
+      window.addEventListener('sofia-solana-wallet-updated', walletHandler);
+      return () => window.removeEventListener('sofia-solana-wallet-updated', walletHandler);
+    }
   }, []);
 
   const calendarQuery = useApiQuery(
@@ -28,6 +50,15 @@ export default function CalendarPage() {
   const usdIdr = calData?.usd_idr || 17960;
   const summary = calData?.summary;
   const days: any[] = calData?.days || [];
+  const activeSolanaWallet = solanaWallet || calData?.tracked_wallet?.address || DEFAULT_SOL_WALLET;
+
+  const handleCopyWallet = (text: string, key: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedWalletKey(key);
+      setTimeout(() => setCopiedWalletKey(null), 2500);
+    }
+  };
 
   // Find selected day or default to today/latest day with trades
   useEffect(() => {
@@ -172,6 +203,48 @@ export default function CalendarPage() {
               Hari Ini
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* RECORDED SOLANA WALLET BANNER ON PNL CALENDAR (SYNCED WITH SYSTEM SETTINGS) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-950/35 via-obsidian-900 to-obsidian-900 border border-purple-500/35 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-extrabold">
+            🟣 WALLET SOLANA TERCATAT
+          </span>
+          <span className="text-slate-400 text-[11px]">Dompet PnL On-Chain:</span>
+          <code className="px-2 py-0.5 rounded bg-obsidian-950 border border-obsidian-800 text-emerald-300 font-bold select-all text-[11px]">
+            {activeSolanaWallet}
+          </code>
+          <button
+            type="button"
+            onClick={() => handleCopyWallet(activeSolanaWallet, 'cal-sol-wallet')}
+            className="px-2 py-0.5 rounded bg-obsidian-950 hover:bg-obsidian-800 text-cyan-300 border border-obsidian-750 text-[10px] font-bold flex items-center gap-1 transition"
+            title="Salin Alamat Wallet Solana"
+          >
+            <LucideIcon name={copiedWalletKey === 'cal-sol-wallet' ? 'check' : 'copy'} className="w-3 h-3" />
+            <span>{copiedWalletKey === 'cal-sol-wallet' ? '✓ Tersalin' : 'Salin Wallet'}</span>
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <a
+            href={`https://solscan.io/account/${activeSolanaWallet}`}
+            target="_blank"
+            rel="noreferrer"
+            className="px-2.5 py-1 rounded-lg bg-obsidian-950 hover:bg-obsidian-850 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1 transition"
+          >
+            <span>Solscan Account</span>
+            <span>↗</span>
+          </a>
+          <Link
+            href="/settings?tab=wallet"
+            className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1 transition"
+            title="Ubah alamat wallet Solana di Pengaturan Sistem & Kredensial"
+          >
+            <LucideIcon name="sliders" className="w-3 h-3" />
+            <span>Pengaturan &amp; Kredensial</span>
+          </Link>
         </div>
       </div>
 
@@ -445,6 +518,7 @@ export default function CalendarPage() {
                       <tr className="border-b border-obsidian-800 text-[10px] text-slate-400 uppercase">
                         <th className="py-2 px-2">Waktu</th>
                         <th className="py-2 px-2">Mode</th>
+                        <th className="py-2 px-2">Wallet Solana</th>
                         <th className="py-2 px-2">Token / Pair</th>
                         <th className="py-2 px-2">Side</th>
                         <th className="py-2 px-2 text-right">Harga Eksekusi</th>
@@ -457,6 +531,7 @@ export default function CalendarPage() {
                     <tbody className="divide-y divide-obsidian-800/60">
                       {paginatedTrades.map((t: any) => {
                         const isWin = (t.pnl_usd || 0) > 0;
+                        const rowWallet = t.wallet_address || activeSolanaWallet;
                         return (
                           <tr key={t.id} className="hover:bg-obsidian-800/40 transition">
                             <td className="py-2.5 px-2 text-slate-400 text-[11px]">{t.time}</td>
@@ -470,6 +545,21 @@ export default function CalendarPage() {
                               >
                                 {t.mode}
                               </span>
+                            </td>
+                            <td className="py-2.5 px-2">
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-purple-300 font-bold" title={rowWallet}>
+                                  {rowWallet.slice(0, 5)}...{rowWallet.slice(-4)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyWallet(rowWallet, `cal-row-${t.id}`)}
+                                  className="px-1 py-0.2 rounded bg-obsidian-950 hover:bg-obsidian-800 text-cyan-300 border border-obsidian-750 text-[9px]"
+                                  title={`Salin Wallet: ${rowWallet}`}
+                                >
+                                  {copiedWalletKey === `cal-row-${t.id}` ? '✓' : '📋'}
+                                </button>
+                              </div>
                             </td>
                             <td className="py-2.5 px-2 font-bold text-slate-200">
                               <a

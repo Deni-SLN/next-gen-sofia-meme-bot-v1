@@ -31,8 +31,9 @@ export default function SettingsPage() {
   const [testingTg, setTestingTg] = useState<boolean>(false);
   const [tgNotice, setTgNotice] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  // 3. Wallet Settings State
-  const [solanaAddress, setSolanaAddress] = useState<string>('');
+  // 3. Wallet Settings State (Default User Solana Wallet: 8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos)
+  const DEFAULT_USER_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
+  const [solanaAddress, setSolanaAddress] = useState<string>(DEFAULT_USER_SOL_WALLET);
   const [evmAddress, setEvmAddress] = useState<string>('');
   const [solanaRpc, setSolanaRpc] = useState<string>('https://api.mainnet.solana.com');
   const [baseRpc, setBaseRpc] = useState<string>('https://mainnet.base.org');
@@ -42,6 +43,13 @@ export default function SettingsPage() {
   // 4. Display Settings
   const [defaultTimeframe, setDefaultTimeframe] = useState<string>('1d');
   const [soundAlerts, setSoundAlerts] = useState<boolean>(true);
+
+  useEffect(() => {
+    const qTab = router.query?.tab;
+    if (qTab === 'wallet' || qTab === 'ai-api' || qTab === 'market-api' || qTab === 'display' || qTab === 'account') {
+      setActiveTab(qTab);
+    }
+  }, [router.query?.tab]);
 
   // Load saved settings from localStorage on mount
   useEffect(() => {
@@ -63,8 +71,16 @@ export default function SettingsPage() {
     setTelegramToken(localStorage.getItem('sofia_tg_token') || '');
     setTelegramChatId(localStorage.getItem('sofia_tg_chat_id') || '');
 
-    // Wallet & RPC
-    setSolanaAddress(localStorage.getItem('sofia_sol_addr') || 'BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8');
+    // Wallet & RPC (Migrate old demo address automatically to 8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos)
+    const savedSol = localStorage.getItem('sofia_sol_addr');
+    const resolvedSol =
+      !savedSol || savedSol === 'BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8'
+        ? DEFAULT_USER_SOL_WALLET
+        : savedSol;
+    localStorage.setItem('sofia_sol_addr', resolvedSol);
+    setSolanaAddress(resolvedSol);
+    api.setPrimarySolanaWallet(resolvedSol).catch(() => {});
+
     setEvmAddress(localStorage.getItem('sofia_evm_addr') || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F');
     setSolanaRpc(localStorage.getItem('sofia_sol_rpc') || 'https://api.mainnet.solana.com');
     setBaseRpc(localStorage.getItem('sofia_base_rpc') || 'https://mainnet.base.org');
@@ -83,7 +99,7 @@ export default function SettingsPage() {
     setGmgnEndpoint('https://gmgn.ai/defi/quotation/v1/rank/sol');
     setSolanaRpc('https://api.mainnet.solana.com');
     setBaseRpc('https://mainnet.base.org');
-    if (!solanaAddress) setSolanaAddress('BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8');
+    if (!solanaAddress) setSolanaAddress(DEFAULT_USER_SOL_WALLET);
     if (!evmAddress) setEvmAddress('0x71C7656EC7ab88b098defB751B7401B5f6d8976F');
     setSaveNotice('Semua API Pasar berhasil diisi dengan Free Public Gateway!');
     setTimeout(() => setSaveNotice(''), 3500);
@@ -129,19 +145,25 @@ export default function SettingsPage() {
     localStorage.setItem('sofia_tg_chat_id', telegramChatId.trim());
 
     // Save Wallet & RPC
-    localStorage.setItem('sofia_sol_addr', solanaAddress.trim());
+    const cleanSolAddr = solanaAddress.trim() || DEFAULT_USER_SOL_WALLET;
+    setSolanaAddress(cleanSolAddr);
+    localStorage.setItem('sofia_sol_addr', cleanSolAddr);
     localStorage.setItem('sofia_evm_addr', evmAddress.trim());
     localStorage.setItem('sofia_sol_rpc', solanaRpc.trim());
     localStorage.setItem('sofia_base_rpc', baseRpc.trim());
     localStorage.setItem('sofia_slippage', slippagePct.toString());
     localStorage.setItem('sofia_gas_thresh', gasThresholdIdr.toString());
 
+    // Sync primary Solana Wallet to backend database so Jurnal Trading & Kalender PnL record it immediately
+    api.setPrimarySolanaWallet(cleanSolAddr, 'Dompet Utama Solana (Pengaturan Sistem)').catch(() => {});
+    window.dispatchEvent(new CustomEvent('sofia-solana-wallet-updated', { detail: cleanSolAddr }));
+
     // Save Display
     localStorage.setItem('sofia_default_tf', defaultTimeframe);
     localStorage.setItem('sofia_sound_alerts', soundAlerts.toString());
 
-    setSaveNotice('Seluruh konfigurasi pengaturan berhasil disimpan!');
-    setTimeout(() => setSaveNotice(''), 3500);
+    setSaveNotice(`Pengaturan disimpan! Wallet Solana (${cleanSolAddr.slice(0, 6)}...${cleanSolAddr.slice(-4)}) tercatat di Jurnal Trading & Kalender PnL.`);
+    setTimeout(() => setSaveNotice(''), 4500);
   };
 
   const handleResetDefaults = () => {
@@ -805,15 +827,38 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-5 rounded-2xl bg-obsidian-900 border border-obsidian-750 shadow-sm space-y-2">
-                    <label className="block text-slate-300 font-bold">Solana Public Address</label>
+                  <div className="p-5 rounded-2xl bg-obsidian-900 border border-purple-500/40 shadow-sm space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="block text-slate-200 font-bold">
+                        🟣 Solana Public Address (Tercatat di Jurnal &amp; Kalender PnL)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setSolanaAddress(DEFAULT_USER_SOL_WALLET)}
+                        className="px-2 py-0.5 rounded bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 text-[10px] font-bold transition"
+                        title="Isi alamat wallet Solana utama Anda"
+                      >
+                        Isi Wallet Utama
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={solanaAddress}
                       onChange={(e) => setSolanaAddress(e.target.value)}
-                      placeholder="Base58 Solana Address..."
-                      className="w-full px-3.5 py-2 rounded-xl bg-obsidian-950 border border-obsidian-700 text-slate-100 text-xs focus:outline-none focus:border-cyan-500"
+                      placeholder="8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos"
+                      className="w-full px-3.5 py-2 rounded-xl bg-obsidian-950 border border-obsidian-700 text-emerald-300 font-bold text-xs focus:outline-none focus:border-purple-400"
                     />
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400">
+                      <span>✓ Terhubung otomatis ke Jurnal Trading &amp; Kalender PnL</span>
+                      <div className="flex items-center gap-2">
+                        <Link href="/journal" className="text-cyan-400 hover:underline font-bold">
+                          Buka Jurnal →
+                        </Link>
+                        <Link href="/calendar" className="text-amber-300 hover:underline font-bold">
+                          Buka Kalender PnL →
+                        </Link>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="p-5 rounded-2xl bg-obsidian-900 border border-obsidian-750 shadow-sm space-y-2">

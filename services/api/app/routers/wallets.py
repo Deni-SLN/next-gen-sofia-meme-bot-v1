@@ -91,6 +91,17 @@ class SyncOnchainRequest(BaseModel):
     apply_onchain_balance: bool = False
 
 
+class PrimarySolanaWalletRequest(BaseModel):
+    address: str
+    name: str | None = "Dompet Utama Solana (Pengaturan Sistem)"
+
+
+@router.post("/primary-solana")
+def set_primary_solana_wallet(body: PrimarySolanaWalletRequest, db: Session = Depends(get_db)):
+    w_dict = wallets.set_primary_solana_wallet(db, address=body.address, name=body.name)
+    return {"status": "ok", "wallet": w_dict}
+
+
 @router.get("/live-status")
 def get_live_status(db: Session = Depends(get_db)):
     from app.services import live_engine
