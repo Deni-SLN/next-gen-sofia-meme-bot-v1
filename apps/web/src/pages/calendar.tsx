@@ -463,8 +463,8 @@ export default function CalendarPage() {
                   onClick={() => setSelectedDayDate(d.date)}
                   className={`min-h-[92px] p-2 rounded-lg border text-left transition flex flex-col justify-between ${cellStyle}`}
                 >
-                  {/* Top: Day Number & Today indicator */}
-                  <div className="flex items-center justify-between w-full">
+                  {/* Top: Day Number, Winrate Badge & Today indicator */}
+                  <div className="flex items-center justify-between w-full gap-1">
                     <span
                       className={`text-xs font-mono font-bold ${
                         d.is_today ? 'text-cyan-400 underline decoration-cyan-400 decoration-2' : 'text-slate-300'
@@ -472,11 +472,25 @@ export default function CalendarPage() {
                     >
                       {d.day_number}
                     </span>
-                    {d.is_today && (
-                      <span className="text-[8px] font-sans font-extrabold uppercase px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                        Hari Ini
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {hasTrades && (
+                        <span
+                          className={`text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded border ${
+                            (d.win_rate_pct ?? 0) >= 50
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          }`}
+                          title={`Win Rate Tanggal ${d.date}: ${d.win_rate_pct ?? 0}% (${d.winning_trades ?? 0} Win / ${d.losing_trades ?? 0} Loss)`}
+                        >
+                          WR {d.win_rate_pct ?? 0}%
+                        </span>
+                      )}
+                      {d.is_today && (
+                        <span className="text-[8px] font-sans font-extrabold uppercase px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          Hari Ini
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Middle: Net PnL (USD + IDR) */}
@@ -491,15 +505,31 @@ export default function CalendarPage() {
                     </div>
                   </div>
 
-                  {/* Bottom: Trades pill & fee */}
-                  <div className="flex items-center justify-between text-[9px] font-mono text-slate-500 w-full pt-1 border-t border-obsidian-800/60">
-                    <span className={hasTrades ? badgeColor : 'text-slate-500'}>
-                      {d.trades_count} {d.trades_count === 1 ? 'Trade' : 'Trades'}
-                    </span>
-                    {d.fees_usd > 0 && (
-                      <span className="text-[8px] text-slate-400" title={`Biaya Swap & Gas: ${formatIdr(d.fees_idr)}`}>
-                        Gas {formatIdr(d.fees_idr)}
+                  {/* Bottom: Posisi (W/L + Trades) & Gas Fee */}
+                  <div className="flex flex-col gap-0.5 pt-1 border-t border-obsidian-800/60 w-full text-[9px] font-mono">
+                    <div className="flex items-center justify-between w-full">
+                      <span className={hasTrades ? badgeColor : 'text-slate-500'}>
+                        {d.trades_count} {d.trades_count === 1 ? 'Trade' : 'Trades'}
                       </span>
+                      {hasTrades && (
+                        <span className="text-[9px] font-bold">
+                          <span className="text-emerald-400">{d.winning_trades ?? 0}W</span>
+                          <span className="text-slate-600">/</span>
+                          <span className="text-rose-400">{d.losing_trades ?? 0}L</span>
+                        </span>
+                      )}
+                    </div>
+                    {hasTrades && (
+                      <div className="flex items-center justify-between w-full text-[8px] text-slate-400">
+                        <span>
+                          Posisi: {d.buy_trades ?? 0}B / {d.sell_trades ?? 0}S
+                        </span>
+                        {d.fees_usd > 0 && (
+                          <span title={`Biaya Swap & Gas: ${formatIdr(d.fees_idr)}`}>
+                            Gas {formatIdr(d.fees_idr)}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </button>
@@ -523,7 +553,14 @@ export default function CalendarPage() {
                 )}
               </h2>
             </div>
-            <div className="flex items-center gap-3 text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+              <span className="text-slate-400">
+                Win Rate Hari:{' '}
+                <strong className="text-cyan-300">
+                  {selectedDay?.win_rate_pct ?? 0}% ({selectedDay?.winning_trades ?? 0}W / {selectedDay?.losing_trades ?? 0}L)
+                </strong>
+              </span>
+              <span className="text-slate-600">|</span>
               <span className="text-slate-400">
                 Net PnL Hari:{' '}
                 <strong

@@ -188,8 +188,11 @@ def get_daily_calendar(
     all_trades = list(db.execute(stmt.order_by(Trade.closed_at.desc())).scalars().all())
 
     if mode_clean == "WALLET":
-        needs_sync = len(all_trades) < 50 or any(
-            t.symbol == "SOL/SPL" and float(t.pnl or 0.0) == 0.0 for t in all_trades
+        total_pnl_check = sum(float(t.pnl or 0.0) for t in all_trades)
+        needs_sync = (
+            len(all_trades) < 50
+            or abs(total_pnl_check) > 50.0
+            or any(t.symbol == "SOL/SPL" and float(t.pnl or 0.0) == 0.0 for t in all_trades)
         )
         if needs_sync:
             try:
@@ -271,6 +274,12 @@ def get_daily_calendar(
         day_fees = sum(t["total_fee_usd"] for t in day_trades)
         w_trades = sum(1 for t in day_trades if t["pnl_usd"] > 0)
         l_trades = sum(1 for t in day_trades if t["pnl_usd"] < 0)
+        buy_trades = sum(1 for t in day_trades if str(t.get("side", "")).lower() == "buy")
+        sell_trades = sum(1 for t in day_trades if str(t.get("side", "")).lower() == "sell")
+        closed_wl = w_trades + l_trades
+        day_wr_pct = round((w_trades / closed_wl * 100.0), 1) if closed_wl > 0 else (
+            round((w_trades / len(day_trades) * 100.0), 1) if len(day_trades) > 0 else 0.0
+        )
 
         # Include floating PnL on today's cell if viewing current day
         floating_included = False
@@ -326,6 +335,9 @@ def get_daily_calendar(
             "trades_count": len(day_trades),
             "winning_trades": w_trades,
             "losing_trades": l_trades,
+            "buy_trades": buy_trades,
+            "sell_trades": sell_trades,
+            "win_rate_pct": day_wr_pct,
             "volume_usd": round(day_volume, 4),
             "volume_idr": round(day_volume * usd_idr, 0),
             "fees_usd": round(day_fees, 6),
