@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { api, useApiQuery, formatIdr, formatUsd } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
@@ -132,8 +133,18 @@ const ECOSYSTEM_TOOLS = [
 ];
 
 export default function RugCheckPage() {
+  const router = useRouter();
   const [searchInput, setSearchInput] = useState<string>('WIF');
   const [activeTarget, setActiveTarget] = useState<string>('WIF');
+
+  useEffect(() => {
+    const qParam = typeof router.query.q === 'string' ? router.query.q.trim() : '';
+    if (qParam) {
+      setSearchInput(qParam);
+      setActiveTarget(qParam);
+    }
+  }, [router.query.q]);
+
   const rugQuery = useApiQuery(() => api.rugCheck(activeTarget), [activeTarget]);
 
   const handleScan = (e: React.FormEvent) => {
@@ -155,9 +166,9 @@ export default function RugCheckPage() {
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80">
         <div>
-          <div className="flex items-center gap-2">
-            <LucideIcon name="shield-alert" className="w-4 h-4 text-emerald-400" />
-            <h1 className="text-sm font-extrabold text-slate-100 uppercase tracking-wide font-mono">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <LucideIcon name="shield-alert" className="w-4 h-4 text-emerald-400 shrink-0" />
+            <h1 className="text-xs sm:text-sm font-extrabold text-slate-100 uppercase tracking-wide font-mono">
               Rug, Cluster &amp; Liquidity Shield v2 (Deep On-Chain Audit)
             </h1>
             <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
@@ -168,7 +179,7 @@ export default function RugCheckPage() {
               ⚡ FLUX SHIELD RPC: AKTIF
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">
+          <p className="text-[11px] text-slate-400 mt-1">
             Mengevaluasi <strong>Kontrak &amp; Ekstensi Token-2022</strong>, <strong>Cluster Pendanaan Holder (Non-AMM)</strong>,{' '}
             <strong>Riwayat Wallet Dev</strong>, <strong>Rasio Likuiditas/MCap</strong>, dan <strong>Indikasi Wash Trading</strong>.
           </p>
@@ -177,44 +188,49 @@ export default function RugCheckPage() {
         <button
           type="button"
           onClick={() => rugQuery.refetch()}
-          className="px-3 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-cyan-300 font-mono text-xs transition"
+          className="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-cyan-300 font-mono text-xs transition text-center"
         >
           🔄 Tarik Ulang Data Live API
         </button>
       </div>
 
       {/* Search Form */}
-      <form onSubmit={handleScan} className="flex flex-wrap gap-2">
-        <input
-          type="text"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Masukkan ticker atau Contract Address Solana/Base asli (contoh: WIF, BONK, POPCAT, PEPE)..."
-          className="flex-1 min-w-[260px] px-3.5 py-2 rounded-lg bg-obsidian-900 border border-obsidian-700 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
-        />
-        <button
-          type="submit"
-          className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-extrabold font-mono text-xs shadow-glow-emerald transition"
-        >
-          🔍 Deep Audit Kontrak &amp; Cluster
-        </button>
-        {['WIF', 'BONK', 'POPCAT', 'PEPE', 'RUGDOGE/SOL'].map((preset) => (
+      <form onSubmit={handleScan} className="space-y-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Masukkan ticker atau CA Pump.fun/Solana (contoh: WIF, BONK, POPCAT, ...pump)..."
+            className="w-full sm:flex-1 px-3.5 py-2.5 sm:py-2 rounded-lg bg-obsidian-900 border border-obsidian-700 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+          />
           <button
-            key={preset}
-            type="button"
-            onClick={() => {
-              setSearchInput(preset);
-              setActiveTarget(preset);
-            }}
-            className={`px-2.5 py-2 rounded-lg border text-[11px] font-mono transition ${
-              activeTarget.toUpperCase() === preset
-                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 font-bold'
-                : 'bg-obsidian-900 border-obsidian-700 hover:border-obsidian-600 text-slate-300'
-            }`}
+            type="submit"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-extrabold font-mono text-xs shadow-glow-emerald transition shrink-0"
           >
-            {preset}
+            🔍 Deep Audit Kontrak &amp; Cluster
           </button>
-        ))}
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+          <span className="text-[10px] font-mono text-slate-500 shrink-0">Cepat:</span>
+          {['WIF', 'BONK', 'POPCAT', 'PEPE', 'RUGDOGE/SOL'].map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => {
+                setSearchInput(preset);
+                setActiveTarget(preset);
+              }}
+              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-mono transition shrink-0 ${
+                activeTarget.toUpperCase() === preset
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 font-bold'
+                  : 'bg-obsidian-900 border-obsidian-700 hover:border-obsidian-600 text-slate-300'
+              }`}
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
       </form>
 
       <QueryState isLoading={rugQuery.isLoading} isError={rugQuery.isError} error={rugQuery.error}>

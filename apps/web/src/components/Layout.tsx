@@ -70,8 +70,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
 const MOBILE_BOTTOM_NAV = [
   { href: '/', label: 'Overview', icon: 'layout-dashboard' },
   { href: '/pulse', label: 'Pulse', icon: 'zap' },
-  { href: '/trading', label: 'Bot', icon: 'crosshair' },
-  { href: '/stocks', label: 'Saham', icon: 'trending-up' },
+  { href: '/rugcheck', label: 'Shield', icon: 'shield-alert' },
+  { href: '/auto-entry', label: 'AutoBot', icon: 'target' },
   { href: '/crypto', label: 'Crypto', icon: 'cpu' },
 ];
 
@@ -420,13 +420,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* BEGIN: Clean AnalisMarket-Style Topbar */}
       <header className="border-b border-obsidian-700/70 bg-obsidian-950/90 backdrop-blur-md sticky top-0 z-50 shrink-0">
-        <div className="px-3 sm:px-5 h-14 flex items-center justify-between gap-3 text-xs">
+        <div className="px-2.5 sm:px-5 h-14 flex items-center justify-between gap-1.5 sm:gap-3 text-xs">
           {/* Left: Hamburger + Brand + Clean Chain Switcher */}
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-1.5 rounded-lg bg-obsidian-900 border border-obsidian-700 text-slate-300 hover:text-white transition"
+              className="md:hidden p-1.5 rounded-lg bg-obsidian-900 border border-obsidian-700 text-slate-300 hover:text-white transition shrink-0"
               aria-label="Menu Navigasi"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -442,16 +442,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link
               href="/"
               onClick={(e) => handleMenuNavigation(e, '/')}
-              className="flex items-center gap-2.5 pr-3 sm:border-r border-obsidian-700/70"
+              className="flex items-center gap-2 sm:gap-2.5 sm:pr-3 sm:border-r border-obsidian-700/70 min-w-0"
             >
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-obsidian-900 border border-obsidian-700 text-amber-400">
-                <LucideIcon name="trending-up" className="w-4 h-4" />
+              <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-obsidian-900 border border-obsidian-700 text-amber-400 shrink-0">
+                <LucideIcon name="trending-up" className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
-              <div className="leading-tight">
-                <div className="font-semibold tracking-tight text-sm text-white flex items-center gap-1.5">
+              <div className="leading-tight min-w-0">
+                <div className="font-semibold tracking-tight text-xs sm:text-sm text-white flex items-center gap-1 sm:gap-1.5">
                   <span>SOFIA</span>
-                  <span className="text-slate-400 font-normal">Market</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono font-bold">
+                  <span className="text-slate-400 font-normal hidden xs:inline sm:inline">Market</span>
+                  <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono font-bold">
                     4.1.2
                   </span>
                 </div>
@@ -504,7 +504,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Right: Clean Unified Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Paper vs Live Segmented Switch */}
             <div
               className="flex items-center bg-obsidian-900 p-0.5 rounded-lg border border-obsidian-700/80"
@@ -515,8 +515,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 onClick={() => handleSelectMode('PAPER')}
                 className={
                   mode === 'PAPER'
-                    ? 'px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium text-[11px] transition'
-                    : 'px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 text-[11px] transition'
+                    ? 'px-2 sm:px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium text-[10px] sm:text-[11px] transition'
+                    : 'px-2 sm:px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 text-[10px] sm:text-[11px] transition'
                 }
               >
                 Paper
@@ -526,8 +526,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 onClick={() => handleSelectMode('LIVE')}
                 className={
                   mode === 'LIVE'
-                    ? 'flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30 font-medium text-[11px] transition'
-                    : 'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 text-[11px] transition'
+                    ? 'flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30 font-medium text-[10px] sm:text-[11px] transition'
+                    : 'flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 text-[10px] sm:text-[11px] transition'
                 }
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
@@ -554,22 +554,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
               onClick={() => setWalletModalOpen(true)}
               className={
                 connectedWallet
-                  ? 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] transition'
-                  : 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-700/80 text-slate-300 hover:text-white text-[11px] font-medium transition'
+                  ? 'flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] sm:text-[11px] transition'
+                  : 'flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-700/80 text-slate-300 hover:text-white text-[10px] sm:text-[11px] font-medium transition'
               }
               title="Hubungkan Wallet Web3 (Phantom / Solflare / MetaMask)"
             >
               <LucideIcon name="wallet" className="w-3.5 h-3.5" />
-              <span>
+              <span className="hidden sm:inline">
                 {connectedWallet ? shortenAddress(connectedWallet.address) : 'Wallet'}
               </span>
             </button>
 
-            {/* Ultrawide / Layar Lebar Toggle Button */}
+            {/* Ultrawide / Layar Lebar Toggle Button (Desktop Only) */}
             <button
               type="button"
               onClick={() => handleToggleUltrawide(!isUltrawide)}
-              className={`flex items-center justify-center w-8 h-8 rounded-lg border transition ${
+              className={`hidden lg:flex items-center justify-center w-8 h-8 rounded-lg border transition ${
                 isUltrawide
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
                   : 'bg-obsidian-900 hover:bg-obsidian-850 text-slate-400 hover:text-slate-200 border-obsidian-700/80'
@@ -587,7 +587,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link
               href="/settings"
               onClick={(e) => handleMenuNavigation(e, '/settings')}
-              className={`flex items-center justify-center w-8 h-8 rounded-lg border transition ${
+              className={`hidden sm:flex items-center justify-center w-8 h-8 rounded-lg border transition ${
                 router.pathname === '/settings'
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm'
                   : 'bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-700/80 text-slate-400 hover:text-slate-200'
@@ -601,7 +601,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={handleToggleTheme}
-              className="flex items-center justify-center w-8 h-8 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-700/80 text-slate-400 hover:text-slate-200 transition"
+              className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-700/80 text-slate-400 hover:text-slate-200 transition"
               title={theme === 'dark' ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
               data-purpose="theme-toggle"
             >
@@ -617,8 +617,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               onClick={handleHeaderBotToggle}
               className={
                 botRunning
-                  ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition font-medium text-[11px]'
-                  : 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition font-medium text-[11px]'
+                  ? 'flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition font-medium text-[10px] sm:text-[11px]'
+                  : 'flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition font-medium text-[10px] sm:text-[11px]'
               }
             >
               <span
@@ -835,11 +835,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* END: Clean AnalisMarket-Style Left Sidebar */}
 
         {/* BEGIN: MainContentArea */}
-        <main className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-5 py-4 pb-20 md:pb-5 space-y-4 bg-obsidian-950 grid-bg-overlay">
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 sm:px-5 py-3 sm:py-4 pb-24 md:pb-5 space-y-4 bg-obsidian-950 grid-bg-overlay">
           <div
             className={
               isUltrawide
-                ? 'w-full max-w-none px-1 sm:px-3 space-y-4 transition-all duration-300'
+                ? 'w-full max-w-none px-0.5 sm:px-3 space-y-4 transition-all duration-300'
                 : 'max-w-[1440px] mx-auto space-y-4 transition-all duration-300'
             }
           >
@@ -850,7 +850,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* BEGIN: Mobile Fixed Bottom Tab Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 grid grid-cols-6 py-1.5 px-1 text-[10px]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-obsidian-900/95 backdrop-blur-md border-t border-obsidian-700 grid grid-cols-6 pt-1.5 px-1 pb-safe-bottom text-[10px]">
         {MOBILE_BOTTOM_NAV.map((tab) => {
           const active = router.pathname === tab.href;
           return (
@@ -858,20 +858,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
               key={tab.href}
               href={tab.href}
               onClick={(e) => handleMenuNavigation(e, tab.href)}
-              className={`flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition cursor-pointer ${
-                active ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
+              className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg transition cursor-pointer ${
+                active ? 'text-emerald-400 font-bold bg-emerald-500/10' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <LucideIcon name={tab.icon} className="w-4 h-4" />
-              <span>{tab.label}</span>
+              <span className="truncate max-w-full">{tab.label}</span>
             </Link>
           );
         })}
         <button
           type="button"
           onClick={() => setMobileMenuOpen((prev) => !prev)}
-          className={`flex flex-col items-center justify-center gap-0.5 py-1 rounded-lg transition cursor-pointer ${
-            mobileMenuOpen ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
+          className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg transition cursor-pointer ${
+            mobileMenuOpen ? 'text-emerald-400 font-bold bg-emerald-500/10' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <LucideIcon name="layers" className="w-4 h-4" />
