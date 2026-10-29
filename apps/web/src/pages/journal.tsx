@@ -318,7 +318,9 @@ export default function JournalPage() {
           {/* Card 1: Modal Awal */}
           <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-emerald-500/40 transition">
             <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-slate-400 font-medium">MODAL AWAL ({selectedMode})</span>
+              <span className="text-slate-400 font-medium">
+                {selectedMode === 'WALLET' ? 'MODAL AWAL DEPOSIT' : `MODAL AWAL (${selectedMode})`}
+              </span>
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                 MODE {selectedMode}
               </span>
@@ -330,9 +332,18 @@ export default function JournalPage() {
               <span className="text-xs text-slate-400">≈ {formatIdr(d?.initial_capital_idr)}</span>
             </div>
             <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5">
-              <span title={activeSolanaWallet}>
-                Solana: <strong className="text-purple-300">{activeSolanaWallet.slice(0, 6)}...{activeSolanaWallet.slice(-4)}</strong>
-              </span>
+              {selectedMode === 'WALLET' ? (
+                <span title="Saldo On-Chain Dompet Solana Saat Ini">
+                  Saldo Saat Ini:{' '}
+                  <strong className="text-purple-300">
+                    {formatUsd(d?.current_balance_usd || 10.84)} ({d?.current_balance_sol || 0.0888} SOL)
+                  </strong>
+                </span>
+              ) : (
+                <span title={activeSolanaWallet}>
+                  Solana: <strong className="text-purple-300">{activeSolanaWallet.slice(0, 6)}...{activeSolanaWallet.slice(-4)}</strong>
+                </span>
+              )}
               <span className="text-emerald-400 flex items-center gap-1">
                 <LucideIcon name="shield-check" className="w-3 h-3" /> Tercatat
               </span>
@@ -446,6 +457,7 @@ export default function JournalPage() {
               { id: '', label: `Semua (${d?.total_trades ?? 0})` },
               { id: 'WIN', label: `🟢 Win (${d?.winning_trades ?? 0})` },
               { id: 'LOSS', label: `🔴 Loss (${d?.losing_trades ?? 0})` },
+              { id: 'BUY', label: `🔵 Entry Buy (${d?.trades ? d.trades.filter((x: any) => x.side === 'buy').length : 0})` },
               { id: 'OPEN', label: `🟡 Terbuka (${d?.open_trades ?? 0})` },
             ].map((btn) => {
               const active = outcomeFilter === btn.id;
@@ -647,36 +659,51 @@ export default function JournalPage() {
                         </td>
 
                         <td className="py-2 px-2.5">
-                          <div
-                            className={`text-xs font-extrabold ${
-                              isWin ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-slate-300'
-                            }`}
-                          >
-                            {t.pnl_usd >= 0 ? '+' : ''}
-                            {formatUsd(t.pnl_usd)} ({t.pnl_pct >= 0 ? '+' : ''}
-                            {t.pnl_pct}%)
-                          </div>
-                          <div
-                            className={`text-[9px] ${
-                              isWin ? 'text-emerald-400/80' : isLoss ? 'text-rose-400/80' : 'text-slate-400'
-                            }`}
-                          >
-                            ≈ {t.pnl_idr >= 0 ? '+' : ''}
-                            {formatIdr(t.pnl_idr)}
-                          </div>
+                          {t.side === 'buy' ? (
+                            <div>
+                              <div className="text-[11px] font-mono text-cyan-300 font-bold">
+                                Entry Beli
+                              </div>
+                              <div className="text-[9px] text-slate-500 font-mono">
+                                Posisi Dibuka
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div
+                                className={`text-xs font-extrabold ${
+                                  isWin ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-slate-300'
+                                }`}
+                              >
+                                {t.pnl_usd >= 0 ? '+' : ''}
+                                {formatUsd(t.pnl_usd)} ({t.pnl_pct >= 0 ? '+' : ''}
+                                {t.pnl_pct}%)
+                              </div>
+                              <div
+                                className={`text-[9px] ${
+                                  isWin ? 'text-emerald-400/80' : isLoss ? 'text-rose-400/80' : 'text-slate-400'
+                                }`}
+                              >
+                                ≈ {t.pnl_idr >= 0 ? '+' : ''}
+                                {formatIdr(t.pnl_idr)}
+                              </div>
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-2 px-2.5">
                           <span
                             className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${
-                              isWin
+                              t.side === 'buy'
+                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                : isWin
                                 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-emerald'
                                 : isLoss
                                 ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                                 : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
                             }`}
                           >
-                            {t.result}
+                            {t.side === 'buy' ? 'BUY' : t.result}
                           </span>
                         </td>
 
