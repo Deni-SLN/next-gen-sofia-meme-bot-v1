@@ -149,17 +149,39 @@ export default function PulsePage() {
     });
   };
 
-  // ENGINE RECOMMENDATION RANKING FORMULA
-  // Menghitung bobot rekomendasi berdasarkan RugShield safety score, volume 5m, bonding progress, dan smart money
+  // ENGINE RECOMMENDATION RANKING FORMULA (Optimized for Meme Coin Trench Profitability)
+  // Memprioritaskan: Safety Shield, Smart Money Inflow, Orderflow Buys/Sells Ratio, Bonding Curve Velocity & Low Dev/Top10 Risk
   const getRecommendationScore = (t: any): number => {
     const safety = Number(t.safety_score) || 50;
     const vol = Number(t.volume_5m) || 0;
     const bonding = Number(t.bonding_curve_pct) || 0;
-    const smart = (Number(t.gmgn_smart_degens) || 0) * 12;
-    const mintSafe = t.mint_revoked ? 20 : 0;
-    const lpSafe = t.lp_burned ? 20 : 0;
-    const volScore = Math.min(60, Math.log10(Math.max(1, vol)) * 12);
-    return (safety * 1.5) + (bonding * 0.35) + volScore + smart + mintSafe + lpSafe;
+    const smart = (Number(t.gmgn_smart_degens) || 0) * 16;
+    const mintSafe = t.mint_revoked ? 25 : 0;
+    const lpSafe = t.lp_burned ? 25 : 0;
+    const volScore = Math.min(65, Math.log10(Math.max(1, vol)) * 14);
+
+    // 1. Order Flow Buy Pressure: Bonus jika rasio buy 5m > 60%
+    const buys = Number(t.buys_5m) || 0;
+    const sells = Number(t.sells_5m) || 0;
+    let orderflowScore = 0;
+    if (buys + sells > 0) {
+      const buyRatio = buys / (buys + sells);
+      orderflowScore = (buyRatio - 0.5) * 50;
+    }
+
+    // 2. Bonding Curve Sweet Spot: 25% - 85% adalah zona akumulasi emas sebelum Raydium migration
+    let bondingBonus = bonding * 0.35;
+    if (bonding >= 25 && bonding <= 85) {
+      bondingBonus += 15;
+    }
+
+    // 3. Holder & Dev Risk Penalty
+    const top10 = Number(t.top10_pct) || 30;
+    const devHold = Number(t.dev_holding_pct) || 0;
+    const holderPenalty = top10 > 25 ? -18 : (top10 <= 15 ? 12 : 0);
+    const devPenalty = devHold > 5 ? -25 : (devHold <= 1.5 ? 10 : 0);
+
+    return (safety * 1.6) + bondingBonus + volScore + smart + mintSafe + lpSafe + orderflowScore + holderPenalty + devPenalty;
   };
 
   // Sort dari yang paling rekomendasi & batasi maksimal 10 koin
