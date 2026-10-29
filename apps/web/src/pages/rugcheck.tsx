@@ -509,6 +509,60 @@ export default function RugCheckPage() {
                       {data.honeypot ? 'HONEYPOT TERDETEKSI' : 'LOLOS CEK HONEYPOT'}
                     </span>
                   </div>
+
+                  {/* Pump.fun 5-Pillar Safe Trading Checklist */}
+                  {data.pumpfun_safe_checklist && (
+                    <div className="p-3 rounded-lg bg-obsidian-950/90 border border-cyan-500/30 space-y-2 font-mono">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-obsidian-800 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-extrabold text-cyan-300 uppercase">
+                            💊 Checklist 5 Pilar Keamanan Trading Pump.fun ({data.pumpfun_safe_checklist.passed_count}/{data.pumpfun_safe_checklist.total_checks} Lolos)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              data.pumpfun_safe_checklist.tone === 'safe'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                : data.pumpfun_safe_checklist.tone === 'danger'
+                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            }`}
+                          >
+                            {data.pumpfun_safe_checklist.status_badge}
+                          </span>
+                          {data.contract && (
+                            <a
+                              href={data.external_links?.pumpfun || `https://pump.fun/coin/${data.contract}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-0.5 rounded bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 text-[10px] font-extrabold transition"
+                            >
+                              💊 Buka di Pump.fun →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                        {(data.pumpfun_safe_checklist.checks || []).map((chk: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className={`p-2 rounded border flex items-start gap-2 ${
+                              chk.passed
+                                ? 'bg-emerald-950/20 border-emerald-500/25 text-emerald-200'
+                                : 'bg-rose-950/30 border-rose-500/35 text-rose-200'
+                            }`}
+                          >
+                            <span className="mt-0.5">{chk.passed ? '✅' : '⚠️'}</span>
+                            <div>
+                              <div className="font-bold text-[10px]">{chk.label}</div>
+                              <div className="text-[10px] opacity-85">{chk.detail}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 2. Holder Concentration (AMM Excluded) & Wallet Clustering / Dev History */}

@@ -1443,7 +1443,7 @@ def live_rug_audit(query: str) -> dict:
                 non_amm_holders = []
                 amm_pct_sum = 0.0
 
-                for h in raw_holders:
+                for idx_h, h in enumerate(raw_holders):
                     h_addr = str(h.get("address") or "")
                     h_owner = str(h.get("owner") or "")
                     h_pct = float(h.get("pct") or 0.0)
@@ -1452,6 +1452,8 @@ def live_rug_audit(query: str) -> dict:
                     acc_type = str(ka_addr.get("type") or ka_owner.get("type") or "").upper()
                     acc_name = str(ka_addr.get("name") or ka_owner.get("name") or "")
 
+                    # On Pump.fun, holder #0 holding >= 25% of supply is the Pump.fun Bonding Curve / AMM Vault
+                    is_pumpfun_bonding_vault = bool(is_pumpfun_standard and idx_h == 0 and h_pct >= 25.0)
                     is_pool = (
                         acc_type in ("AMM", "LOCKER", "VAULT", "EXCHANGE")
                         or "pool" in acc_name.lower()
@@ -1460,7 +1462,9 @@ def live_rug_audit(query: str) -> dict:
                         or "meteora" in acc_name.lower()
                         or "orca" in acc_name.lower()
                         or "pump" in acc_name.lower()
+                        or "bonding" in acc_name.lower()
                         or (pair_address and h_addr == pair_address)
+                        or is_pumpfun_bonding_vault
                     )
                     if is_pool:
                         amm_pct_sum += h_pct
@@ -1701,6 +1705,59 @@ def live_rug_audit(query: str) -> dict:
         rec_sl_pct = 15.0
         sizing_rule = "Likuiditas dalam: Ukuran posisi maks 20% modal Paper (Rp 30.000), wajib pasang Hard Stop-Loss -15%."
 
+    # Dedicated Pump.fun Trading Safety Checklist (5 Pillars for Pump.fun Traders)
+    has_holder_correlation_warn = any("Korelasi Kepemilikan Holder Tinggi" in r for r in rugcheck_risks)
+    pf_check_contract = bool(contract_clean and not is_honeypot)
+    pf_check_bundler = bool(not has_holder_correlation_warn and cluster_risk_level != "HIGH")
+    pf_check_dev = bool(creator_balance_pct <= 6.0 and creator_rugged_count == 0)
+    pf_check_top10 = bool(top10_excl_amm_pct <= 30.0 or liq_usd >= 100000)
+    pf_check_orderflow = bool(buys_5m >= sells_5m or liq_usd >= 50000)
+
+    passed_pf_count = sum([pf_check_contract, pf_check_bundler, pf_check_dev, pf_check_top10, pf_check_orderflow])
+    if is_honeypot or not contract_clean or creator_rugged_count > 0:
+        pf_status = "DILARANG ENTRY DI PUMP.FUN (BAHAYA HONEYPOT / DEV RUG)"
+        pf_tone = "danger"
+    elif passed_pf_count >= 4:
+        pf_status = "AMAN UNTUK TRADING DI PUMP.FUN (LOLOS FILTER BUNDLER & KONTRAK)"
+        pf_tone = "safe"
+    else:
+        pf_status = "SCALPING CEPAT PUMP.FUN (WASPADA DUMP HOLDER • PAKAI SL KETAT)"
+        pf_tone = "warn"
+
+    pumpfun_safe_checklist = {
+        "status_badge": pf_status,
+        "tone": pf_tone,
+        "passed_count": passed_pf_count,
+        "total_checks": 5,
+        "checks": [
+            {
+                "label": "1. Kontrak SPL & Anti-Honeypot Pump.fun",
+                "passed": pf_check_contract,
+                "detail": "Mint & Freeze dicabut, bisa dijual bebas di Bonding Curve / DEX" if pf_check_contract else "Terdeteksi potensi Honeypot / wewenang kontrak aktif",
+            },
+            {
+                "label": "2. Anti-Bundler & Korelasi Top Holder (Split Wallet)",
+                "passed": pf_check_bundler,
+                "detail": "Tidak ada korelasi saldo seragam antar wallet (Bebas Bundler)" if pf_check_bundler else "Waspada: Top holder memiliki saldo seragam (indikasi split-wallet bundler)",
+            },
+            {
+                "label": "3. Porsi Saldo Dev & Riwayat Kreator",
+                "passed": pf_check_dev,
+                "detail": f"Saldo Dev {creator_balance_pct}% (Aman <= 6%) & 0 riwayat rug" if pf_check_dev else f"Waspada: Saldo Dev {creator_balance_pct}% / Pernah rug {creator_rugged_count}x",
+            },
+            {
+                "label": "4. Konsentrasi Top 10 Holder (Di Luar Bonding Curve/LP)",
+                "passed": pf_check_top10,
+                "detail": f"Top 10 Non-LP memegang {top10_excl_amm_pct}% (Sehat <= 30%)" if pf_check_top10 else f"Top 10 Non-LP terlalu dominan ({top10_excl_amm_pct}% > 30%)",
+            },
+            {
+                "label": "5. Momentum Orderflow 5 Menit (Beli vs Jual)",
+                "passed": pf_check_orderflow,
+                "detail": f"Orderflow sehat ({buys_5m} Beli vs {sells_5m} Jual)" if pf_check_orderflow else f"Tekanan jual lebih tinggi ({buys_5m} Beli vs {sells_5m} Jual)",
+            },
+        ],
+    }
+
     return {
         "symbol": tok["symbol"],
         "name": tok.get("name") or tok.get("symbol", ""),
@@ -1757,6 +1814,7 @@ def live_rug_audit(query: str) -> dict:
         "graph_insiders_detected": graph_insiders_detected,
         "insider_clusters": insider_clusters,
         "cluster_risk_level": cluster_risk_level,
+        "pumpfun_safe_checklist": pumpfun_safe_checklist,
         "position_sizing": {
             "max_position_pct": max_pos_pct,
             "max_position_idr": max_pos_idr,

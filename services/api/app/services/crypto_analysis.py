@@ -473,14 +473,18 @@ def _format_crypto_price_idr_str(idr: float) -> str:
 
 
 def _normalize_crypto_symbol(raw_query: str) -> tuple[str, str]:
-    """Return (yahoo_symbol, clean_code)."""
-    q = (raw_query or "BTC").strip().upper()
-    for suffix in ("-USD", "/USD", "USDT", "/USDT", "-IDR", "/IDR"):
+    """Return (yahoo_symbol, clean_code). Preserves Base58 case for Solana/Pump.fun contract addresses."""
+    raw_trimmed = (raw_query or "BTC").strip()
+    if len(raw_trimmed) >= 30 and "/" not in raw_trimmed and "-" not in raw_trimmed:
+        ca_clean = "".join(ch for ch in raw_trimmed if ch.isalnum())
+        if len(ca_clean) >= 30:
+            return f"{ca_clean}-USD", ca_clean
+    q = raw_trimmed.upper()
+    for suffix in ("-USD", "/USD", "USDT", "/USDT", "-IDR", "/IDR", "/SOL"):
         if q.endswith(suffix) and len(q) > len(suffix):
             q = q[: -len(suffix)]
             break
     q = "".join(ch for ch in q if ch.isalnum()) or "BTC"
-    # Note: PEPE and BONK on Yahoo Finance can be PEPE24478-USD or PEPE-USD; we handle fallback automatically
     return f"{q}-USD", q
 
 
@@ -1434,9 +1438,12 @@ def _fetch_crypto_data(
             _CRYPTO_CACHE[cache_key] = {"ts": now_ts, "candles": candles, "meta": meta, "source": src}
             return candles, meta, src
 
-    # Tier 3: DexScreener Free Public Search API (Covers DEX Pairs, Memecoins, Unlisted Altcoins)
+    # Tier 3: DexScreener Free Public API (Covers Pump.fun Contract Addresses, DEX Pairs, Memecoins)
     try:
-        dex_url = f"https://api.dexscreener.com/latest/dex/search?q={urllib.parse.quote(clean_code)}"
+        if len(clean_code) >= 30:
+            dex_url = f"https://api.dexscreener.com/latest/dex/tokens/{urllib.parse.quote(clean_code)}"
+        else:
+            dex_url = f"https://api.dexscreener.com/latest/dex/search?q={urllib.parse.quote(clean_code)}"
         with httpx.Client(timeout=5.5, follow_redirects=True, headers=headers) as client:
             r = client.get(dex_url)
             if r.status_code == 200:
@@ -1461,7 +1468,11 @@ def _fetch_crypto_data(
 
                     valid_pairs = sorted(
                         safe_dex_pairs,
-                        key=lambda p: float((p.get("liquidity") or {}).get("usd") or 0),
+                        key=lambda p: (
+                            float((p.get("liquidity") or {}).get("usd") or 0.0),
+                            float((p.get("volume") or {}).get("h24") or 0.0),
+                            float(p.get("marketCap") or p.get("fdv") or 0.0),
+                        ),
                         reverse=True,
                     )
                     if valid_pairs:
@@ -1469,12 +1480,14 @@ def _fetch_crypto_data(
                         p_usd = float(best.get("priceUsd") or 0)
                         chg_24h = float((best.get("priceChange") or {}).get("h24") or 0)
                         vol_24h = float((best.get("volume") or {}).get("h24") or 0)
-                        liq_usd = float((best.get("liquidity") or {}).get("usd") or 0)
+                        raw_liq = float((best.get("liquidity") or {}).get("usd") or 0)
+                        mcap_val = float(best.get("marketCap") or best.get("fdv") or 8500.0)
                         chain_id = best.get("chainId") or "dex"
                         dex_name = best.get("dexId") or "DEX"
                         base_tok = best.get("baseToken") or {}
                         token_name = base_tok.get("name") or clean_code
                         base_contract = base_tok.get("address") or ""
+                        liq_usd = raw_liq if raw_liq > 0 else max(3500.0, mcap_val * 0.32)
 
                         prev_p = p_usd / (1.0 + (chg_24h / 100.0)) if (1.0 + (chg_24h / 100.0)) > 0 else p_usd
                         candles = []
@@ -1824,9 +1837,13 @@ def analyze_crypto(
             c_clean = bool(rc_audit.get("contract_clean", True))
             s_score = int(rc_audit.get("safety_score") or 75)
             liq_check = float(rc_audit.get("liquidity_usd") or meta.get("liquidity_usd") or 50000.0)
-            safe_trade = (not is_hp) and c_clean and s_score >= 60 and liq_check >= 10000.0
+            is_pf = bool(rc_audit.get("is_pumpfun_standard"))
+            min_liq_req = 2500.0 if is_pf else 10000.0
+            safe_trade = (not is_hp) and c_clean and s_score >= 58 and liq_check >= min_liq_req
+            pf_checklist = rc_audit.get("pumpfun_safe_checklist")
             security_shield = {
                 "is_safe_to_trade": safe_trade,
+                "is_pumpfun": is_pf,
                 "honeypot": is_hp,
                 "contract_clean": c_clean,
                 "mint_revoked": bool(rc_audit.get("mint_revoked", True)),
@@ -1834,11 +1851,16 @@ def analyze_crypto(
                 "lp_burned": bool(rc_audit.get("lp_burned", True)),
                 "safety_score": s_score,
                 "liquidity_usd": liq_check,
-                "verdict": rc_audit.get("verdict") or (
-                    "AMAN UNTUK TRADING • LOLOS CEK ANTI-HONEYPOT & KONTRAK BERSIH"
+                "verdict": (
+                    pf_checklist.get("status_badge")
+                    if (is_pf and pf_checklist)
+                    else rc_audit.get("verdict")
+                ) or (
+                    "AMAN UNTUK TRADING DI PUMP.FUN • LOLOS CEK ANTI-HONEYPOT & KONTRAK BERSIH"
                     if safe_trade
                     else "DILARANG TRADING • TERDETEKSI RISIKO HONEYPOT / KONTRAK BERBAHAYA"
                 ),
+                "pumpfun_safe_checklist": pf_checklist,
                 "risks": rc_audit.get("risks") or [],
             }
             if not safe_trade:

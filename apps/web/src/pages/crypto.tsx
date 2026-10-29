@@ -55,7 +55,8 @@ export default function CryptoAnalysisPage() {
   };
 
   const loadCrypto = async (sym: string, force: boolean = false, tf: string = selectedTimeframe) => {
-    const clean = (sym || 'BTC').trim().toUpperCase();
+    const trimmed = (sym || 'BTC').trim();
+    const clean = trimmed.length >= 30 ? trimmed : trimmed.toUpperCase();
     if (!clean) return;
     if (force) setRefreshing(true);
     else setLoading(true);
@@ -238,9 +239,12 @@ export default function CryptoAnalysisPage() {
               <input
                 type="text"
                 value={queryInput}
-                onChange={(e) => setQueryInput(e.target.value.toUpperCase())}
-                placeholder="Ketik koin (cth: APT, TIA, JUP, TAO, WIF, KAS)..."
-                className="w-44 sm:w-56 bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-sm font-bold text-white placeholder-slate-500 uppercase focus:outline-none focus:border-cyan-500 transition"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setQueryInput(val.trim().length >= 30 ? val.trim() : val.toUpperCase());
+                }}
+                placeholder="Ketik koin atau CA Pump.fun (cth: WIF, POPCAT, ...pump)..."
+                className="w-52 sm:w-64 bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
               />
             </div>
             <button
