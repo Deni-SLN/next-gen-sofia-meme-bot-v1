@@ -20,8 +20,8 @@ _DAEMON_THREAD: Optional[threading.Thread] = None
 _DEFAULT_STATE: dict[str, Any] = {
     "status": "STOPPED",  # STOPPED | RUNNING | QUOTA_REACHED
     "mode": "PAPER",      # PAPER | LIVE
-    "entry_amount_idr": 20000.0,
-    "entry_amount_usd": 1.10,
+    "entry_amount_idr": 16500.0,
+    "entry_amount_usd": 1.0,
     "max_entries": 5,
     "slippage_pct": 1.0,
     "min_safety_score": 70,
@@ -211,7 +211,8 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
             return {"status": "QUOTA_REACHED", "action": "quota_reached"}
 
         mode = _STATE.get("mode", "PAPER")
-        entry_idr = float(_STATE.get("entry_amount_idr", 20000.0))
+        entry_usd = float(_STATE.get("entry_amount_usd", 1.0))
+        entry_idr = float(_STATE.get("entry_amount_idr", 16500.0))
         slippage = float(_STATE.get("slippage_pct", 1.0))
         min_score = int(_STATE.get("min_safety_score", 70))
         target_src = _STATE.get("target_source", "ALL_RADAR")
@@ -341,6 +342,7 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
             {
                 "symbol": pick_sym,
                 "contract": pick_ca,
+                "amount_usd": entry_usd,
                 "amount_idr": entry_idr,
                 "slippage_pct": slippage,
                 "mode": mode,
@@ -645,20 +647,22 @@ def execute_single_token_auto_entry(
     contract: str,
     symbol: Optional[str] = None,
     name: Optional[str] = None,
+    amount_usd: Optional[float] = 1.0,
+    amount_idr: Optional[float] = None,
 ) -> dict[str, Any]:
-    """Execute rapid single-token auto entry directly from the scanner view."""
+    """Execute rapid 1-Click ($1.00 USD default) single-token auto entry directly from the scanner view."""
     with _LOCK:
         _load_persisted_state()
         token_symbol = symbol or "TOKEN"
         token_name = name or token_symbol
 
-        # Strict block on charity / donation tokens
+        # Strict block on charity / donation / mayhem tokens
         if market.is_charity_token(token_symbol, token_name):
-            _append_log("BLOCKED", token_symbol, "Auto Entry ditolak: Koin amal / charity dilarang oleh filter kebijakan Sofia Trade.", "danger")
+            _append_log("BLOCKED", token_symbol, "Auto Entry ditolak: Koin amal / charity / mayhem dilarang oleh filter kebijakan Sofia Trade.", "danger")
             _save_persisted_state()
             return {
                 "success": False,
-                "error": f"Eksekusi dibatalkan: Token {token_symbol} terindikasi sebagai koin amal / charity yang dilarang oleh filter keamanan Sofia Trade Engine.",
+                "error": f"Eksekusi dibatalkan: Token {token_symbol} terindikasi sebagai koin amal / donasi / mayhem yang dilarang oleh filter keamanan Sofia Trade Engine.",
             }
 
         total_count = _STATE.get("total_entries_count", 0)
@@ -672,8 +676,34 @@ def execute_single_token_auto_entry(
             }
 
         mode = _STATE.get("mode", "PAPER")
-        entry_idr = float(_STATE.get("entry_amount_idr", 20000.0))
+        fx_val = float(market.get_fx_rate().get("usd_idr") or 16500.0)
+        if amount_usd is not None and float(amount_usd) > 0:
+            entry_usd = round(float(amount_usd), 4)
+            entry_idr = round(entry_usd * fx_val, 0)
+        elif amount_idr is not None and float(amount_idr) > 0:
+            entry_idr = float(amount_idr)
+            entry_usd = round(entry_idr / fx_val, 4) if fx_val > 0 else 1.0
+        else:
+            entry_usd = 1.0
+            entry_idr = round(entry_usd * fx_val, 0)
         slippage = float(_STATE.get("slippage_pct", 1.0))
+
+    # Deep On-Chain Anti-Honeypot & Contract Security Audit before 1-Click Entry
+    try:
+        live_audit = market.live_rug_audit(contract or token_symbol)
+        if live_audit.get("honeypot") is True or not live_audit.get("contract_clean", True):
+            reason = live_audit.get("verdict") or "Terdeteksi Honeypot / Kontrak Berbahaya"
+            with _LOCK:
+                _append_log(
+                    "SECURITY",
+                    token_symbol,
+                    f"[ANTI-HONEYPOT] 1-Klik Auto Entry {token_symbol} DIBATALKAN demi keamanan modal: {reason}",
+                    "danger",
+                )
+                _save_persisted_state()
+            return {"success": False, "error": f"Diblokir Anti-Honeypot Shield: {reason}"}
+    except Exception:
+        pass
 
     try:
         snipe_res = memecoins.execute_snipe(
@@ -681,6 +711,7 @@ def execute_single_token_auto_entry(
             {
                 "symbol": token_symbol,
                 "contract": contract,
+                "amount_usd": entry_usd,
                 "amount_idr": entry_idr,
                 "slippage_pct": slippage,
                 "mode": mode,

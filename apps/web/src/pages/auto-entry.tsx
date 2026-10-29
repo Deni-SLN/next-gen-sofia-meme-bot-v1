@@ -17,7 +17,8 @@ import { LucideIcon } from '@/components/LucideIcon';
 export default function AutoEntryPage() {
   const [activeTab, setActiveTab] = useState<'BOT_ENGINE' | 'SCAN_MODE'>('SCAN_MODE');
   const [mode, setMode] = useState<'PAPER' | 'LIVE'>('PAPER');
-  const [entryAmountIdr, setEntryAmountIdr] = useState<number>(20000);
+  const [entryAmountIdr, setEntryAmountIdr] = useState<number>(16500);
+  const [entryAmountUsd, setEntryAmountUsd] = useState<number>(1.0);
   const [maxEntries, setMaxEntries] = useState<number>(5);
   const [slippagePct, setSlippagePct] = useState<number>(1.0);
   const [minSafetyScore, setMinSafetyScore] = useState<number>(70);
@@ -68,6 +69,7 @@ export default function AutoEntryPage() {
   useEffect(() => {
     if (state) {
       if (state.entry_amount_idr) setEntryAmountIdr(state.entry_amount_idr);
+      if (state.entry_amount_usd) setEntryAmountUsd(state.entry_amount_usd);
       if (state.max_entries) setMaxEntries(state.max_entries);
       if (state.slippage_pct) setSlippagePct(state.slippage_pct);
       if (state.min_safety_score !== undefined) setMinSafetyScore(state.min_safety_score);
@@ -92,6 +94,7 @@ export default function AutoEntryPage() {
   const handleStart = async () => {
     try {
       await api.startAutoEntry({
+        entry_amount_usd: entryAmountUsd,
         entry_amount_idr: entryAmountIdr,
         max_entries: maxEntries,
         slippage_pct: slippagePct,
@@ -102,7 +105,7 @@ export default function AutoEntryPage() {
       await autoEntryQuery.refetch();
       showNotice(
         'ok',
-        `⚡ Bot Auto Entry berhasil dijalankan! Target: ${maxEntries} entry @ ${formatIdr(entryAmountIdr)}.`
+        `⚡ Bot Auto Entry berhasil dijalankan! Target: ${maxEntries} entry @ $${entryAmountUsd.toFixed(2)} (${formatIdr(entryAmountIdr)}).`
       );
     } catch (err: any) {
       showNotice('err', err?.message || 'Gagal menjalankan bot Auto Entry.');
@@ -154,8 +157,8 @@ export default function AutoEntryPage() {
     api.updateAutoEntryConfig({ mode: newMode }).then(() => autoEntryQuery.refetch());
   };
 
-  // 1-Click execute entry for a specific scanned meme coin
-  const handleExecuteSingleEntry = async (token: ScannedMemeToken) => {
+  // 1-Click execute entry ($1.00 USD = 1 Dolar default) for a specific scanned meme coin
+  const handleExecuteSingleEntry = async (token: ScannedMemeToken, customUsd: number = 1.0) => {
     if (isExecutingSingle) return;
     setIsExecutingSingle(token.contract);
     try {
@@ -163,12 +166,14 @@ export default function AutoEntryPage() {
         contract: token.contract,
         symbol: token.symbol,
         name: token.name,
+        amount_usd: customUsd,
       });
       await autoEntryQuery.refetch();
       if (res?.success) {
+        const usdSpent = Number(res.entry?.amount_usd || customUsd).toFixed(2);
         showNotice(
           'ok',
-          `⚡ Berhasil Auto Entry koin ${token.symbol} senilai ${formatIdr(res.entry?.amount_idr)}! Posisi: ${res.counter}`
+          `⚡ 1-Klik Auto Entry $${usdSpent} (${formatIdr(res.entry?.amount_idr)}) berhasil pada ${token.symbol}! Posisi: ${res.counter}`
         );
       } else if (res?.quota_reached) {
         showNotice('err', `Batas kuota entry tercapai (${res.error || 'Reset kuota terlebih dahulu'}).`);
@@ -212,6 +217,9 @@ export default function AutoEntryPage() {
                 <LucideIcon name="target" className="w-6 h-6 text-cyan-400" />
                 <span>Auto Entry Bot &amp; Meme Scanner</span>
               </h1>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                ⚡ 1 KLIK = $1.00 USD
+              </span>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
                 ENTRY ONLY
               </span>
@@ -346,9 +354,9 @@ export default function AutoEntryPage() {
               <span className="text-amber-400 font-bold">SLIP: {state?.slippage_pct || slippagePct}%</span>
             </div>
             <div className="flex items-center justify-between text-slate-200 pt-0.5">
-              <span className="text-slate-400">Uang/Entry:</span>
-              <span className="font-bold text-white">
-                {formatIdr(state?.entry_amount_idr || entryAmountIdr)}
+              <span className="text-slate-400">1-Klik Entry:</span>
+              <span className="font-bold text-emerald-400">
+                $1.00 ({formatIdr(state?.entry_amount_idr || entryAmountIdr)})
               </span>
             </div>
             <div className="flex items-center justify-between text-slate-200">
@@ -721,26 +729,26 @@ export default function AutoEntryPage() {
                             </button>
                           </div>
 
-                          {/* ACTION BUTTONS: 1-CLICK AUTO ENTRY + DEX SCREENER */}
+                          {/* ACTION BUTTONS: 1-CLICK $1 AUTO ENTRY + DEX SCREENER */}
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               disabled={isExecutingThis || isQuotaReached}
-                              onClick={() => handleExecuteSingleEntry(token)}
+                              onClick={() => handleExecuteSingleEntry(token, 1.0)}
                               className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold font-mono transition flex items-center justify-center gap-2 shadow-sm ${
                                 isQuotaReached
                                   ? 'bg-obsidian-850 text-slate-500 border border-obsidian-800 cursor-not-allowed'
                                   : 'bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 shadow-emerald-500/20'
                               }`}
-                              title={`Auto entry koin ini sebesar ${formatIdr(entryAmountIdr)}`}
+                              title="1-Klik Auto Entry koin ini tepat $1.00 USD (1 Dolar)"
                             >
                               <LucideIcon name="zap" className="w-3.5 h-3.5" />
                               <span>
                                 {isExecutingThis
-                                  ? 'Mengeksekusi...'
+                                  ? 'Mengeksekusi $1.00...'
                                   : isQuotaReached
                                   ? 'Kuota Penuh'
-                                  : `⚡ 1-Klik Auto Entry (${formatIdr(entryAmountIdr)})`}
+                                  : '⚡ 1-Klik Auto Entry $1.00 (1 Dolar)'}
                               </span>
                             </button>
 
@@ -790,10 +798,10 @@ export default function AutoEntryPage() {
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                     <LucideIcon name="banknote" className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Uang yang akan di-entry per Transaksi (IDR &amp; USD)</span>
+                    <span>Uang yang akan di-entry per Transaksi (Default: 1 Klik = $1.00 USD)</span>
                   </label>
                   <span className="text-xs font-mono font-bold text-emerald-400">
-                    {formatIdr(entryAmountIdr)}
+                    ${entryAmountUsd.toFixed(2)} ({formatIdr(entryAmountIdr)})
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -802,7 +810,11 @@ export default function AutoEntryPage() {
                     min={1000}
                     step={1000}
                     value={entryAmountIdr}
-                    onChange={(e) => setEntryAmountIdr(Math.max(1000, Number(e.target.value)))}
+                    onChange={(e) => {
+                      const valIdr = Math.max(1000, Number(e.target.value));
+                      setEntryAmountIdr(valIdr);
+                      setEntryAmountUsd(Number((valIdr / 16500).toFixed(2)));
+                    }}
                     className="w-full px-3.5 py-2 rounded-xl bg-obsidian-950 border border-obsidian-700 text-white font-mono text-sm focus:outline-none focus:border-cyan-400 font-bold"
                     placeholder="Nominal Rupiah per trade..."
                   />
@@ -810,32 +822,41 @@ export default function AutoEntryPage() {
 
                 {/* QUICK CHIPS NOMINAL */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {[15000, 20000, 25000, 50000, 100000].map((nominal) => (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEntryAmountUsd(1.0);
+                      setEntryAmountIdr(16500);
+                      api.updateAutoEntryConfig({ entry_amount_usd: 1.0 });
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-mono transition ${
+                      Math.abs(entryAmountUsd - 1.0) < 0.05
+                        ? 'bg-emerald-500 text-obsidian-950 font-extrabold shadow-sm'
+                        : 'bg-obsidian-950 hover:bg-obsidian-800 text-emerald-300 border border-emerald-500/40'
+                    }`}
+                    title="Mode 1 Klik = $1.00 USD (1 Dolar)"
+                  >
+                    ⚡ $1.00 USD (1 Dolar)
+                  </button>
+                  {[20000, 25000, 50000, 100000].map((nominal) => (
                     <button
                       key={nominal}
                       type="button"
-                      onClick={() => setEntryAmountIdr(nominal)}
+                      onClick={() => {
+                        setEntryAmountIdr(nominal);
+                        const usdVal = Number((nominal / 16500).toFixed(2));
+                        setEntryAmountUsd(usdVal);
+                        api.updateAutoEntryConfig({ entry_amount_idr: nominal });
+                      }}
                       className={`px-2.5 py-1 rounded-lg text-xs font-mono transition ${
-                        entryAmountIdr === nominal
-                          ? 'bg-emerald-500 text-obsidian-950 font-bold shadow-sm'
+                        entryAmountIdr === nominal && Math.abs(entryAmountUsd - 1.0) >= 0.05
+                          ? 'bg-cyan-500 text-obsidian-950 font-bold shadow-sm'
                           : 'bg-obsidian-950 hover:bg-obsidian-800 text-slate-300 border border-obsidian-800'
                       }`}
                     >
                       {formatIdr(nominal)}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => setEntryAmountIdr(18087)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono transition ${
-                      entryAmountIdr === 18087
-                        ? 'bg-cyan-500 text-obsidian-950 font-bold'
-                        : 'bg-obsidian-950 hover:bg-obsidian-800 text-cyan-300 border border-obsidian-800'
-                    }`}
-                    title="Tepat $1.00 USD"
-                  >
-                    $1.00 USD
-                  </button>
                 </div>
               </div>
 

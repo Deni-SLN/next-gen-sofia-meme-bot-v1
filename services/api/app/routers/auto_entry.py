@@ -71,6 +71,8 @@ class ExecuteTokenEntryRequest(BaseModel):
     contract: str = Field(..., description="Alamat Contract Address (CA) token Solana")
     symbol: Optional[str] = Field(None, description="Simbol token")
     name: Optional[str] = Field(None, description="Nama token")
+    amount_usd: Optional[float] = Field(1.0, ge=0.1, description="Nominal USD per 1-Klik Entry (default $1.00 USD)")
+    amount_idr: Optional[float] = Field(None, ge=1000.0, description="Nominal IDR opsional")
 
 
 @router.get("/scanned-memecoins")
@@ -95,12 +97,14 @@ def execute_token_entry(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Execute rapid auto entry for a specific token from the scan mode view."""
+    """Execute rapid auto entry for a specific token from the scan mode view (1-Click = $1.00 default)."""
     return auto_entry.execute_single_token_auto_entry(
         db=db,
         contract=body.contract,
         symbol=body.symbol,
         name=body.name,
+        amount_usd=body.amount_usd,
+        amount_idr=body.amount_idr,
     )
 
 

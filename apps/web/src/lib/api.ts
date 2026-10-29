@@ -423,7 +423,7 @@ export const api = {
     if (params?.target_pool) q.append('target_pool', params.target_pool);
     return request<ScannedMemeCoinsResponse>(`/auto-entry/scanned-memecoins?${q.toString()}`);
   },
-  executeTokenEntry: (data: { contract: string; symbol?: string; name?: string }) =>
+  executeTokenEntry: (data: { contract: string; symbol?: string; name?: string; amount_usd?: number; amount_idr?: number }) =>
     request<{ success: boolean; entry?: any; error?: string; counter?: string; quota_reached?: boolean }>('/auto-entry/execute-entry-for-token', {
       method: 'POST',
       body: JSON.stringify(data),
