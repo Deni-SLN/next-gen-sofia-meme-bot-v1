@@ -34,8 +34,12 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 30
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-    # Solana On-Chain Trading & Multi-Gate Wallets (Updated for Solana Mainnet & Alpenglow v4.3+)
-    solana_rpc_url: str = "https://api.mainnet.solana.com"
+    # Solana On-Chain Trading, FluxRPC & Flux Shield (Powered by FluxBeam / RugCheck)
+    solana_rpc_url: str = "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9"
+    solana_shield_rpc_url: str = "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A"
+    solana_ws_url: str = "wss://ws.eu.fluxrpc.com"
+    fluxrpc_api_key: str = "24252d08-b2ec-4d3f-8baf-9650199b77a9"
+    fluxrpc_shield_key: str = "QrpekiPs1SeekuEwSi_25A"
     solana_private_key: str = ""
     solana_trading_private_key: str = ""
     solana_trading_address: str = ""

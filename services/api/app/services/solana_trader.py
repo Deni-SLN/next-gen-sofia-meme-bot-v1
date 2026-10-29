@@ -12,15 +12,15 @@ logger = logging.getLogger("sofia.solana_trader")
 
 NATIVE_SOL_MINT = "So11111111111111111111111111111111111111112"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://solana-rpc.publicnode.com"
+SOLANA_SHIELD_RPC = getattr(settings, "solana_shield_rpc_url", None) or "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A"
+SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9"
 SOLANA_RPC_POOL = [
+    SOLANA_SHIELD_RPC,
+    SOLANA_MAINNET_RPC,
     "https://solana-rpc.publicnode.com",
     "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92",
     "https://api.mainnet.solana.com",
-    "https://api.mainnet-beta.solana.com",
 ]
-if SOLANA_MAINNET_RPC not in SOLANA_RPC_POOL:
-    SOLANA_RPC_POOL.insert(0, SOLANA_MAINNET_RPC)
 
 JUPITER_QUOTE_ENDPOINTS = [
     "https://lite-api.jup.ag/swap/v1/quote",

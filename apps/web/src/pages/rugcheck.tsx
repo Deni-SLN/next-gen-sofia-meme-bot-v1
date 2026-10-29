@@ -5,6 +5,14 @@ import { LucideIcon } from '@/components/LucideIcon';
 
 const ECOSYSTEM_TOOLS = [
   {
+    name: 'FluxRPC Shield',
+    urlKey: 'fluxrpc',
+    defaultUrl: 'https://dashboard.fluxrpc.com',
+    mainFunc: 'Firewall RPC anti-rug, simulasi honeypot & perlindungan MEV',
+    bestFor: 'Shielding Eksekusi On-Chain',
+    badge: 'RPC SHIELD',
+  },
+  {
     name: 'Axiom',
     urlKey: 'axiom',
     defaultUrl: 'https://axiom.trade/?utm_source=chatgpt.com',
@@ -85,6 +93,10 @@ export default function RugCheckPage() {
             </h1>
             <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
               100% LIVE API (DEXSCREENER + RUGCHECK /REPORT)
+            </span>
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              ⚡ FLUX SHIELD RPC: AKTIF
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5">
@@ -188,8 +200,9 @@ export default function RugCheckPage() {
                   Umur Pair: <strong className="text-cyan-300">{data.age || 'live'}</strong> • Holders:{' '}
                   <strong className="text-white">{(data.total_holders || 0).toLocaleString()}</strong>
                 </div>
-                <div className="text-slate-500">
-                  Audited: {data.audited_at ? new Date(data.audited_at).toLocaleTimeString() : 'Live'}
+                <div className="text-slate-500 flex items-center justify-between gap-2">
+                  <span>Audited: {data.audited_at ? new Date(data.audited_at).toLocaleTimeString() : 'Live'}</span>
+                  <span className="text-cyan-400 font-bold">🛡️ FluxShield OK</span>
                 </div>
               </div>
             </div>

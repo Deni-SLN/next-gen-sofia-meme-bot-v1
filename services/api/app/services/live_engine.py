@@ -18,15 +18,15 @@ except ImportError:
 
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
-SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92"
+SOLANA_SHIELD_RPC = getattr(settings, "solana_shield_rpc_url", None) or "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A"
+SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9"
 SOLANA_RPC_POOL = [
+    SOLANA_SHIELD_RPC,
+    SOLANA_MAINNET_RPC,
     "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92",
     "https://solana-rpc.publicnode.com",
     "https://api.mainnet.solana.com",
-    "https://api.mainnet-beta.solana.com",
 ]
-if SOLANA_MAINNET_RPC not in SOLANA_RPC_POOL:
-    SOLANA_RPC_POOL.insert(0, SOLANA_MAINNET_RPC)
 
 BASE_MAINNET_RPC = "https://mainnet.base.org"
 ETH_MAINNET_RPC = "https://eth.llamarpc.com"
