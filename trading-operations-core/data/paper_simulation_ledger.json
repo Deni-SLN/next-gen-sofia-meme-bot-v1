@@ -1,0 +1,216 @@
+{
+  "environment": "PAPER",
+  "updated_at": "2026-10-29T04:26:02.714135+00:00",
+  "balances": {
+    "USDT": 9979.7381,
+    "USDC": 2524.89629412,
+    "SOL": 24.2499,
+    "BONK": 16390321.5
+  },
+  "positions": {
+    "JUPITER:BONK": {
+      "position_id": "ppos-e4bacc37e6",
+      "venue": "JUPITER",
+      "symbol": "BONK",
+      "token_mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+      "side": "LONG",
+      "qty": 16390321.5,
+      "avg_entry_price_usd": 3.0444796339107806e-06,
+      "current_price_usd": 3.0444796339107806e-06,
+      "leverage": 1,
+      "margin_allocated_usd": 49.9,
+      "take_profit_usd": null,
+      "stop_loss_usd": null,
+      "unrealized_pnl_usd": 0.0,
+      "unrealized_pnl_pct": 0.0,
+      "total_fees_paid_usd": 0.133,
+      "strategy_id": "default",
+      "opened_at": "2026-10-29T04:26:01.071752+00:00",
+      "updated_at": "2026-10-29T04:26:01.071771+00:00"
+    },
+    "ORCA:USDC": {
+      "position_id": "ppos-598d5b78d3",
+      "venue": "ORCA",
+      "symbol": "USDC",
+      "token_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "side": "LONG",
+      "qty": 24.896294117532122,
+      "avg_entry_price_usd": 1.0021571838047196,
+      "current_price_usd": 1.0021571838047196,
+      "leverage": 1,
+      "margin_allocated_usd": 24.95,
+      "take_profit_usd": null,
+      "stop_loss_usd": null,
+      "unrealized_pnl_usd": 0.0,
+      "unrealized_pnl_pct": 0.0,
+      "total_fees_paid_usd": 0.0816,
+      "strategy_id": "default",
+      "opened_at": "2026-10-29T04:26:02.481976+00:00",
+      "updated_at": "2026-10-29T04:26:02.481989+00:00"
+    },
+    "BYBIT:LINEAR:SOLUSDT": {
+      "position_id": "ppos-99f0bb9443",
+      "venue": "BYBIT",
+      "symbol": "SOLUSDT",
+      "token_mint": "SOLUSDT",
+      "side": "LONG",
+      "qty": 1.0,
+      "avg_entry_price_usd": 99.839608,
+      "current_price_usd": 99.839608,
+      "leverage": 5,
+      "margin_allocated_usd": 19.9679,
+      "take_profit_usd": null,
+      "stop_loss_usd": null,
+      "unrealized_pnl_usd": 0.0,
+      "unrealized_pnl_pct": 0.0,
+      "total_fees_paid_usd": 0.1098,
+      "strategy_id": "default",
+      "opened_at": "2026-10-29T04:26:02.609660+00:00",
+      "updated_at": "2026-10-29T04:26:02.609667+00:00"
+    }
+  },
+  "closed_trades": [
+    {
+      "trade_id": "ptrd-4ea8cc70e9",
+      "environment": "PAPER",
+      "venue": "BYBIT",
+      "symbol": "SOLUSDT",
+      "category": "linear",
+      "side": "SELL",
+      "qty": 1.0,
+      "entry_price": 99.839608,
+      "exit_price": 99.7102,
+      "fee_usd": 0.0548,
+      "realized_pnl_usd": -0.1842,
+      "realized_pnl_pct": -0.18,
+      "strategy_id": "default",
+      "closed_at": "2026-10-29T04:26:02.714108+00:00"
+    }
+  ],
+  "trade_log": [
+    {
+      "status": "FILLED",
+      "environment": "PAPER",
+      "paper_tx_id": "PAPER-JUPITER-eacdb11858274abc",
+      "venue": "JUPITER",
+      "side": "BUY",
+      "input_token": "SOL",
+      "output_token": "BONK",
+      "amount_in": 0.5,
+      "amount_out": 16390321.5,
+      "notional_usd": 49.9,
+      "execution_price_usd": 3.04e-06,
+      "price_impact_pct": 0.25,
+      "lp_fee_bps": 25,
+      "lp_fee_usd": 0.1247,
+      "network_fee_sol": 5.5e-05,
+      "total_fee_usd": 0.133,
+      "realized_pnl_usd": 0.0,
+      "route_plan": [
+        {
+          "ammKey": "7yD7gfXv49SFxhx9uTc11dEd7Nj98rGWeYMdZJgheZbG",
+          "label": "Kipseli",
+          "inputMint": "So11111111111111111111111111111111111111112",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "percent": 100
+        },
+        {
+          "ammKey": "5ZWCKP2E8LqTUmo98xhq1YELjcqvxpNsv4xfzVbKGswc",
+          "label": "Scorch",
+          "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "outputMint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+          "percent": 100
+        }
+      ],
+      "timestamp": "2026-10-29T04:26:01.071783+00:00"
+    },
+    {
+      "status": "FILLED",
+      "environment": "PAPER",
+      "paper_tx_id": "PAPER-ORCA-3fbeafe3ccec489b",
+      "venue": "ORCA",
+      "side": "BUY",
+      "input_token": "SOL",
+      "output_token": "USDC",
+      "amount_in": 0.25,
+      "amount_out": 24.89629412,
+      "notional_usd": 24.95,
+      "execution_price_usd": 1.00215718,
+      "price_impact_pct": 0.1252,
+      "lp_fee_bps": 30,
+      "lp_fee_usd": 0.0748,
+      "network_fee_sol": 4.5e-05,
+      "total_fee_usd": 0.0816,
+      "realized_pnl_usd": 0.0,
+      "route_plan": [
+        {
+          "ammKey": "FpCMFDFGYotvufJ7HrFHsWEiiQCGbkLCtwHiDnh7o28Q",
+          "label": "Whirlpool",
+          "inputMint": "So11111111111111111111111111111111111111112",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "percent": 100
+        }
+      ],
+      "timestamp": "2026-10-29T04:26:02.482011+00:00"
+    },
+    {
+      "status": "FILLED",
+      "environment": "PAPER",
+      "paper_order_id": "PAPER-BYBIT-485b9f57e86f45",
+      "venue": "BYBIT",
+      "category": "linear",
+      "symbol": "SOLUSDT",
+      "side": "BUY",
+      "order_type": "MARKET",
+      "qty": 2.0,
+      "fill_price": 99.839608,
+      "notional_usd": 199.6792,
+      "margin_used_usd": 39.9358,
+      "leverage": 5,
+      "slippage_pct": 0.0798,
+      "fee_bps": 5.5,
+      "fee_usd": 0.1098,
+      "realized_pnl_usd": 0.0,
+      "timestamp": "2026-10-29T04:26:02.609676+00:00"
+    },
+    {
+      "status": "FILLED",
+      "environment": "PAPER",
+      "paper_order_id": "PAPER-BYBIT-2e5c73b6922f44",
+      "venue": "BYBIT",
+      "category": "linear",
+      "symbol": "SOLUSDT",
+      "side": "SELL",
+      "order_type": "MARKET",
+      "qty": 1.0,
+      "fill_price": 99.7102,
+      "notional_usd": 99.7102,
+      "margin_used_usd": 99.7102,
+      "leverage": 1,
+      "slippage_pct": 0.0399,
+      "fee_bps": 5.5,
+      "fee_usd": 0.0548,
+      "realized_pnl_usd": -0.1842,
+      "timestamp": "2026-10-29T04:26:02.714123+00:00"
+    }
+  ],
+  "equity_curve": [
+    {
+      "timestamp": "2026-10-29T04:26:01.071783+00:00",
+      "equity_usd": 16224.8918
+    },
+    {
+      "timestamp": "2026-10-29T04:26:02.482011+00:00",
+      "equity_usd": 16237.2313
+    },
+    {
+      "timestamp": "2026-10-29T04:26:02.609676+00:00",
+      "equity_usd": 16237.1215
+    },
+    {
+      "timestamp": "2026-10-29T04:26:02.714123+00:00",
+      "equity_usd": 16236.9373
+    }
+  ],
+  "peak_equity_usd": 16250.0
+}
