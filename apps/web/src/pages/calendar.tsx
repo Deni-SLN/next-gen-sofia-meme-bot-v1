@@ -34,6 +34,7 @@ export default function CalendarPage() {
       localStorage.setItem('sofia_sol_addr', resolvedSol);
       setSolanaWallet(resolvedSol);
       api.setPrimarySolanaWallet(resolvedSol).catch(() => {});
+      api.syncWalletJournal(resolvedSol).then(() => calendarQuery.refetch()).catch(() => {});
 
       const walletHandler = (e: any) => {
         if (e?.detail) setSolanaWallet(String(e.detail));
@@ -60,8 +61,9 @@ export default function CalendarPage() {
     try {
       const res = await api.syncWalletJournal(activeSolanaWallet);
       await calendarQuery.refetch();
+      const totalCount = res?.total_wallet_trades ?? res?.synced ?? 0;
       setSyncNotice(
-        `✅ Sinkronisasi Wallet Solana (${activeSolanaWallet.slice(0, 6)}...${activeSolanaWallet.slice(-4)}) selesai! (${res?.synced || 0} tx baru)`
+        `✅ Sinkronisasi Wallet Solana (${activeSolanaWallet.slice(0, 6)}...${activeSolanaWallet.slice(-4)}) selesai! Total ${totalCount} transaksi on-chain tercatat.`
       );
       setTimeout(() => setSyncNotice(''), 4000);
     } catch {
@@ -80,15 +82,19 @@ export default function CalendarPage() {
     }
   };
 
-  // Find selected day or default to today/latest day with trades
+  useEffect(() => {
+    setSelectedDayDate(null);
+  }, [selectedMode]);
+
+  // Find selected day or default to today (if it has trades) or latest day with trades
   useEffect(() => {
     if (days.length > 0 && !selectedDayDate) {
       const todayDay = days.find((d: any) => d.is_today);
-      if (todayDay) {
+      if (todayDay && todayDay.trades_count > 0) {
         setSelectedDayDate(todayDay.date);
       } else {
         const lastWithTrades = [...days].reverse().find((d: any) => d.trades_count > 0);
-        setSelectedDayDate(lastWithTrades ? lastWithTrades.date : days[days.length - 1]?.date);
+        setSelectedDayDate(lastWithTrades ? lastWithTrades.date : todayDay ? todayDay.date : days[days.length - 1]?.date);
       }
     }
   }, [days, selectedDayDate]);

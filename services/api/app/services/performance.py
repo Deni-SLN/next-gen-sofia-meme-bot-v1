@@ -159,7 +159,7 @@ def get_daily_calendar(
     mode: str = "PAPER",
     year: int | None = None,
     month: int | None = None,
-    trade_limit_per_day: int = 50,
+    trade_limit_per_day: int = 500,
     wallet_address: str | None = None,
 ) -> dict:
     import calendar
@@ -187,6 +187,18 @@ def get_daily_calendar(
         stmt = stmt.where(Trade.mode == mode_clean)
     all_trades = list(db.execute(stmt.order_by(Trade.closed_at.desc())).scalars().all())
 
+    if mode_clean == "WALLET":
+        needs_sync = len(all_trades) < 50 or any(
+            t.symbol == "SOL/SPL" and float(t.pnl or 0.0) == 0.0 for t in all_trades
+        )
+        if needs_sync:
+            try:
+                from app.services import journal as journal_svc
+                journal_svc.sync_solana_wallet_onchain_trades(db, active_sol_address)
+                all_trades = list(db.execute(stmt.order_by(Trade.closed_at.desc())).scalars().all())
+            except Exception:
+                pass
+
     # Group trades by date in WIB
     trades_by_date: dict[str, list[dict]] = {}
     for t in all_trades:
@@ -205,6 +217,7 @@ def get_daily_calendar(
             "side": t.side,
             "mode": t.mode,
             "chain": t.chain or "Solana",
+            "tx_hash": t.tx_hash or "",
             "wallet_address": active_sol_address if (t.chain or "Solana") == "Solana" else "",
             "price": t.price,
             "price_idr": round(t.price * usd_idr, 2),

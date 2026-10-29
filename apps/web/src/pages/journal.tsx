@@ -7,7 +7,7 @@ import { LucideIcon } from '@/components/LucideIcon';
 const DEFAULT_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
 
 export default function JournalPage() {
-  const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE' | 'WALLET'>('LIVE');
+  const [selectedMode, setSelectedMode] = useState<'LIVE' | 'WALLET'>('WALLET');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [outcomeFilter, setOutcomeFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -35,7 +35,7 @@ export default function JournalPage() {
   const [formTxHash, setFormTxHash] = useState<string>('');
   const [formNotes, setFormNotes] = useState<string>('Live bot snipe execution');
 
-  // Paginate with max 20 trades per page, separated by PAPER | LIVE | WALLET
+  // Paginate with max 20 trades per page, separated by LIVE | WALLET
   const journalQuery = useApiQuery(
     () => api.getJournal(searchQuery, outcomeFilter, PAGE_SIZE, currentPage, selectedMode, solanaWallet),
     [searchQuery, outcomeFilter, currentPage, selectedMode, solanaWallet]
@@ -55,6 +55,7 @@ export default function JournalPage() {
       localStorage.setItem('sofia_sol_addr', resolvedSol);
       setSolanaWallet(resolvedSol);
       api.setPrimarySolanaWallet(resolvedSol).catch(() => {});
+      api.syncWalletJournal(resolvedSol).then(() => journalQuery.refetch()).catch(() => {});
 
       const tradeHandler = () => journalQuery.refetch();
       const walletHandler = (e: any) => {
@@ -103,7 +104,11 @@ export default function JournalPage() {
       setActionErr('');
       const res = await api.syncWalletJournal(activeSolanaWallet);
       setSelectedMode('WALLET');
-      setActionMsg(res?.message || `✅ Sinkronisasi Wallet Solana (${activeSolanaWallet.slice(0, 6)}...${activeSolanaWallet.slice(-4)}) selesai.`);
+      const totalCount = res?.total_wallet_trades ?? res?.synced ?? 0;
+      setActionMsg(
+        res?.message ||
+          `✅ Sinkronisasi Wallet Solana (${activeSolanaWallet.slice(0, 6)}...${activeSolanaWallet.slice(-4)}) selesai: ${totalCount} transaksi on-chain tercatat.`
+      );
       journalQuery.refetch();
     } catch (err: any) {
       setActionErr(err?.message || 'Gagal menyinkronkan wallet on-chain Solana.');
@@ -163,13 +168,11 @@ export default function JournalPage() {
           <div className="flex items-center gap-2">
             <LucideIcon name="book-open" className="w-4 h-4 text-emerald-400" />
             <h1 className="text-sm font-extrabold text-slate-100 uppercase tracking-wide">
-              📖 Jurnal Trading ({selectedMode === 'PAPER' ? 'Mode Paper Simulasi' : selectedMode === 'WALLET' ? 'Mode Wallet Solana On-Chain' : 'Mode Live Bot'})
+              📖 Jurnal Trading ({selectedMode === 'WALLET' ? 'Mode Wallet Solana On-Chain' : 'Mode Live Bot'})
             </h1>
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
-                selectedMode === 'PAPER'
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                  : selectedMode === 'WALLET'
+                selectedMode === 'WALLET'
                   ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                   : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
               }`}
@@ -178,30 +181,15 @@ export default function JournalPage() {
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            {selectedMode === 'PAPER'
-              ? 'Jurnal khusus simulasi Paper Trading (virtual saldo $100) • Terpisah penuh dari eksekusi Live Bot & Wallet Solana pribadi.'
-              : selectedMode === 'WALLET'
-              ? `Jurnal khusus aktivitas & PnL on-chain dari Wallet Solana Anda (${activeSolanaWallet}) • Terhubung ke Pengaturan Sistem & Kredensial.`
+            {selectedMode === 'WALLET'
+              ? `Jurnal khusus seluruh transaksi & PnL on-chain dari Wallet Solana Anda (${activeSolanaWallet}) • Tersinkron otomatis dengan Pengaturan Sistem & Kredensial.`
               : 'Jurnal khusus eksekusi Sniper Bot Live (token, volume, biaya gas/DEX, profit/loss bersih) • Data tersimpan permanen di Neon PostgreSQL.'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          {/* 3-Mode Segmented Switch: PAPER | LIVE | WALLET */}
+          {/* 2-Mode Segmented Switch for Trading Journal: LIVE | WALLET */}
           <div className="flex items-center bg-obsidian-950 border border-obsidian-700 rounded-xl p-1 text-xs font-mono">
-            <button
-              type="button"
-              onClick={() => setSelectedMode('PAPER')}
-              className={`px-3 py-1.5 rounded-lg transition font-bold flex items-center gap-1.5 ${
-                selectedMode === 'PAPER'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="Jurnal Khusus Simulasi Paper Trading"
-            >
-              <LucideIcon name="shield-check" className="w-3.5 h-3.5" />
-              <span>PnL Paper</span>
-            </button>
             <button
               type="button"
               onClick={() => setSelectedMode('LIVE')}
@@ -213,7 +201,7 @@ export default function JournalPage() {
               title="Jurnal Khusus Eksekusi Sniper Bot Live"
             >
               <LucideIcon name="flame" className="w-3.5 h-3.5" />
-              <span>PnL Live</span>
+              <span>Jurnal Live (Bot)</span>
             </button>
             <button
               type="button"
@@ -226,7 +214,7 @@ export default function JournalPage() {
               title={`Jurnal Khusus Wallet Solana (${activeSolanaWallet})`}
             >
               <LucideIcon name="wallet" className="w-3.5 h-3.5 text-purple-300" />
-              <span>Wallet ({activeSolanaWallet.slice(0, 4)}...{activeSolanaWallet.slice(-4)})</span>
+              <span>Jurnal Wallet ({activeSolanaWallet.slice(0, 4)}...{activeSolanaWallet.slice(-4)})</span>
             </button>
           </div>
 

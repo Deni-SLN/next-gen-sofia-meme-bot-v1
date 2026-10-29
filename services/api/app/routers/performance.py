@@ -18,7 +18,7 @@ def get_daily_calendar(
     year: int | None = None,
     month: int | None = None,
     wallet_address: str | None = None,
-    trade_limit_per_day: int = 50,
+    trade_limit_per_day: int = 500,
     db: Session = Depends(get_db),
 ):
     return performance.get_daily_calendar(
