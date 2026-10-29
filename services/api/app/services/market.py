@@ -215,9 +215,9 @@ def is_legacy_token(symbol_or_base: str) -> bool:
     return clean in LEGACY_ESTABLISHED_TOKENS
 
 
-# ── STRICT CHARITY / DONATION TOKEN FILTER ───────────────────────────
-# Prohibit all charity, donation, nonprofit, and humanitarian tokens
-# from Pulse Radar feeds and Auto Entry execution to prevent donation-scam rugs.
+# ── STRICT CHARITY, DONATION & MAYHEM TOKEN FILTER ──────────────────
+# Prohibit all charity, donation, nonprofit, and mayhem tokens
+# from Pulse/Trenches Radar feeds and Auto Entry execution.
 CHARITY_KEYWORDS = {
     "CHARITY", "CHARITIES", "DONATE", "DONATION", "DONATIONS", "DONATING",
     "GIVEBACK", "FOUNDATION", "NONPROFIT", "NGO", "PHILANTHROPY",
@@ -226,6 +226,7 @@ CHARITY_KEYWORDS = {
     "ANIMALRESCUE", "SAVETHEKIDS", "SAVETHECHILDREN", "SAVECHILDREN",
     "SAVETHEOCEAN", "SAVEDOGS", "SAVECATS", "SAVETHEEARTH", "SAVETHEPLANET",
     "SAVEPLANET", "SAVEEARTH", "HUNGERRELIEF", "CLEANWATER", "RELIEF",
+    "MAYHEM", "MAYHEMS",
 }
 
 _CHARITY_PATTERNS = [
@@ -245,6 +246,7 @@ _CHARITY_PATTERNS = [
     r"\b(YAYASAN|DONASI|SEDEKAH|ZAKAT)\b",
     r"\b(AID|DISASTER)[-_ ]?RELIEF\b",
     r"\bCLEAN[-_ ]?WATER\b",
+    r"\bMAYHEM(S)?\b",
 ]
 
 _CHARITY_REGEX = re.compile("|".join(_CHARITY_PATTERNS), re.IGNORECASE)
@@ -252,7 +254,7 @@ _CHARITY_REGEX = re.compile("|".join(_CHARITY_PATTERNS), re.IGNORECASE)
 
 def is_charity_token(symbol_or_base: str = "", name: str = "", description: str = "") -> bool:
     """
-    Return True if the token appears to be a charity, donation, or philanthropy token.
+    Return True if the token appears to be a charity, donation, philanthropy, or mayhem token.
     Such tokens are strictly prohibited from radar feeds and auto-entry due to extreme scam/dump risk.
     """
     sym = (symbol_or_base or "").strip().upper()
@@ -263,8 +265,8 @@ def is_charity_token(symbol_or_base: str = "", name: str = "", description: str 
         return False
 
     clean_sym = sym.split("/")[0].strip()
-    # Check if exact ticker or subwords match charity prefixes
-    for prefix in ("CHARITY", "DONATE", "DONATION", "GIVEBACK", "SAVETHE", "YAYASAN", "NONPROFIT"):
+    # Check if exact ticker or subwords match excluded prefixes
+    for prefix in ("CHARITY", "DONATE", "DONATION", "GIVEBACK", "SAVETHE", "YAYASAN", "NONPROFIT", "MAYHEM", "DONASI"):
         if prefix in clean_sym:
             return True
 
@@ -799,8 +801,8 @@ def get_live_pulse_feed() -> dict:
     """
     global _RADAR_POOL_PERSISTENT, _LAST_BASE_FETCH_TIME, _SCAN_TICK_COUNTER
     now = time.time()
-    # Cache duration: 2 seconds to allow instant 10s auto-scan ticks to always get live fresh ticks
-    if _PULSE_CACHE["data"] and (now - _PULSE_CACHE["updated_at"] < 2.0):
+    # Cache duration: 1.0 second to allow instant 5s auto-scan ticks to always get live fresh ticks
+    if _PULSE_CACHE["data"] and (now - _PULSE_CACHE["updated_at"] < 1.0):
         return _PULSE_CACHE["data"]
 
     fx = get_fx_rate()

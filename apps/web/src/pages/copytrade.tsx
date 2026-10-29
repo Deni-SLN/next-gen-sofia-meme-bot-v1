@@ -8,6 +8,17 @@ export default function CopyTradePage() {
   const isUltrawide = useUltrawide();
   const smQuery = useApiQuery(() => api.getSmartMoney(), []);
   const [copiedId, setCopiedId] = React.useState<number | null>(null);
+  const [copiedWallets, setCopiedWallets] = React.useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('sofia_copied_wallets');
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const usdIdr = smQuery.data?.usd_idr || 16500;
 
   const handleCopy = (address: string, id: number) => {
@@ -15,6 +26,28 @@ export default function CopyTradePage() {
       navigator.clipboard.writeText(address);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2500);
+
+      const clean = (address || '').trim().toLowerCase();
+      if (clean) {
+        setCopiedWallets((prev) => {
+          const next = Array.from(new Set([...prev, clean]));
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('sofia_copied_wallets', JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        });
+      }
+    }
+  };
+
+  const handleResetCopied = () => {
+    setCopiedWallets([]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('sofia_copied_wallets');
+      } catch {}
     }
   };
 
@@ -22,6 +55,10 @@ export default function CopyTradePage() {
     await api.toggleCopyWallet(wallet.id, !wallet.copy_enabled, wallet.max_copy_usd);
     smQuery.refetch();
   };
+
+  const visibleWallets = (smQuery.data?.wallets || []).filter(
+    (w: any) => !copiedWallets.includes(String(w.address || '').trim().toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -35,11 +72,26 @@ export default function CopyTradePage() {
             <span className="text-emerald-400 font-mono font-bold">{formatIdr(usdIdr)}</span>
           </p>
         </div>
+        {copiedWallets.length > 0 && (
+          <button
+            type="button"
+            onClick={handleResetCopied}
+            className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-mono font-bold transition flex items-center gap-1.5"
+            title="Klik untuk menampilkan kembali dompet whale yang pernah disalin"
+          >
+            <span>👁️ Dompet Disalin: {copiedWallets.length} (Reset / Tampilkan)</span>
+          </button>
+        )}
       </div>
 
       <QueryState isLoading={smQuery.isLoading} isError={smQuery.isError} error={smQuery.error}>
         <div className={isUltrawide ? 'grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 items-stretch' : 'grid grid-cols-1 gap-4'}>
-          {(smQuery.data?.wallets || []).map((w: any) => (
+          {visibleWallets.length === 0 ? (
+            <div className="p-8 text-center rounded-2xl bg-obsidian-900 border border-obsidian-800 text-slate-400 font-mono text-sm col-span-full">
+              Semua dompet whale yang tersedia telah disalin dan disembunyikan. Gunakan tombol &ldquo;Reset / Tampilkan&rdquo; di atas untuk menampilkan kembali.
+            </div>
+          ) : (
+            visibleWallets.map((w: any) => (
             <div
               key={w.id}
               className="p-6 rounded-2xl bg-[#0b0f17] border border-slate-800 flex flex-wrap items-center justify-between gap-6"
@@ -103,7 +155,7 @@ export default function CopyTradePage() {
                 </button>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </QueryState>
     </div>
