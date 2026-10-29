@@ -55,7 +55,8 @@ export default function CryptoAnalysisPage() {
   };
 
   const loadCrypto = async (sym: string, force: boolean = false, tf: string = selectedTimeframe) => {
-    const clean = (sym || 'BTC').trim().toUpperCase();
+    const trimmed = (sym || 'BTC').trim();
+    const clean = trimmed.length >= 30 ? trimmed : trimmed.toUpperCase();
     if (!clean) return;
     if (force) setRefreshing(true);
     else setLoading(true);
@@ -233,20 +234,23 @@ export default function CryptoAnalysisPage() {
           </div>
 
           {/* SEARCH BOX & POPULAR SHORTCUTS */}
-          <form onSubmit={handleSearch} className="flex items-center gap-2 shrink-0">
-            <div className="relative">
+          <form onSubmit={handleSearch} className="w-full lg:w-auto flex items-center gap-2 shrink-0">
+            <div className="relative flex-1 min-w-0 sm:flex-initial">
               <input
                 type="text"
                 value={queryInput}
-                onChange={(e) => setQueryInput(e.target.value.toUpperCase())}
-                placeholder="Ketik koin (cth: APT, TIA, JUP, TAO, WIF, KAS)..."
-                className="w-44 sm:w-56 bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-sm font-bold text-white placeholder-slate-500 uppercase focus:outline-none focus:border-cyan-500 transition"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setQueryInput(val.trim().length >= 30 ? val.trim() : val.toUpperCase());
+                }}
+                placeholder="Ketik koin atau CA Pump.fun (cth: WIF, POPCAT, ...pump)..."
+                className="w-full sm:w-64 bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
               />
             </div>
             <button
               type="submit"
               disabled={loading || refreshing}
-              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-cyan-500/20 disabled:opacity-50"
+              className="px-3.5 sm:px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-cyan-500/20 disabled:opacity-50 shrink-0"
             >
               <LucideIcon name="zap" className="w-3.5 h-3.5" />
               Analisa
@@ -255,7 +259,7 @@ export default function CryptoAnalysisPage() {
               type="button"
               onClick={() => loadCrypto(activeSymbol, true, selectedTimeframe)}
               disabled={loading || refreshing}
-              className="p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+              className="p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition shrink-0"
               title="Refresh Harga Kripto"
             >
               <LucideIcon name="refresh-cw" className={`w-4 h-4 ${refreshing ? 'animate-spin text-cyan-400' : ''}`} />
