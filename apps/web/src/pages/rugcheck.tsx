@@ -3,6 +3,75 @@ import { api, useApiQuery, formatIdr, formatUsd } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
 
+function formatRiskInIndonesian(riskText: string): string {
+  if (!riskText) return '';
+  let txt = riskText;
+
+  // Map English severity tags to Indonesian
+  txt = txt.replace(/^\[WARN\]/i, '[PERINGATAN]');
+  txt = txt.replace(/^\[DANGER\]/i, '[BAHAYA]');
+  txt = txt.replace(/^\[CRITICAL\]/i, '[KRITIS]');
+
+  const directMappings: [RegExp, string][] = [
+    [
+      /High holder correlation:\s*The top users hold similar supply amounts/gi,
+      'Korelasi Kepemilikan Holder Tinggi: Akun-akun teratas memiliki persentase suplai yang sangat mirip (indikasi split wallet dev/insider cluster)',
+    ],
+    [/High holder correlation/gi, 'Korelasi Kepemilikan Holder Tinggi'],
+    [
+      /The top users hold similar supply amounts/gi,
+      'Akun-akun teratas memiliki persentase suplai yang sangat mirip (indikasi split wallet)',
+    ],
+    [
+      /Single holder ownership:\s*A single holder owns a large chunk of the supply/gi,
+      'Kepemilikan Holder Tunggal Dominan: Satu wallet memegang porsi suplai token yang sangat besar, berisiko tinggi terjadi dump massal',
+    ],
+    [/Single holder ownership/gi, 'Kepemilikan Holder Tunggal Dominan'],
+    [
+      /Top 10 holders hold significant supply/gi,
+      'Top 10 Holder Menguasai Suplai Terlalu Besar (Risiko Paus/Dump)',
+    ],
+    [
+      /Top 10 holders hold high percentage of supply/gi,
+      '10 holder teratas memegang persentase suplai yang sangat tinggi',
+    ],
+    [
+      /Mutable metadata:\s*The metadata can be changed by the authority/gi,
+      'Metadata Kontrak Dapat Diubah (Mutable): Developer masih berhak mengganti nama, simbol, atau logo koin sewaktu-waktu',
+    ],
+    [/Mutable metadata/gi, 'Metadata Kontrak Dapat Diubah (Mutable)'],
+    [
+      /The metadata can be changed by the authority/gi,
+      'Metadata koin dapat diubah sewaktu-waktu oleh developer',
+    ],
+    [/Mint Authority still enabled/gi, 'Mint Authority Masih Aktif (Bisa Cetak Koin Baru)'],
+    [
+      /The mint authority is not disabled/gi,
+      'Mint authority belum dimatikan, dev bisa mencetak suplai token tanpa batas',
+    ],
+    [/Freeze Authority still enabled/gi, 'Freeze Authority Masih Aktif (Bisa Bekukan Wallet)'],
+    [
+      /The freeze authority is not disabled/gi,
+      'Freeze authority belum dimatikan, dev bisa membekukan dompet pembeli (Honeypot Selektif)',
+    ],
+    [/Large LP amount unburned/gi, 'Likuiditas LP Belum Dibakar / Belum Dikunci'],
+    [
+      /A large amount of LP is not burned/gi,
+      'Sebagian besar kas likuiditas LP belum dibakar atau dikunci developer',
+    ],
+    [/Copycat token/gi, 'Koin Tiruan (Copycat Proyek Populer)'],
+    [/Low Liquidity/gi, 'Likuiditas Sangat Rendah'],
+    [/Low liquidity in DEX pool/gi, 'Likuiditas rendah di pool DEX'],
+    [/Transfer fee enabled/gi, 'Pajak transfer token aktif'],
+  ];
+
+  for (const [pattern, replacement] of directMappings) {
+    txt = txt.replace(pattern, replacement);
+  }
+
+  return txt;
+}
+
 const ECOSYSTEM_TOOLS = [
   {
     name: 'FluxRPC Shield',
@@ -368,7 +437,7 @@ export default function RugCheckPage() {
                         <span className="text-[9px] text-slate-500">Filter Dasar</span>
                       </div>
                       <div className={`mt-1 font-bold ${data.mint_revoked ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {data.mint_revoked ? '✅ REVOKED' : '❌ ACTIVE (DANGER)'}
+                        {data.mint_revoked ? '✅ DICABUT (AMAN)' : '❌ AKTIF (BAHAYA)'}
                       </div>
                     </div>
 
@@ -378,7 +447,7 @@ export default function RugCheckPage() {
                         <span className="text-[9px] text-slate-500">Filter Dasar</span>
                       </div>
                       <div className={`mt-1 font-bold ${data.freeze_revoked ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {data.freeze_revoked ? '✅ REVOKED' : '❌ ACTIVE'}
+                        {data.freeze_revoked ? '✅ DICABUT (AMAN)' : '❌ AKTIF (HONEYPOT)'}
                       </div>
                     </div>
 
@@ -388,7 +457,7 @@ export default function RugCheckPage() {
                         <span className="text-[9px] text-slate-500">Filter Dasar</span>
                       </div>
                       <div className={`mt-1 font-bold ${data.lp_burned ? 'text-emerald-400' : 'text-amber-400'}`}>
-                        {data.lp_burned ? `🔥 LOCKED (${data.lp_locked_pct}%)` : '⚠️ UNLOCKED'}
+                        {data.lp_burned ? `🔥 TERKUNCI (${data.lp_locked_pct}%)` : '⚠️ TIDAK TERKUNCI'}
                       </div>
                     </div>
 
@@ -403,10 +472,42 @@ export default function RugCheckPage() {
                         }`}
                       >
                         {(data.token_2022_extensions || []).length === 0
-                          ? `✅ BERSIH (Fee ${data.transfer_fee_pct ?? 0}%)`
+                          ? `✅ BERSIH (Pajak ${data.transfer_fee_pct ?? 0}%)`
                           : `⚠️ ${(data.token_2022_extensions || []).join(', ')}`}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Anti-Honeypot & Sellability Verification Strip */}
+                  <div
+                    className={`p-2.5 rounded-lg border font-mono text-xs flex flex-wrap items-center justify-between gap-2 ${
+                      data.honeypot
+                        ? 'bg-rose-950/50 border-rose-500/50 text-rose-200'
+                        : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{data.honeypot ? '🚨' : '🛡️'}</span>
+                      <div>
+                        <div className="font-bold">
+                          {data.honeypot
+                            ? 'PERINGATAN KERAS: TERDETEKSI INDIKASI HONEYPOT / KONTRAK BERBAHAYA!'
+                            : 'STATUS ANTI-HONEYPOT: AMAN (DAPAT DIJUAL & KONTRAK BERSIH)'}
+                        </div>
+                        <div className="text-[10px] opacity-85">
+                          {data.honeypot
+                            ? 'Jangan beli token ini! Terdapat fitur pembekuan wallet, pajak ekstrem, atau blokir transaksi jual.'
+                            : 'Simulasi FluxRPC Shield & RugCheck mengonfirmasi tidak ada TransferHook/Freeze/Honeypot aktif.'}
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        data.honeypot ? 'bg-rose-500 text-white' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      }`}
+                    >
+                      {data.honeypot ? 'HONEYPOT TERDETEKSI' : 'LOLOS CEK HONEYPOT'}
+                    </span>
                   </div>
                 </div>
 
@@ -456,7 +557,7 @@ export default function RugCheckPage() {
                             : 'text-emerald-400'
                         }`}
                       >
-                        {clusterRisk} ({data.graph_insiders_detected ?? 0} akun)
+                        {clusterRisk === 'HIGH' ? 'TINGGI' : clusterRisk === 'MEDIUM' ? 'SEDANG' : 'RENDAH'} ({data.graph_insiders_detected ?? 0} akun)
                       </div>
                       <div className="text-[10px] text-slate-300">
                         Block-0 Bundle: {data.bundle_pct}% • Cluster: {(data.insider_clusters || []).length} jaringan
@@ -530,7 +631,7 @@ export default function RugCheckPage() {
                       </div>
                       <ul className="list-disc list-inside text-[11px] text-rose-200 space-y-0.5">
                         {data.risks.map((r: string, idx: number) => (
-                          <li key={idx}>{r}</li>
+                          <li key={idx}>{formatRiskInIndonesian(r)}</li>
                         ))}
                       </ul>
                     </div>

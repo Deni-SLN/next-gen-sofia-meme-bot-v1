@@ -34,7 +34,7 @@ export default function App({ Component, pageProps }: AppProps) {
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
         />
-        <title>Sofia Market 4.1 (SFIA 4.1) — Multi-Asset Trading Terminal &amp; Sniper</title>
+        <title>Sofia Market 4.1.2 (SFIA 4.1.2) — Multi-Asset Trading Terminal &amp; Sniper</title>
       </Head>
       <Layout>
         <Component {...pageProps} />

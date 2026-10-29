@@ -131,7 +131,7 @@ export function LoginPortal({ onSuccess }: LoginPortalProps) {
   return (
     <>
       <Head>
-        <title>Login — Sofia Market 4.1 (SFIA 4.1)</title>
+        <title>Login — Sofia Market 4.1.2 (SFIA 4.1.2)</title>
       </Head>
       <div className="min-h-screen bg-obsidian-950 grid-bg-overlay flex items-center justify-center p-4 relative overflow-hidden">
         {/* Glow ambient background */}
@@ -175,7 +175,7 @@ export function LoginPortal({ onSuccess }: LoginPortalProps) {
               </svg>
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
-              Sofia Market 4.1
+              Sofia Market 4.1.2
             </h1>
             <p className="text-xs text-slate-400 font-mono tracking-wide">
               by <span className="text-emerald-400 font-semibold">deni sln</span>
@@ -289,7 +289,7 @@ export function LoginPortal({ onSuccess }: LoginPortalProps) {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Sistem Aktif
             </span>
-            <span>Sofia Market 4.1 © {new Date().getFullYear()}</span>
+            <span>Sofia Market 4.1.2 © {new Date().getFullYear()}</span>
           </div>
         </div>
       </div>
