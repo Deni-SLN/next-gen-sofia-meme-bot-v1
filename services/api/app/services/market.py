@@ -1173,6 +1173,124 @@ def resolve_holding_live_price(
     return tok
 
 
+def translate_rugcheck_risk(name: str, desc: str, level: str) -> str:
+    """Terjemahkan temuan risiko RugCheck ke Bahasa Indonesia yang akurat dan mudah dipahami."""
+    lvl = (level or "warn").strip().lower()
+    tag = "[PERINGATAN]"
+    if lvl in ("danger", "critical"):
+        tag = "[BAHAYA]"
+    elif lvl == "info":
+        tag = "[INFO]"
+
+    n_clean = (name or "").strip()
+    d_clean = (desc or "").strip()
+    combined = f"{n_clean.lower()} {d_clean.lower()}"
+
+    # 1. Exact / high priority semantic matches
+    if "high holder correlation" in combined or "similar supply amounts" in combined:
+        return f"{tag} Korelasi Kepemilikan Holder Tinggi: Akun-akun teratas memiliki persentase suplai yang sangat mirip (indikasi split wallet dev/insider cluster)."
+
+    if "single holder ownership" in combined or "single holder owns" in combined or "single holder" in combined:
+        return f"{tag} Kepemilikan Holder Tunggal Dominan: Satu wallet memegang porsi suplai token yang sangat besar, berisiko tinggi terjadi dump massal."
+
+    if "top 10 holders" in combined or "top 10 holder" in combined:
+        return f"{tag} Top 10 Holder Menguasai Suplai Terlalu Besar: Konsentrasi koin terpusat pada segelintir wallet (risiko paus/insider dump)."
+
+    if "low liquidity" in combined or "liquidity is low" in combined:
+        return f"{tag} Likuiditas Rendah: Kas likuiditas pool sangat tipis, rawan slippage ekstrem dan rentan manipulasi harga."
+
+    if "mutable metadata" in combined or "metadata can be changed" in combined or "mutable" in combined:
+        return f"{tag} Metadata Kontrak Dapat Diubah (Mutable): Developer masih memiliki hak untuk mengganti nama, simbol, atau logo koin sewaktu-waktu."
+
+    if "mint authority" in combined:
+        return f"{tag} Mint Authority Masih Aktif: Developer dapat mencetak (mint) suplai token baru tanpa batas dan menguras likuiditas."
+
+    if "freeze authority" in combined:
+        return f"{tag} Freeze Authority Masih Aktif: Developer dapat membekukan saldo wallet holder (indikasi honeypot selektif)."
+
+    if "unburned" in combined or "lp not burned" in combined or "large lp amount" in combined:
+        return f"{tag} Likuiditas LP Belum Dibakar / Belum Dikunci: Penyedia LP masih bisa menarik kembali kas likuiditas pool kapan saja."
+
+    if "copycat" in combined:
+        return f"{tag} Koin Tiruan (Copycat): Nama atau simbol token meniru proyek populer lain untuk memancing pembeli."
+
+    if "transfer fee" in combined:
+        return f"{tag} Pajak Transfer Aktif: Terdapat potongan pajak biaya transfer token pada setiap transaksi."
+
+    if "permanent delegate" in combined:
+        return f"{tag} Permanent Delegate Aktif: Otoritas kontrak dapat mentransfer atau membakar token dari wallet investor."
+
+    if "transfer hook" in combined:
+        return f"{tag} Transfer Hook Aktif: Kontrak dapat mengeksekusi program khusus saat transfer (rawan honeypot dinamis)."
+
+    if "rugged" in combined:
+        return f"{tag} Riwayat Developer Buruk: Wallet pembuat koin tercatat pernah terlibat proyek rug pull sebelumnya."
+
+    if "scam" in combined or "blacklisted" in combined:
+        return f"{tag} Developer Masuk Daftar Hitam: Wallet pembuat koin terindikasi skema penipuan on-chain."
+
+    if "wash trading" in combined or "suspicious volume" in combined:
+        return f"{tag} Indikasi Manipulasi Volume / Wash Trading: Transaksi digerakkan oleh bot otomatis buatan."
+
+    if "non-transferable" in combined or "non transferable" in combined:
+        return f"{tag} Token Tidak Dapat Ditransfer: Kontrak melarang transfer atau penjualan koin (honeypot)."
+
+    if "pausable" in combined:
+        return f"{tag} Kontrak Dapat Dijeda (Pausable): Developer dapat menghentikan seluruh transaksi jual/beli token kapan saja."
+
+    # 2. General smart translation fallback
+    id_name = n_clean
+    id_desc = d_clean
+
+    phrase_map = [
+        ("the top users hold similar supply amounts", "Akun-akun teratas memiliki persentase suplai yang sangat mirip (indikasi split wallet)"),
+        ("the metadata can be changed by the authority", "Metadata koin dapat diubah sewaktu-waktu oleh otoritas/dev"),
+        ("the mint authority is not disabled", "Mint authority belum dinonaktifkan (dapat mencetak koin baru)"),
+        ("the freeze authority is not disabled", "Freeze authority belum dinonaktifkan (dapat membekukan wallet)"),
+        ("a large amount of lp is not burned", "Sebagian besar likuiditas LP belum dibakar atau dikunci"),
+        ("top 10 holders hold high percentage", "10 holder teratas memegang persentase suplai yang sangat tinggi"),
+        ("token name or symbol matches", "Nama atau simbol token meniru"),
+        ("high holder correlation", "Korelasi kepemilikan holder tinggi"),
+        ("single holder ownership", "Kepemilikan holder tunggal dominan"),
+        ("large lp amount unburned", "Likuiditas LP belum dibakar"),
+        ("unlocked liquidity", "Likuiditas tidak terkunci"),
+        ("low liquidity", "Likuiditas rendah"),
+        ("mutable metadata", "Metadata dapat diubah"),
+        ("mint authority still enabled", "Mint authority masih aktif"),
+        ("freeze authority still enabled", "Freeze authority masih aktif"),
+        ("copycat token", "Koin tiruan"),
+    ]
+    for en_p, id_p in phrase_map:
+        if en_p in id_name.lower():
+            id_name = re.sub(re.escape(en_p), id_p, id_name, flags=re.IGNORECASE)
+        if en_p in id_desc.lower():
+            id_desc = re.sub(re.escape(en_p), id_p, id_desc, flags=re.IGNORECASE)
+
+    word_map = [
+        (r"\bholders\b", "pemegang token"),
+        (r"\bholder\b", "pemegang token"),
+        (r"\bsupply\b", "suplai"),
+        (r"\bliquidity\b", "likuiditas"),
+        (r"\bunlocked\b", "tidak terkunci"),
+        (r"\blocked\b", "terkunci"),
+        (r"\bburned\b", "dibakar"),
+        (r"\benabled\b", "aktif"),
+        (r"\bdisabled\b", "dinonaktifkan"),
+        (r"\bwarning\b", "peringatan"),
+        (r"\bdanger\b", "bahaya"),
+        (r"\bcritical\b", "kritis"),
+        (r"\bhigh\b", "tinggi"),
+        (r"\blow\b", "rendah"),
+    ]
+    for pattern, id_w in word_map:
+        id_name = re.sub(pattern, id_w, id_name, flags=re.IGNORECASE)
+        id_desc = re.sub(pattern, id_w, id_desc, flags=re.IGNORECASE)
+
+    if id_desc and id_desc != id_name:
+        return f"{tag} {id_name}: {id_desc}"
+    return f"{tag} {id_name}"
+
+
 def live_rug_audit(query: str) -> dict:
     """Perform real on-chain + DEX rug & cluster check using live DexScreener and RugCheck.xyz /report API."""
     tok = get_live_token_info(query)
@@ -1247,26 +1365,32 @@ def live_rug_audit(query: str) -> dict:
                 if transfer_fee_pct > 0:
                     token_2022_extensions.append(f"TransferFee ({transfer_fee_pct}%)")
                     rugcheck_risks.append(
-                        f"[WARN] Token-2022 Transfer Fee aktif sebesar {transfer_fee_pct}% (pajak jual/beli dapat diubah jika authority aktif)."
+                        f"[PERINGATAN] Token-2022 Transfer Fee aktif sebesar {transfer_fee_pct}% (pajak jual/beli dapat diubah jika authority aktif)."
                     )
 
                 ext = rc.get("token_extensions") or {}
                 if ext.get("permanentDelegate"):
                     permanent_delegate = str(ext.get("permanentDelegate"))
-                    token_2022_extensions.append("PermanentDelegate (DANGER)")
+                    token_2022_extensions.append("PermanentDelegate (BAHAYA)")
                     rugcheck_risks.append(
-                        "[DANGER] Token-2022 Permanent Delegate aktif: pemilik kontrak dapat menarik/membakar token dari wallet mana pun!"
+                        "[BAHAYA] Token-2022 Permanent Delegate aktif: pemilik kontrak dapat menarik/membakar token dari wallet mana pun!"
                     )
                 if ext.get("transferHook"):
                     transfer_hook = str(ext.get("transferHook"))
-                    token_2022_extensions.append("TransferHook (DANGER)")
+                    token_2022_extensions.append("TransferHook (BAHAYA)")
                     rugcheck_risks.append(
-                        "[DANGER] Token-2022 Transfer Hook aktif: kontrak dapat memblokir penjualan sewaktu-waktu (dynamic honeypot)."
+                        "[BAHAYA] Token-2022 Transfer Hook aktif: kontrak dapat memblokir penjualan sewaktu-waktu (dynamic honeypot)."
                     )
                 if ext.get("nonTransferable"):
-                    token_2022_extensions.append("NonTransferable")
+                    token_2022_extensions.append("NonTransferable (BAHAYA HONEYPOT)")
+                    rugcheck_risks.append(
+                        "[BAHAYA] Token-2022 Non-Transferable aktif: token tidak bisa ditransfer atau dijual kembali (100% Honeypot)!"
+                    )
                 if ext.get("pausableConfig"):
-                    token_2022_extensions.append("PausableConfig")
+                    token_2022_extensions.append("PausableConfig (BAHAYA)")
+                    rugcheck_risks.append(
+                        "[BAHAYA] Kontrak memiliki fitur Pausable: developer dapat menghentikan seluruh transaksi jual/beli kapan saja!"
+                    )
                 if ext.get("mintCloseAuthority"):
                     token_2022_extensions.append("MintCloseAuthority")
 
@@ -1359,12 +1483,12 @@ def live_rug_audit(query: str) -> dict:
                             f"Dev masih memegang {creator_balance_pct}% di wallet utama ({creator_address[:6]}...{creator_address[-4:]})."
                         )
 
-                # 6. Raw Risks from RugCheck
+                # 6. Raw Risks from RugCheck translated to Indonesian
                 for r in rc.get("risks") or []:
                     name = r.get("name") or ""
                     desc = r.get("description") or ""
                     level = r.get("level") or "warn"
-                    rugcheck_risks.append(f"[{level.upper()}] {name}: {desc}")
+                    rugcheck_risks.append(translate_rugcheck_risk(name, desc, level))
         except Exception:
             pass
 
@@ -1380,7 +1504,7 @@ def live_rug_audit(query: str) -> dict:
             shield_req = urllib.request.Request(
                 shield_rpc,
                 data=rpc_payload,
-                headers={"Content-Type": "application/json", "User-Agent": "SofiaMarket-FluxRPC/4.1"},
+                headers={"Content-Type": "application/json", "User-Agent": "SofiaMarket-FluxRPC/4.1.2"},
             )
             with urllib.request.urlopen(shield_req, timeout=5) as shield_resp:
                 shield_data = json.loads(shield_resp.read().decode("utf-8"))
@@ -1408,12 +1532,12 @@ def live_rug_audit(query: str) -> dict:
     if liq_usd < 15000:
         liquidity_verdict = "KRITIS (<$15K — Rawan Rug/Slippage Parah)"
         rugcheck_risks.append(
-            f"[WARN] Likuiditas sangat tipis (${liq_usd:,.0f}). Satu holder besar menjual akan langsung menguras pool."
+            f"[PERINGATAN] Likuiditas sangat tipis (${liq_usd:,.0f}). Satu holder besar menjual akan langsung menguras pool."
         )
     elif liq_usd < 30000:
         liquidity_verdict = "TIPIS ($15K–$30K — Rawan Dump Holder)"
         rugcheck_risks.append(
-            f"[WARN] Likuiditas tipis (${liq_usd:,.0f}). Kontrak bersih tidak menjamin aman dari dump holder."
+            f"[PERINGATAN] Likuiditas tipis (${liq_usd:,.0f}). Kontrak bersih tidak menjamin aman dari dump holder."
         )
     elif liq_usd < 60000:
         liquidity_verdict = "MODERAT ($30K–$60K)"
@@ -1423,20 +1547,69 @@ def live_rug_audit(query: str) -> dict:
     if vol_to_liq_ratio > 20.0:
         wash_trading_flag = True
         wash_trading_note = f"Indikasi Wash Trading / Volume Bot: Volume 24h {vol_to_liq_ratio}x lipat dari likuiditas!"
-        rugcheck_risks.append(f"[WARN] {wash_trading_note}")
+        rugcheck_risks.append(f"[PERINGATAN] {wash_trading_note}")
     elif txns_5m_total > 120 and total_holders < 150:
         wash_trading_flag = True
         wash_trading_note = "Indikasi Wash Trading: Frekuensi tx 5m tinggi namun jumlah holder sangat sedikit."
+        rugcheck_risks.append(f"[PERINGATAN] {wash_trading_note}")
+
+    # Anti-Honeypot & Sellability Verification
+    sell_blocked_anomaly = buys_5m >= 12 and sells_5m == 0
+    has_non_transferable = any("NonTransferable" in x for x in token_2022_extensions)
+    has_pausable = any("PausableConfig" in x for x in token_2022_extensions)
+    is_honeypot = bool(
+        permanent_delegate
+        or transfer_hook
+        or has_non_transferable
+        or has_pausable
+        or not freeze_revoked
+        or transfer_fee_pct >= 25.0
+        or sell_blocked_anomaly
+    )
+
+    if sell_blocked_anomaly:
+        rugcheck_risks.append(
+            f"[BAHAYA] Indikasi Honeypot Aktif: Terdeteksi {buys_5m} transaksi beli tetapi 0 transaksi jual dalam 5 menit terakhir (penjualan diblokir)!"
+        )
+    if not mint_revoked:
+        rugcheck_risks.append(
+            "[BAHAYA] Mint Authority Masih Aktif: Developer dapat mencetak token baru tanpa batas dan menguras likuiditas pool!"
+        )
+    if not freeze_revoked:
+        rugcheck_risks.append(
+            "[BAHAYA] Freeze Authority Masih Aktif: Developer dapat membekukan wallet pembeli sehingga koin tidak bisa dijual (Honeypot Selektif)!"
+        )
+    if creator_rugged_count > 0:
+        rugcheck_risks.append(
+            f"[BAHAYA] Riwayat Developer Buruk: Wallet pembuat koin terdeteksi pernah melakukan rug pull pada {creator_rugged_count} proyek sebelumnya!"
+        )
+
+    # Deduplicate risks while preserving order
+    dedup_risks: list[str] = []
+    seen_r: set[str] = set()
+    for rk in rugcheck_risks:
+        if rk not in seen_r:
+            seen_r.add(rk)
+            dedup_risks.append(rk)
+    rugcheck_risks = dedup_risks
 
     # Realistic multi-factor score (Contract + Liquidity Depth + Holder Concentration + Cluster Risk)
-    contract_clean = mint_revoked and freeze_revoked and not permanent_delegate and not transfer_hook
+    contract_clean = (
+        mint_revoked
+        and freeze_revoked
+        and not permanent_delegate
+        and not transfer_hook
+        and not is_honeypot
+    )
     score = 88
     if not mint_revoked:
         score -= 35
     if not freeze_revoked:
         score -= 25
-    if permanent_delegate or transfer_hook:
+    if permanent_delegate or transfer_hook or is_honeypot:
         score -= 40
+    if creator_rugged_count > 0:
+        score -= 20
     if liq_usd < 15000:
         score -= 14
     elif liq_usd < 30000:
@@ -1455,12 +1628,14 @@ def live_rug_audit(query: str) -> dict:
         score -= 6
     min_floor = 58 if contract_clean else 10
     safety_score = max(min_floor, min(95, score))
-    if not contract_clean:
-        verdict = "KONTRAK BERBAHAYA (MINT/HOOK AKTIF)"
+    if is_honeypot:
+        verdict = "BAHAYA HONEYPOT • JANGAN BELI (PENJUALAN RAWAN TERKUNCI)"
+    elif not contract_clean:
+        verdict = "KONTRAK BERBAHAYA (MINT/FREEZE/HOOK AKTIF)"
     elif safety_score >= 78 and liq_usd >= 30000 and cluster_risk_level != "HIGH":
-        verdict = "KONTRAK BERSIH • LIKUIDITAS CUKUP (TETAP PAKAI STOP-LOSS)"
+        verdict = "AMAN DARI HONEYPOT • KONTRAK BERSIH & LIKUIDITAS CUKUP"
     elif contract_clean:
-        verdict = "KONTRAK BERSIH • WASPADA RISIKO DUMP / LIKUIDITAS TIPIS"
+        verdict = "AMAN DARI HONEYPOT • WASPADA RISIKO DUMP / LIKUIDITAS TIPIS"
     else:
         verdict = "RISIKO TINGGI (HIGH DUMP / CLUSTER RISK)"
 
@@ -1518,7 +1693,7 @@ def live_rug_audit(query: str) -> dict:
         "freeze_revoked": freeze_revoked,
         "lp_burned": tok["lp_burned"],
         "lp_locked_pct": lp_locked_pct,
-        "honeypot": bool(permanent_delegate or transfer_hook),
+        "honeypot": is_honeypot,
         "token_program": token_program_label,
         "is_token_2022": is_token_2022,
         "token_2022_extensions": token_2022_extensions,

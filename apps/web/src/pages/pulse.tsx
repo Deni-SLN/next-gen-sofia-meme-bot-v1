@@ -535,7 +535,7 @@ export default function PulsePage() {
   return (
     <>
       <Head>
-        <title>Trenches &amp; Pulse Radar | Sofia Market 4.1</title>
+        <title>Trenches &amp; Pulse Radar | Sofia Market 4.1.2</title>
       </Head>
 
       <div className="space-y-3 pb-12">

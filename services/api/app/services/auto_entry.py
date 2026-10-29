@@ -247,7 +247,8 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
     # Filter candidate:
     # 1. Not already entered in this session
     # 2. Safety score >= min_score
-    # 3. Not a legacy token
+    # 3. Not a legacy or charity/donasi/mayhem token
+    # 4. Anti-Honeypot & Contract Security pre-filter
     eligible = []
     for c in candidates:
         sym = c.get("symbol") or c.get("base_symbol") or ""
@@ -257,9 +258,16 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
             continue
         if score < min_score:
             continue
-        if market.is_legacy_token(sym) or t.get("is_charity") or market.is_charity_token(sym, t.get("name")):
+        if market.is_legacy_token(sym) or c.get("is_charity") or market.is_charity_token(sym, c.get("name")):
             continue
-        if c.get("is_charity") or market.is_charity_token(sym, c.get("name")):
+        if c.get("honeypot") is True:
+            continue
+        if c.get("mint_revoked") is False or c.get("freeze_revoked") is False:
+            continue
+        buys_5m = int(c.get("buys_5m") or 0)
+        sells_5m = int(c.get("sells_5m") or 0)
+        if buys_5m >= 12 and sells_5m == 0:
+            # Sell-blocked honeypot pattern
             continue
         eligible.append(c)
 
@@ -301,9 +309,30 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
         _append_log(
             "AUDIT",
             pick_sym,
-            f"Kandidat terpilih lolos filter: {pick_sym} (Score {pick_score}/100 • Liq ${pick.get('liquidity', 0):,.0f})",
+            f"Kandidat terpilih lolos filter awal: {pick_sym} (Score {pick_score}/100 • Liq ${pick.get('liquidity', 0):,.0f}). Memverifikasi Anti-Honeypot On-Chain...",
             "info",
         )
+
+    # Deep On-Chain Anti-Honeypot & Contract Security Audit via FluxRPC Shield + RugCheck
+    try:
+        live_audit = market.live_rug_audit(pick_ca or pick_sym)
+        if (
+            live_audit.get("honeypot") is True
+            or not live_audit.get("contract_clean", True)
+            or int(live_audit.get("safety_score", 0)) < min_score
+        ):
+            reason = live_audit.get("verdict") or "Terdeteksi potensi Honeypot / Kontrak Berbahaya"
+            with _LOCK:
+                _append_log(
+                    "SECURITY",
+                    pick_sym,
+                    f"[ANTI-HONEYPOT] Entry {pick_sym} DIBATALKAN demi keamanan modal: {reason}",
+                    "danger",
+                )
+                _save_persisted_state()
+            return {"status": "RUNNING", "action": "blocked_by_security_shield", "reason": reason}
+    except Exception:
+        pass
 
     # Execute Entry Snipe
     try:
