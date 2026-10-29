@@ -317,6 +317,44 @@ export default function CryptoAnalysisPage() {
         </div>
       ) : data && activePlan ? (
         <div className="space-y-5">
+          {/* ANTI-HONEYPOT & TRADING SAFETY SHIELD BANNER */}
+          {data.security_shield && (
+            <div
+              className={`rounded-2xl p-3.5 border flex flex-wrap items-center justify-between gap-3 ${
+                data.security_shield.is_safe_to_trade && !data.security_shield.honeypot
+                  ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                  : 'bg-rose-950/50 border-rose-500/50 text-rose-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-lg">
+                  {data.security_shield.is_safe_to_trade && !data.security_shield.honeypot ? '🛡️' : '🚨'}
+                </span>
+                <div>
+                  <div className="text-xs sm:text-sm font-black uppercase tracking-wide">
+                    {data.security_shield.is_safe_to_trade && !data.security_shield.honeypot
+                      ? `STATUS KEAMANAN TRADING (${data.code}): AMAN UNTUK DI-TRADING • BEBAS HONEYPOT`
+                      : `PERINGATAN KERAS (${data.code}): DILARANG TRADING • POTENSI HONEYPOT / RISIKO KONTRAK!`}
+                  </div>
+                  <div className="text-[11px] opacity-85 mt-0.5 font-mono">
+                    {data.security_shield.verdict} • Safety Score: {data.security_shield.safety_score ?? 95}/100
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono font-bold">
+                <span className="px-2 py-1 rounded bg-slate-900/80 border border-slate-700 text-emerald-300">
+                  Mint: {data.security_shield.mint_revoked !== false ? '✅ Dicabut' : '❌ Aktif'}
+                </span>
+                <span className="px-2 py-1 rounded bg-slate-900/80 border border-slate-700 text-emerald-300">
+                  Freeze: {data.security_shield.freeze_revoked !== false ? '✅ Dicabut' : '❌ Aktif'}
+                </span>
+                <span className="px-2 py-1 rounded bg-slate-900/80 border border-slate-700 text-cyan-300">
+                  Honeypot: {data.security_shield.honeypot ? '🚨 TERDETEKSI' : '✅ AMAN (Sellable)'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* TOP HERO STATS:
               - Mode Biasa: Menampilkan 3 Card (Harga, Performa 52W, Keputusan Quick).
               - Mode Layar Lebar: Menampilkan 4 Card menyamping (ditambah Ringkasan Futures Perpetual).

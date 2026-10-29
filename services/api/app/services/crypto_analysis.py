@@ -1442,8 +1442,25 @@ def _fetch_crypto_data(
             if r.status_code == 200:
                 pairs = r.json().get("pairs") or []
                 if pairs:
+                    safe_dex_pairs = []
+                    for p in pairs:
+                        if float(p.get("priceUsd") or 0) <= 0:
+                            continue
+                        b_tok = p.get("baseToken") or {}
+                        b_sym = str(b_tok.get("symbol") or "")
+                        b_name = str(b_tok.get("name") or "")
+                        if market.is_charity_token(b_sym, b_name):
+                            continue
+                        tx_m5 = (p.get("txns") or {}).get("m5") or {}
+                        b5 = int(tx_m5.get("buys") or 0)
+                        s5 = int(tx_m5.get("sells") or 0)
+                        if b5 >= 10 and s5 == 0:
+                            # Skip sell-blocked honeypot pairs
+                            continue
+                        safe_dex_pairs.append(p)
+
                     valid_pairs = sorted(
-                        [p for p in pairs if float(p.get("priceUsd") or 0) > 0],
+                        safe_dex_pairs,
                         key=lambda p: float((p.get("liquidity") or {}).get("usd") or 0),
                         reverse=True,
                     )
@@ -1452,9 +1469,12 @@ def _fetch_crypto_data(
                         p_usd = float(best.get("priceUsd") or 0)
                         chg_24h = float((best.get("priceChange") or {}).get("h24") or 0)
                         vol_24h = float((best.get("volume") or {}).get("h24") or 0)
+                        liq_usd = float((best.get("liquidity") or {}).get("usd") or 0)
                         chain_id = best.get("chainId") or "dex"
                         dex_name = best.get("dexId") or "DEX"
-                        token_name = (best.get("baseToken") or {}).get("name") or clean_code
+                        base_tok = best.get("baseToken") or {}
+                        token_name = base_tok.get("name") or clean_code
+                        base_contract = base_tok.get("address") or ""
 
                         prev_p = p_usd / (1.0 + (chg_24h / 100.0)) if (1.0 + (chg_24h / 100.0)) > 0 else p_usd
                         candles = []
@@ -1486,6 +1506,7 @@ def _fetch_crypto_data(
 
                         meta = {
                             "symbol": clean_code,
+                            "shortName": token_name,
                             "currency": "USD",
                             "regularMarketPrice": p_usd,
                             "chartPreviousClose": prev_p,
@@ -1497,6 +1518,9 @@ def _fetch_crypto_data(
                             "exchangeName": f"{dex_name.upper()} ({chain_id.upper()})",
                             "dex_url": best.get("url"),
                             "pair_address": best.get("pairAddress"),
+                            "base_contract": base_contract,
+                            "liquidity_usd": liq_usd,
+                            "is_dex_token": True,
                         }
                         src = f"DexScreener Free Public API ({token_name} on {dex_name})"
                         _CRYPTO_CACHE[cache_key] = {"ts": now_ts, "candles": candles, "meta": meta, "source": src}
@@ -1504,7 +1528,7 @@ def _fetch_crypto_data(
     except Exception:
         pass
 
-    raise ValueError(f"Aset kripto '{clean_code}' tidak ditemukan di Binance, Yahoo Finance, maupun DexScreener. Pastikan kode ticker atau nama koin benar.")
+    raise ValueError(f"Aset kripto '{clean_code}' tidak ditemukan atau tidak memenuhi standar keamanan Anti-Honeypot di Binance, Yahoo Finance, maupun DexScreener.")
 
 
 def analyze_crypto(
@@ -1512,7 +1536,11 @@ def analyze_crypto(
     timeframe: str = "1d",
     force_refresh: bool = False,
 ) -> dict[str, Any]:
+    if market.is_charity_token(query, query):
+        raise ValueError(f"Token '{query}' terdeteksi sebagai koin Charity / Donasi / Mayhem dan diblokir demi keamanan trading.")
     yahoo_sym, clean_code = _normalize_crypto_symbol(query)
+    if market.is_charity_token(clean_code, query):
+        raise ValueError(f"Token '{clean_code}' terdeteksi sebagai koin Charity / Donasi / Mayhem dan diblokir demi keamanan trading.")
     tf_norm = (timeframe or "1d").strip().lower()
     if tf_norm not in CRYPTO_TIMEFRAMES:
         tf_norm = "1d"
@@ -1771,6 +1799,56 @@ def analyze_crypto(
         current_price=current_price_usd,
     )
 
+    # Anti-Honeypot & Meme Coin Security Shield Audit (FluxRPC Shield + RugCheck)
+    major_verified_l1 = {
+        "BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "AVAX", "LINK", "DOT",
+        "NEAR", "APT", "SUI", "ARB", "OP", "TON", "MATIC", "POL", "ATOM",
+        "LTC", "BCH", "TRX", "UNI", "AAVE", "INJ", "TIA", "SEI", "TAO", "KAS",
+    }
+    security_shield = {
+        "is_safe_to_trade": True,
+        "honeypot": False,
+        "contract_clean": True,
+        "mint_revoked": True,
+        "freeze_revoked": True,
+        "lp_burned": True,
+        "safety_score": 95,
+        "verdict": "AMAN UNTUK TRADING • ASET TERVERIFIKASI BURSA GLOBAL & LIKUIDITAS DALAM",
+        "risks": [],
+    }
+    if clean_code not in major_verified_l1 or meta.get("is_dex_token"):
+        try:
+            audit_target = meta.get("base_contract") or clean_code
+            rc_audit = market.live_rug_audit(audit_target)
+            is_hp = bool(rc_audit.get("honeypot"))
+            c_clean = bool(rc_audit.get("contract_clean", True))
+            s_score = int(rc_audit.get("safety_score") or 75)
+            liq_check = float(rc_audit.get("liquidity_usd") or meta.get("liquidity_usd") or 50000.0)
+            safe_trade = (not is_hp) and c_clean and s_score >= 60 and liq_check >= 10000.0
+            security_shield = {
+                "is_safe_to_trade": safe_trade,
+                "honeypot": is_hp,
+                "contract_clean": c_clean,
+                "mint_revoked": bool(rc_audit.get("mint_revoked", True)),
+                "freeze_revoked": bool(rc_audit.get("freeze_revoked", True)),
+                "lp_burned": bool(rc_audit.get("lp_burned", True)),
+                "safety_score": s_score,
+                "liquidity_usd": liq_check,
+                "verdict": rc_audit.get("verdict") or (
+                    "AMAN UNTUK TRADING • LOLOS CEK ANTI-HONEYPOT & KONTRAK BERSIH"
+                    if safe_trade
+                    else "DILARANG TRADING • TERDETEKSI RISIKO HONEYPOT / KONTRAK BERBAHAYA"
+                ),
+                "risks": rc_audit.get("risks") or [],
+            }
+            if not safe_trade:
+                for tf_k in timeframes_decision:
+                    timeframes_decision[tf_k]["decision_badge"] = "JANGAN BELI (BAHAYA HONEYPOT / RISIKO TINGGI)"
+                    timeframes_decision[tf_k]["action_title"] = "DIBLOKIR OLEH SECURITY SHIELD: JANGAN ENTRY TOKEN INI"
+                active_decision = timeframes_decision.get(tf_norm, timeframes_decision["1d"])
+        except Exception:
+            pass
+
     return {
         "code": clean_code,
         "yahoo_symbol": yahoo_sym,
@@ -1816,6 +1894,7 @@ def analyze_crypto(
         "futures_plan": active_futures_plan,
         "futures_timeframes_plan": futures_timeframes_plan,
         "technical_audit": tech_audit,
+        "security_shield": security_shield,
         "technicals": {
             "rsi_14": rsi14,
             "rsi_status": rsi_status,

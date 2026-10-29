@@ -405,7 +405,13 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     socials = (info_obj.get("socials") or []) + (info_obj.get("websites") or [])
     has_socials = len(socials) > 0
 
-    # Calculate real liquidity & orderflow-based safety score
+    # Anti-Honeypot & Rug Trap Detection on live DEX pair telemetry
+    sell_blocked_honeypot = (buys_5m >= 10 and sells_5m == 0 and int(txns_h1.get("sells") or 0) == 0)
+    fake_mcap_trap = (mcap > 60000 and (liq_usd / mcap) < 0.015)
+    extreme_dump = (change_5m <= -35.0 or change_1h <= -55.0)
+    is_honeypot = bool(sell_blocked_honeypot or fake_mcap_trap)
+
+    # Calculate real liquidity, orderflow & anti-honeypot safety score
     safety_score = 66
     if liq_usd >= 5000:
         safety_score += 6
@@ -415,11 +421,15 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         safety_score += 8
     if mcap > 0 and (liq_usd / mcap) >= 0.05:
         safety_score += 5
-    if buys_5m + sells_5m >= 4:
+    if buys_5m + sells_5m >= 4 and sells_5m > 0:
         safety_score += 4
     if has_socials:
         safety_score += 3
-    safety_score = min(98, max(35, safety_score))
+    if is_honeypot:
+        safety_score -= 45
+    if extreme_dump:
+        safety_score -= 25
+    safety_score = min(98, max(15, safety_score))
 
     gmgn_chain = "base" if chain_id.lower() == "base" else "sol"
     gmgn_url = f"https://gmgn.ai/{gmgn_chain}/token/{base_addr}" if base_addr else f"https://gmgn.ai/?chain={gmgn_chain}"
@@ -429,7 +439,8 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     is_legacy = is_legacy_token(base_sym)
     token_name = str(base.get("name") or "Meme Token")
     is_charity = is_charity_token(base_sym, token_name)
-    is_new_creation = (not is_legacy) and (not is_charity) and (age_hours <= 6.0 or (is_bonding_dex and mcap <= 250000.0)) and (mcap <= 600000.0)
+    is_safe_to_trade = bool((not is_honeypot) and (not extreme_dump) and (not is_charity) and safety_score >= 65)
+    is_new_creation = (not is_legacy) and (not is_charity) and (not is_honeypot) and (age_hours <= 6.0 or (is_bonding_dex and mcap <= 250000.0)) and (mcap <= 600000.0)
 
     return {
         "symbol": symbol,
@@ -445,6 +456,8 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "is_new_creation": is_new_creation,
         "is_legacy_token": is_legacy,
         "is_charity": is_charity,
+        "honeypot": is_honeypot,
+        "is_safe_to_trade": is_safe_to_trade,
         "price": price_usd,
         "price_idr": round(price_usd * usd_idr, 4),
         "market_cap": round(mcap, 2),
@@ -590,8 +603,13 @@ def fetch_dexscreener_search(query: str, limit: int = 20, allow_bonding_curve: b
     with urllib.request.urlopen(req, timeout=8) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     pairs = data.get("pairs") or []
+    # Sort strictly by actual USD liquidity first, then 24h volume, preventing 0-liq copycats with fake FDV from winning
     pairs.sort(
-        key=lambda p: float((p.get("liquidity") or {}).get("usd") or p.get("marketCap") or p.get("fdv") or 0.0),
+        key=lambda p: (
+            float((p.get("liquidity") or {}).get("usd") or 0.0),
+            float((p.get("volume") or {}).get("h24") or 0.0),
+            float(p.get("marketCap") or p.get("fdv") or 0.0),
+        ),
         reverse=True,
     )
     seen = set()
@@ -990,8 +1008,13 @@ def get_live_pulse_feed() -> dict:
     migrated: list[dict] = []
 
     for t in all_tokens:
-        # Strictly reject charity / donation coins
+        # Strictly reject charity / donation / mayhem coins
         if t.get("is_charity") or is_charity_token(t.get("symbol") or t.get("base_symbol"), t.get("name")):
+            continue
+        # Strictly reject honeypots, sell-blocked tokens, active dumps, or low safety scores
+        if t.get("honeypot") is True or t.get("is_safe_to_trade") is False or int(t.get("safety_score") or 0) < 65:
+            continue
+        if int(t.get("buys_5m") or 0) >= 10 and int(t.get("sells_5m") or 0) == 0:
             continue
 
         _register_token_cache(t, now)
@@ -1065,9 +1088,29 @@ def get_live_token_info(symbol_or_contract: str, max_cache_age: float = 25.0) ->
     fx = get_fx_rate()
     usd_idr = fx["usd_idr"]
 
-    # 1. If query is a contract address OR we have a known contract address in _CONTRACT_REGISTRY, query exact token endpoint first
+    # 1. If query is a contract address OR we have a known/canonical contract address, query exact token endpoint first
+    canonical_meme_contracts = {
+        "WIF": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+        "BONK": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+        "POPCAT": "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+        "BOME": "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
+        "MEW": "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5",
+        "PENGU": "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv",
+        "PNUT": "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",
+        "FARTCOIN": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",
+        "GOAT": "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
+        "MOODENG": "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
+        "ACT": "GJAFwWjJ3vnTsrQVabjBVK2TYB1YtRCQXRDfDgUnpump",
+        "AI16Z": "HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC",
+        "PEPE": "0x6982508145454Ce325dDbE47a25d4ec3d2311933",
+        "BRETT": "0x532f27101965dd16442E59d40670FaF5eBB142E4",
+    }
     base_query = key.split("/")[0] if "/" in key else raw_query
-    known_ca = _CONTRACT_REGISTRY.get(key) or _CONTRACT_REGISTRY.get(base_query.upper())
+    known_ca = (
+        canonical_meme_contracts.get(base_query.upper())
+        or _CONTRACT_REGISTRY.get(key)
+        or _CONTRACT_REGISTRY.get(base_query.upper())
+    )
     if not known_ca and len(raw_query) >= 30 and "/" not in raw_query:
         known_ca = raw_query
 
@@ -1610,15 +1653,17 @@ def live_rug_audit(query: str) -> dict:
         score -= 40
     if creator_rugged_count > 0:
         score -= 20
-    if liq_usd < 15000:
+    if liq_usd >= 100000:
+        score += 6
+    elif liq_usd < 15000:
         score -= 14
     elif liq_usd < 30000:
         score -= 8
-    if liq_mcap_ratio_pct < 5.0 and mcap_usd > 50000:
+    if liq_mcap_ratio_pct < 5.0 and mcap_usd > 50000 and liq_usd < 100000:
         score -= 6
-    if top10_excl_amm_pct > 45.0:
+    if top10_excl_amm_pct > 45.0 and liq_usd < 250000:
         score -= 12
-    elif top10_excl_amm_pct > 25.0:
+    elif top10_excl_amm_pct > 25.0 and liq_usd < 250000:
         score -= 5
     if cluster_risk_level == "HIGH":
         score -= 12
@@ -1632,8 +1677,8 @@ def live_rug_audit(query: str) -> dict:
         verdict = "BAHAYA HONEYPOT • JANGAN BELI (PENJUALAN RAWAN TERKUNCI)"
     elif not contract_clean:
         verdict = "KONTRAK BERBAHAYA (MINT/FREEZE/HOOK AKTIF)"
-    elif safety_score >= 78 and liq_usd >= 30000 and cluster_risk_level != "HIGH":
-        verdict = "AMAN DARI HONEYPOT • KONTRAK BERSIH & LIKUIDITAS CUKUP"
+    elif safety_score >= 75 and liq_usd >= 30000 and cluster_risk_level != "HIGH":
+        verdict = "AMAN UNTUK TRADING • BEBAS HONEYPOT, KONTRAK BERSIH & LIKUIDITAS CUKUP"
     elif contract_clean:
         verdict = "AMAN DARI HONEYPOT • WASPADA RISIKO DUMP / LIKUIDITAS TIPIS"
     else:
