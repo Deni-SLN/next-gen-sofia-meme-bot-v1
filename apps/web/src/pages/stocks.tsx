@@ -28,11 +28,12 @@ const QUICK_TICKERS = [
 
 const TIMEFRAME_OPTIONS = [
   { id: '15m', label: '15 Menit', short: '15M' },
-  { id: '1h', label: '1 Jam', short: '1J' },
-  { id: '1d', label: '1 Hari', short: '1H' },
-  { id: '1w', label: '1 Minggu', short: '1M' },
-  { id: '1mo', label: '1 Bulan', short: '1B' },
-  { id: '1y', label: '1 Tahun', short: '1T' },
+  { id: '1h', label: '1 Jam', short: '1H' },
+  { id: '4h', label: '4 Jam', short: '4H' },
+  { id: '1d', label: '1 Hari', short: '1D' },
+  { id: '1w', label: '1 Minggu', short: '1W' },
+  { id: '1mo', label: '1 Bulan', short: '1M' },
+  { id: '1y', label: '1 Tahun', short: '1Y' },
 ];
 
 const ANALYSIS_TABS = [
@@ -1432,11 +1433,13 @@ Mulai analisis dengan memverifikasi ticker, bursa, harga, laporan keuangan terba
                           candles={stockData?.candles || stockData?.recent_candles || candles}
                           symbol={stockData.code}
                           timeframe={selectedTimeframe}
+                          timeframes={TIMEFRAME_OPTIONS}
+                          onTimeframeChange={handleTimeframeSelect}
                           currency={stockData.currency}
                           technicalAudit={stockData.technical_audit}
                           initialFocus={focusedIndicator}
                           onFocusChange={setFocusedIndicator}
-                          height={isUltrawide ? 470 : 440}
+                          height={isUltrawide ? 480 : 460}
                         />
                       )}
                     </div>
@@ -1659,11 +1662,13 @@ Mulai analisis dengan memverifikasi ticker, bursa, harga, laporan keuangan terba
                     candles={stockData?.candles || stockData?.recent_candles || candles}
                     symbol={stockData.code}
                     timeframe={selectedTimeframe}
+                    timeframes={TIMEFRAME_OPTIONS}
+                    onTimeframeChange={handleTimeframeSelect}
                     currency={stockData.currency}
                     technicalAudit={stockData.technical_audit}
                     initialFocus={focusedIndicator}
                     onFocusChange={setFocusedIndicator}
-                    height={isUltrawide ? 490 : 450}
+                    height={isUltrawide ? 490 : 460}
                   />
 
                   {/* Price Structure: Breakout, Breakdown & Pullback Detection */}

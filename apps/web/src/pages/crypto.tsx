@@ -602,11 +602,13 @@ export default function CryptoAnalysisPage() {
                       candles={data?.candles || data?.recent_candles || []}
                       symbol={data?.code || activeSymbol}
                       timeframe={selectedTimeframe}
+                      timeframes={availableTimeframes}
+                      onTimeframeChange={handleTimeframeChange}
                       currency="USD"
                       technicalAudit={data?.technical_audit}
                       initialFocus={focusedIndicator}
                       onFocusChange={setFocusedIndicator}
-                      height={450}
+                      height={470}
                     />
                   )}
 
@@ -1242,11 +1244,13 @@ export default function CryptoAnalysisPage() {
                     candles={data?.candles || data?.recent_candles || []}
                     symbol={data?.code || activeSymbol}
                     timeframe={selectedTimeframe}
+                    timeframes={availableTimeframes}
+                    onTimeframeChange={handleTimeframeChange}
                     currency="USD"
                     technicalAudit={data?.technical_audit}
                     initialFocus={focusedIndicator}
                     onFocusChange={setFocusedIndicator}
-                    height={450}
+                    height={470}
                   />
                 )}
 

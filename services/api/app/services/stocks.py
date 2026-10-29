@@ -60,6 +60,24 @@ SUPPORTED_TIMEFRAMES: dict[str, dict[str, Any]] = {
         "lookback_bars": 30,
         "validity_hours": 12,
     },
+    "4h": {
+        "id": "4h",
+        "label": "4 Jam",
+        "strategy": "Swing Momentum (4 Jam)",
+        "horizon": "Swing Momentum (4 Jam)",
+        "hold_duration": "1 – 5 Hari Bursa",
+        "yahoo_interval": "60m",
+        "yahoo_range": "3mo",
+        "tp1_mult": 1.35,
+        "tp2_mult": 2.60,
+        "sl_mult": 1.00,
+        "min_tp1_pct": 2.8,
+        "min_tp2_pct": 5.6,
+        "min_sl_pct": 2.0,
+        "min_rr_threshold": 1.38,
+        "lookback_bars": 28,
+        "validity_hours": 24,
+    },
     "1d": {
         "id": "1d",
         "label": "1 Hari",
@@ -611,7 +629,7 @@ def _fetch_timeframe_candles(yahoo_sym: str, tf_key: str, daily_candles: list[di
     tf_cfg = SUPPORTED_TIMEFRAMES.get(tf_key, SUPPORTED_TIMEFRAMES["1d"])
     y_interval = tf_cfg["yahoo_interval"]
     y_range = tf_cfg["yahoo_range"]
-    cache_key = f"{yahoo_sym}__{y_interval}"
+    cache_key = f"{yahoo_sym}__{tf_key}__{y_interval}"
     now_ts = time.time()
 
     if cache_key in _INTRA_CACHE and (now_ts - _INTRA_CACHE[cache_key]["ts"] < 180):
@@ -647,6 +665,24 @@ def _fetch_timeframe_candles(yahoo_sym: str, tf_key: str, daily_candles: list[di
                         interval=y_interval,
                     )
                     if len(candles) >= 10:
+                        if tf_key == "4h" and len(candles) >= 40:
+                            agg_4h = []
+                            for i in range(0, len(candles), 4):
+                                chunk = candles[i : i + 4]
+                                if not chunk:
+                                    continue
+                                agg_4h.append({
+                                    "date": chunk[-1]["date"],
+                                    "timestamp": chunk[-1]["timestamp"],
+                                    "open": chunk[0]["open"],
+                                    "high": max(c["high"] for c in chunk),
+                                    "low": min(c["low"] for c in chunk),
+                                    "close": chunk[-1]["close"],
+                                    "volume": sum(int(c.get("volume") or 0) for c in chunk),
+                                    "adjusted_close": chunk[-1]["close"],
+                                })
+                            if len(agg_4h) >= 15:
+                                candles = agg_4h
                         _INTRA_CACHE[cache_key] = {"ts": now_ts, "candles": candles}
                         return candles
     except Exception:
