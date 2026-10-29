@@ -7,6 +7,7 @@ import { LucideIcon } from '@/components/LucideIcon';
 const DEFAULT_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
 
 export default function JournalPage() {
+  const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE' | 'WALLET'>('LIVE');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [outcomeFilter, setOutcomeFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -16,6 +17,7 @@ export default function JournalPage() {
   const [actionErr, setActionErr] = useState<string>('');
   const [solanaWallet, setSolanaWallet] = useState<string>(DEFAULT_SOL_WALLET);
   const [copiedWalletKey, setCopiedWalletKey] = useState<string | null>(null);
+  const [syncingWallet, setSyncingWallet] = useState<boolean>(false);
 
   const [downloading, setDownloading] = useState<boolean>(false);
 
@@ -33,15 +35,15 @@ export default function JournalPage() {
   const [formTxHash, setFormTxHash] = useState<string>('');
   const [formNotes, setFormNotes] = useState<string>('Live bot snipe execution');
 
-  // Paginate with max 20 trades per page
+  // Paginate with max 20 trades per page, separated by PAPER | LIVE | WALLET
   const journalQuery = useApiQuery(
-    () => api.getJournal(searchQuery, outcomeFilter, PAGE_SIZE, currentPage),
-    [searchQuery, outcomeFilter, currentPage]
+    () => api.getJournal(searchQuery, outcomeFilter, PAGE_SIZE, currentPage, selectedMode, solanaWallet),
+    [searchQuery, outcomeFilter, currentPage, selectedMode, solanaWallet]
   );
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, outcomeFilter]);
+  }, [searchQuery, outcomeFilter, selectedMode]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -85,12 +87,28 @@ export default function JournalPage() {
       setDownloading(true);
       setActionMsg('');
       setActionErr('');
-      await api.downloadJournalExcel();
-      setActionMsg('📥 Berhasil mengunduh seluruh arsip jurnal trading live (format Excel / CSV).');
+      await api.downloadJournalExcel(selectedMode);
+      setActionMsg(`📥 Berhasil mengunduh arsip jurnal trading mode ${selectedMode} (format Excel / CSV).`);
     } catch (err: any) {
       setActionErr(err?.message || 'Gagal mengunduh file Excel Jurnal Trading.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleSyncOnchainWallet = async () => {
+    try {
+      setSyncingWallet(true);
+      setActionMsg('');
+      setActionErr('');
+      const res = await api.syncWalletJournal(activeSolanaWallet);
+      setSelectedMode('WALLET');
+      setActionMsg(res?.message || `✅ Sinkronisasi Wallet Solana (${activeSolanaWallet.slice(0, 6)}...${activeSolanaWallet.slice(-4)}) selesai.`);
+      journalQuery.refetch();
+    } catch (err: any) {
+      setActionErr(err?.message || 'Gagal menyinkronkan wallet on-chain Solana.');
+    } finally {
+      setSyncingWallet(false);
     }
   };
 
@@ -113,12 +131,14 @@ export default function JournalPage() {
         tx_hash: formTxHash.trim() || `tx_${Date.now()}`,
         notes: formNotes.trim(),
         status: 'closed',
+        mode: selectedMode,
+        wallet_address: activeSolanaWallet,
       });
-      setActionMsg(`✅ ${res.message || 'Transaksi live berhasil dicatat ke Neonbase!'}`);
+      setActionMsg(`✅ ${res.message || `Transaksi mode ${selectedMode} berhasil dicatat ke Neonbase!`}`);
       setShowAddModal(false);
       journalQuery.refetch();
     } catch (err: any) {
-      setActionErr(err?.message || 'Gagal mencatat transaksi live');
+      setActionErr(err?.message || 'Gagal mencatat transaksi ke jurnal');
     }
   };
 
@@ -143,28 +163,83 @@ export default function JournalPage() {
           <div className="flex items-center gap-2">
             <LucideIcon name="book-open" className="w-4 h-4 text-emerald-400" />
             <h1 className="text-sm font-extrabold text-slate-100 uppercase tracking-wide">
-              📖 Jurnal Trading Live Bot (Neonbase Cloud)
+              📖 Jurnal Trading ({selectedMode === 'PAPER' ? 'Mode Paper Simulasi' : selectedMode === 'WALLET' ? 'Mode Wallet Solana On-Chain' : 'Mode Live Bot'})
             </h1>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold">
-              KHUSUS MODE LIVE
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
+                selectedMode === 'PAPER'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : selectedMode === 'WALLET'
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+              }`}
+            >
+              MODE {selectedMode} TERPISAH
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Mencatat setiap token yang dibeli oleh Sniper Bot, volume, harga market, biaya gas &amp; DEX, serta profit/loss bersih • Data tersimpan permanen di Neon PostgreSQL.
+            {selectedMode === 'PAPER'
+              ? 'Jurnal khusus simulasi Paper Trading (virtual saldo $100) • Terpisah penuh dari eksekusi Live Bot & Wallet Solana pribadi.'
+              : selectedMode === 'WALLET'
+              ? `Jurnal khusus aktivitas & PnL on-chain dari Wallet Solana Anda (${activeSolanaWallet}) • Terhubung ke Pengaturan Sistem & Kredensial.`
+              : 'Jurnal khusus eksekusi Sniper Bot Live (token, volume, biaya gas/DEX, profit/loss bersih) • Data tersimpan permanen di Neon PostgreSQL.'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
+          {/* 3-Mode Segmented Switch: PAPER | LIVE | WALLET */}
+          <div className="flex items-center bg-obsidian-950 border border-obsidian-700 rounded-xl p-1 text-xs font-mono">
+            <button
+              type="button"
+              onClick={() => setSelectedMode('PAPER')}
+              className={`px-3 py-1.5 rounded-lg transition font-bold flex items-center gap-1.5 ${
+                selectedMode === 'PAPER'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Jurnal Khusus Simulasi Paper Trading"
+            >
+              <LucideIcon name="shield-check" className="w-3.5 h-3.5" />
+              <span>PnL Paper</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMode('LIVE')}
+              className={`px-3 py-1.5 rounded-lg transition font-bold flex items-center gap-1.5 ${
+                selectedMode === 'LIVE'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Jurnal Khusus Eksekusi Sniper Bot Live"
+            >
+              <LucideIcon name="flame" className="w-3.5 h-3.5" />
+              <span>PnL Live</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMode('WALLET')}
+              className={`px-3 py-1.5 rounded-lg transition font-bold flex items-center gap-1.5 ${
+                selectedMode === 'WALLET'
+                  ? 'bg-purple-500/25 text-purple-200 border border-purple-400/50 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title={`Jurnal Khusus Wallet Solana (${activeSolanaWallet})`}
+            >
+              <LucideIcon name="wallet" className="w-3.5 h-3.5 text-purple-300" />
+              <span>Wallet ({activeSolanaWallet.slice(0, 4)}...{activeSolanaWallet.slice(-4)})</span>
+            </button>
+          </div>
+
           {/* Download Excel Button */}
           <button
             type="button"
             onClick={handleDownloadExcel}
             disabled={downloading}
             className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-[11px] shadow-glow-emerald transition flex items-center gap-1.5"
-            title="Download seluruh arsip jurnal trading live dalam format Excel/CSV"
+            title={`Download seluruh arsip jurnal trading mode ${selectedMode} dalam format Excel/CSV`}
           >
             <LucideIcon name="file-spreadsheet" className="w-3.5 h-3.5" />
-            <span>{downloading ? 'Mengunduh Excel...' : '📥 Download Excel (Semua Jurnal)'}</span>
+            <span>{downloading ? 'Mengunduh Excel...' : `📥 Excel (${selectedMode})`}</span>
           </button>
 
           <button
@@ -180,7 +255,7 @@ export default function JournalPage() {
             onClick={() => setShowAddModal(true)}
             className="px-3 py-1.5 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 border border-obsidian-600 font-bold text-[11px] transition"
           >
-            + Catat Manual
+            + Catat ({selectedMode})
           </button>
         </div>
       </div>
@@ -207,6 +282,16 @@ export default function JournalPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <button
+            type="button"
+            onClick={handleSyncOnchainWallet}
+            disabled={syncingWallet}
+            className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white border border-purple-400/40 font-extrabold flex items-center gap-1 transition shadow-sm"
+            title="Sinkronkan riwayat transaksi on-chain Solana langsung dari RPC Mainnet ke mode WALLET"
+          >
+            <LucideIcon name="refresh-cw" className={`w-3 h-3 ${syncingWallet ? 'animate-spin' : ''}`} />
+            <span>{syncingWallet ? 'Syncing On-Chain...' : 'Sync Wallet On-Chain'}</span>
+          </button>
           <a
             href={`https://solscan.io/account/${activeSolanaWallet}`}
             target="_blank"
@@ -245,9 +330,9 @@ export default function JournalPage() {
           {/* Card 1: Modal Awal */}
           <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-emerald-500/40 transition">
             <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-slate-400 font-medium">MODAL AWAL LIVE</span>
+              <span className="text-slate-400 font-medium">MODAL AWAL ({selectedMode})</span>
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                BASE MODAL
+                MODE {selectedMode}
               </span>
             </div>
             <div className="flex items-baseline gap-2">
@@ -421,9 +506,9 @@ export default function JournalPage() {
           <div className="px-3 py-2 border-b border-obsidian-800 flex flex-wrap items-center justify-between gap-2">
             <div className="font-bold text-xs uppercase tracking-wider text-slate-100 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Histori Transaksi Live On-Chain (Maks 20 / Halaman)</span>
+              <span>Histori Transaksi Mode {selectedMode} (Maks 20 / Halaman)</span>
               <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                PAGINATION 20/PAGE
+                MODE {selectedMode}
               </span>
             </div>
             <div className="flex items-center gap-2 text-[10px] text-slate-400">
@@ -485,7 +570,20 @@ export default function JournalPage() {
                     return (
                       <tr key={t.id} className="hover:bg-obsidian-850/60 transition">
                         <td className="py-2 px-2.5">
-                          <div className="font-bold text-slate-200 text-xs">#{t.id}</div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-slate-200 text-xs">#{t.id}</span>
+                            <span
+                              className={`text-[8px] px-1 py-0.2 rounded font-bold border ${
+                                t.mode === 'PAPER'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                  : t.mode === 'WALLET'
+                                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              }`}
+                            >
+                              {t.mode || selectedMode}
+                            </span>
+                          </div>
                           <div className="text-[9px] text-slate-500 whitespace-nowrap">{formattedDate}</div>
                         </td>
 

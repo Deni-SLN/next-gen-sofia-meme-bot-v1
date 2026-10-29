@@ -435,10 +435,11 @@ export const api = {
   updateRiskConfig: (data: any) =>
     request<any>('/risk/config', { method: 'PUT', body: JSON.stringify(data) }),
   getPerformance: () => request<any>('/performance/summary'),
-  getDailyCalendar: (mode: string = 'ALL', year?: number, month?: number) => {
+  getDailyCalendar: (mode: string = 'PAPER', year?: number, month?: number, walletAddress?: string) => {
     const params = new URLSearchParams({ mode });
     if (year) params.append('year', String(year));
     if (month) params.append('month', String(month));
+    if (walletAddress) params.append('wallet_address', walletAddress);
     return request<any>(`/performance/daily-calendar?${params.toString()}`);
   },
   getTreasurySummary: () => request<any>('/wallets/treasury/summary'),
@@ -491,27 +492,41 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ enabled, max_copy_usd }),
     }),
-  // Live Trading Journal Endpoints (Neonbase)
-  getJournal: (q?: string, outcome?: string, limit: number = 20, page: number = 1) => {
+  // Trading Journal Endpoints Separated by Mode (PAPER | LIVE | WALLET)
+  getJournal: (
+    q?: string,
+    outcome?: string,
+    limit: number = 20,
+    page: number = 1,
+    mode: string = 'LIVE',
+    walletAddress?: string
+  ) => {
     const params = new URLSearchParams();
     if (q) params.append('q', q);
     if (outcome) params.append('outcome', outcome);
     if (limit) params.append('limit', String(limit));
     if (page) params.append('page', String(page));
+    if (mode) params.append('mode', mode);
+    if (walletAddress) params.append('wallet_address', walletAddress);
     const qs = params.toString();
     return request<any>(`/journal${qs ? `?${qs}` : ''}`);
   },
+  syncWalletJournal: (walletAddress: string) =>
+    request<any>('/journal/sync-wallet', {
+      method: 'POST',
+      body: JSON.stringify({ wallet_address: walletAddress }),
+    }),
   recordJournalTrade: (data: any) =>
     request<any>('/journal/trades', { method: 'POST', body: JSON.stringify(data) }),
   deleteJournalTrade: (tradeId: number) =>
     request<any>(`/journal/trades/${tradeId}`, { method: 'DELETE' }),
-  downloadJournalExcel: async () => {
+  downloadJournalExcel: async (mode: string = 'LIVE') => {
     const token = getToken();
     const headers: Record<string, string> = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const res = await fetch(`${BASE}/journal/export-excel`, { headers });
+    const res = await fetch(`${BASE}/journal/export-excel?mode=${encodeURIComponent(mode)}`, { headers });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.message || err?.detail || 'Gagal mengunduh file Excel Jurnal Trading');
@@ -521,7 +536,7 @@ export const api = {
     const a = document.createElement('a');
     a.href = url;
     const nowStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    a.download = `Jurnal_Trading_Live_Neonbase_${nowStr}.csv`;
+    a.download = `Jurnal_Trading_${mode.toUpperCase()}_Neonbase_${nowStr}.csv`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);

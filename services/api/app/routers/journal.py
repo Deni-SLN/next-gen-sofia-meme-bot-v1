@@ -21,9 +21,14 @@ class TradeRecordRequest(BaseModel):
     dex_fee_usd: float = 0.0
     gas_fee_usd: float = 0.05
     chain: str = "Solana"
+    mode: str = "LIVE"
     status: str = "closed"
     tx_hash: str = ""
     notes: str = ""
+
+
+class SyncWalletRequest(BaseModel):
+    wallet_address: str = "8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos"
 
 
 @router.get("")
@@ -31,21 +36,40 @@ class TradeRecordRequest(BaseModel):
 def get_live_journal(
     q: str | None = Query(None, description="Filter by symbol or chain"),
     outcome: str | None = Query(None, description="Filter by WIN, LOSS, OPEN"),
+    mode: str = Query("LIVE", description="PAPER | LIVE | WALLET"),
+    wallet_address: str | None = Query(None, description="Solana wallet address from System Settings"),
     limit: int = Query(20, ge=1, le=20, description="Max trades per page (max 20)"),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     db: Session = Depends(get_db),
 ):
-    """Retrieve Live Trading Journal summary with 4 Cards and paginated transactions (max 20 per page) stored in Neonbase."""
-    return journal.get_journal_summary(db, token_filter=q, outcome_filter=outcome, limit=limit, page=page)
+    """Retrieve Trading Journal summary separated by mode (PAPER | LIVE | WALLET)."""
+    return journal.get_journal_summary(
+        db,
+        token_filter=q,
+        outcome_filter=outcome,
+        limit=limit,
+        page=page,
+        mode=mode,
+        wallet_address=wallet_address,
+    )
+
+
+@router.post("/sync-wallet")
+def sync_wallet_journal(body: SyncWalletRequest, db: Session = Depends(get_db)):
+    """Sync on-chain transactions for the user's configured Solana wallet into mode='WALLET'."""
+    return journal.sync_solana_wallet_onchain_trades(db, body.wallet_address)
 
 
 @router.get("/export-excel")
 @router.get("/export-csv")
-def export_journal_excel(db: Session = Depends(get_db)):
-    """Export ALL live trading journal transactions from Neonbase into an Excel-ready CSV file."""
-    csv_content = journal.export_journal_csv(db)
+def export_journal_excel(
+    mode: str = Query("LIVE", description="PAPER | LIVE | WALLET"),
+    db: Session = Depends(get_db),
+):
+    """Export trading journal transactions for the selected mode (PAPER | LIVE | WALLET) into an Excel-ready CSV file."""
+    csv_content = journal.export_journal_csv(db, mode=mode)
     now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"Jurnal_Trading_Live_Neonbase_{now_str}.csv"
+    filename = f"Jurnal_Trading_{mode.upper()}_Neonbase_{now_str}.csv"
     return Response(
         content=csv_content.encode("utf-8"),
         media_type="text/csv; charset=utf-8",

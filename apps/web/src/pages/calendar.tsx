@@ -9,13 +9,15 @@ const DEFAULT_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
 
 export default function CalendarPage() {
   const isUltrawide = useUltrawide();
-  const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE' | 'ALL'>('PAPER');
+  const [selectedMode, setSelectedMode] = useState<'PAPER' | 'LIVE' | 'WALLET'>('PAPER');
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
   const [tradePage, setTradePage] = useState<number>(1);
   const [solanaWallet, setSolanaWallet] = useState<string>(DEFAULT_SOL_WALLET);
   const [copiedWalletKey, setCopiedWalletKey] = useState<string | null>(null);
+  const [syncingWallet, setSyncingWallet] = useState<boolean>(false);
+  const [syncNotice, setSyncNotice] = useState<string>('');
   const TRADES_PER_PAGE = 20;
 
   useEffect(() => {
@@ -42,8 +44,8 @@ export default function CalendarPage() {
   }, []);
 
   const calendarQuery = useApiQuery(
-    () => api.getDailyCalendar(selectedMode, currentYear, currentMonth),
-    [selectedMode, currentYear, currentMonth]
+    () => api.getDailyCalendar(selectedMode, currentYear, currentMonth, solanaWallet),
+    [selectedMode, currentYear, currentMonth, solanaWallet]
   );
 
   const calData = calendarQuery.data;
@@ -51,6 +53,24 @@ export default function CalendarPage() {
   const summary = calData?.summary;
   const days: any[] = calData?.days || [];
   const activeSolanaWallet = solanaWallet || calData?.tracked_wallet?.address || DEFAULT_SOL_WALLET;
+
+  const handleSyncOnchainWallet = async () => {
+    setSyncingWallet(true);
+    setSyncNotice('');
+    try {
+      const res = await api.syncWalletJournal(activeSolanaWallet);
+      await calendarQuery.refetch();
+      setSyncNotice(
+        `✅ Sinkronisasi Wallet Solana (${activeSolanaWallet.slice(0, 6)}...${activeSolanaWallet.slice(-4)}) selesai! (${res?.synced || 0} tx baru)`
+      );
+      setTimeout(() => setSyncNotice(''), 4000);
+    } catch {
+      setSyncNotice('⚠️ Gagal menyinkronkan RPC Solana, menampilkan arsip tersimpan.');
+      setTimeout(() => setSyncNotice(''), 4000);
+    } finally {
+      setSyncingWallet(false);
+    }
+  };
 
   const handleCopyWallet = (text: string, key: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -133,7 +153,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Center: Mode Separator Switch (PAPER vs LIVE vs ALL) */}
+        {/* Center: 3-Mode Separator Switch (PAPER vs LIVE vs WALLET) */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center bg-obsidian-950 p-1 rounded-xl border border-obsidian-700">
             <button
@@ -146,7 +166,7 @@ export default function CalendarPage() {
               }
             >
               <LucideIcon name="shield-check" className="w-3.5 h-3.5" />
-              <span>PnL Paper (Simulasi Rp 150rb)</span>
+              <span>PnL Paper (Simulasi)</span>
             </button>
             <button
               type="button"
@@ -158,19 +178,22 @@ export default function CalendarPage() {
               }
             >
               <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-              <span>PnL Live (Uang Asli)</span>
+              <span>PnL Live (Bot)</span>
             </button>
             <button
               type="button"
-              onClick={() => setSelectedMode('ALL')}
+              onClick={() => setSelectedMode('WALLET')}
               className={
-                selectedMode === 'ALL'
-                  ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500 text-obsidian-950 font-bold text-xs shadow-glow-cyan transition'
-                  : 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-medium transition'
+                selectedMode === 'WALLET'
+                  ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-500/25 transition'
+                  : 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-purple-300 hover:text-white text-xs font-medium transition'
               }
+              title={`Kalender PnL khusus Wallet Solana: ${activeSolanaWallet}`}
             >
-              <LucideIcon name="layers" className="w-3.5 h-3.5" />
-              <span>Semua Mode</span>
+              <LucideIcon name="wallet" className="w-3.5 h-3.5" />
+              <span>
+                PnL Wallet ({activeSolanaWallet.slice(0, 4)}...{activeSolanaWallet.slice(-4)})
+              </span>
             </button>
           </div>
 
@@ -228,6 +251,16 @@ export default function CalendarPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <button
+            type="button"
+            onClick={handleSyncOnchainWallet}
+            disabled={syncingWallet}
+            className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white border border-purple-400/40 font-extrabold flex items-center gap-1 transition shadow-sm"
+            title="Sinkronkan riwayat transaksi on-chain Solana langsung dari RPC Mainnet ke mode WALLET"
+          >
+            <LucideIcon name="refresh-cw" className={`w-3 h-3 ${syncingWallet ? 'animate-spin' : ''}`} />
+            <span>{syncingWallet ? 'Syncing On-Chain...' : 'Sync Wallet On-Chain'}</span>
+          </button>
           <a
             href={`https://solscan.io/account/${activeSolanaWallet}`}
             target="_blank"
@@ -247,6 +280,12 @@ export default function CalendarPage() {
           </Link>
         </div>
       </div>
+
+      {syncNotice && (
+        <div className="px-3.5 py-2 rounded-lg bg-purple-950/60 border border-purple-500/40 text-purple-200 text-xs font-mono">
+          {syncNotice}
+        </div>
+      )}
 
       <QueryState
         isLoading={calendarQuery.isLoading}
@@ -540,6 +579,8 @@ export default function CalendarPage() {
                                 className={`text-[9px] px-1.5 py-0.5 rounded font-sans font-bold ${
                                   t.mode === 'LIVE'
                                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                    : t.mode === 'WALLET'
+                                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
                                     : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                                 }`}
                               >

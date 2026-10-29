@@ -156,10 +156,11 @@ def get_summary(db: Session) -> dict:
 
 def get_daily_calendar(
     db: Session,
-    mode: str = "ALL",
+    mode: str = "PAPER",
     year: int | None = None,
     month: int | None = None,
     trade_limit_per_day: int = 50,
+    wallet_address: str | None = None,
 ) -> dict:
     import calendar
     from datetime import date, timedelta
@@ -174,12 +175,15 @@ def get_daily_calendar(
 
     from app.services import wallets as wallet_svc
     primary_sol_wallet = wallet_svc.get_or_ensure_primary_solana_wallet(db)
+    if wallet_address and len(wallet_address.strip()) >= 32 and wallet_address.strip() != primary_sol_wallet.address:
+        primary_sol_wallet.address = wallet_address.strip()
+        db.commit()
     active_sol_address = primary_sol_wallet.address or wallet_svc.DEFAULT_USER_SOLANA_WALLET
     active_sol_name = primary_sol_wallet.name or "Dompet Utama Solana (Pengaturan Sistem)"
 
     stmt = select(Trade).where(Trade.status == "closed")
-    mode_clean = (mode or "ALL").upper().strip()
-    if mode_clean in ("PAPER", "LIVE"):
+    mode_clean = (mode or "PAPER").upper().strip()
+    if mode_clean in ("PAPER", "LIVE", "WALLET"):
         stmt = stmt.where(Trade.mode == mode_clean)
     all_trades = list(db.execute(stmt.order_by(Trade.closed_at.desc())).scalars().all())
 

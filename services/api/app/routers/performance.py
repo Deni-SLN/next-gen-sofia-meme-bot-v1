@@ -14,9 +14,10 @@ def get_summary(db: Session = Depends(get_db)):
 
 @router.get("/daily-calendar")
 def get_daily_calendar(
-    mode: str = "ALL",
+    mode: str = "PAPER",
     year: int | None = None,
     month: int | None = None,
+    wallet_address: str | None = None,
     trade_limit_per_day: int = 50,
     db: Session = Depends(get_db),
 ):
@@ -26,4 +27,5 @@ def get_daily_calendar(
         year=year,
         month=month,
         trade_limit_per_day=trade_limit_per_day,
+        wallet_address=wallet_address,
     )
