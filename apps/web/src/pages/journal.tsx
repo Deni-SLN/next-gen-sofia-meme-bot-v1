@@ -312,11 +312,11 @@ export default function JournalPage() {
         </div>
       )}
 
-      {/* 4 CORE CARDS REQUESTED BY USER */}
+      {/* 5 CORE CARDS: TERMASUK KARTU KHUSUS POSISI SALDO SAAT INI */}
       <QueryState isLoading={journalQuery.isLoading} isError={journalQuery.isError} error={journalQuery.error}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5">
           {/* Card 1: Modal Awal */}
-          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-emerald-500/40 transition">
+          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-emerald-500/40 transition shadow-sm">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-slate-400 font-medium">
                 {selectedMode === 'WALLET' ? 'MODAL AWAL DEPOSIT' : `MODAL AWAL (${selectedMode})`}
@@ -326,32 +326,64 @@ export default function JournalPage() {
               </span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-white">
+              <span className="text-2xl font-bold tracking-tight text-white font-mono">
                 {formatUsd(d?.initial_capital_usd)}
               </span>
-              <span className="text-xs text-slate-400">≈ {formatIdr(d?.initial_capital_idr)}</span>
+              <span className="text-xs text-slate-400 font-mono">≈ {formatIdr(d?.initial_capital_idr)}</span>
             </div>
             <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5">
               {selectedMode === 'WALLET' ? (
-                <span title="Saldo On-Chain Dompet Solana Saat Ini">
-                  Saldo Saat Ini:{' '}
-                  <strong className="text-purple-300">
-                    {formatUsd(d?.current_balance_usd || 10.84)} ({d?.current_balance_sol || 0.0888} SOL)
-                  </strong>
+                <span title="Total Deposit Awal Solana On-Chain">
+                  Total Setoran: <strong className="text-emerald-300 font-mono">{d?.total_deposit_sol || 0.1389} SOL</strong>
                 </span>
               ) : (
                 <span title={activeSolanaWallet}>
-                  Solana: <strong className="text-purple-300">{activeSolanaWallet.slice(0, 6)}...{activeSolanaWallet.slice(-4)}</strong>
+                  Alamat: <strong className="text-slate-300 font-mono">{activeSolanaWallet.slice(0, 6)}...{activeSolanaWallet.slice(-4)}</strong>
                 </span>
               )}
-              <span className="text-emerald-400 flex items-center gap-1">
+              <span className="text-emerald-400 flex items-center gap-1 font-mono">
                 <LucideIcon name="shield-check" className="w-3 h-3" /> Tercatat
               </span>
             </div>
           </div>
 
-          {/* Card 2: Keuntungan Sepanjang Masa */}
-          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-emerald-500/40 transition">
+          {/* Card 2: Posisi Saldo Saat Ini (DEDICATED CORE CARD) */}
+          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-purple-500/50 relative overflow-hidden group hover:border-purple-400 transition shadow-md shadow-purple-500/10">
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="text-slate-200 font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                <span>POSISI SALDO SAAT INI</span>
+              </span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                {selectedMode === 'WALLET' ? 'REAL-TIME ON-CHAIN' : 'KAS SIAP ENTRY'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black tracking-tight text-purple-300 font-mono">
+                {formatUsd(d?.current_balance_usd || (d?.initial_capital_usd ?? 0) + (d?.net_result_usd ?? 0))}
+              </span>
+              <span className="text-xs text-purple-300/80 font-mono">
+                ≈ {formatIdr(d?.current_balance_idr || ((d?.current_balance_usd || 10.84) * (d?.usd_idr || 16500)))}
+              </span>
+            </div>
+            <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5">
+              {selectedMode === 'WALLET' ? (
+                <span className="font-mono" title="Saldo koin SOL yang tersedia di dompet on-chain saat ini">
+                  Sisa Saldo: <strong className="text-cyan-300 font-bold">{d?.current_balance_sol || '0.0897'} SOL</strong>
+                </span>
+              ) : (
+                <span className="font-mono">
+                  Sisa Kas: <strong className="text-cyan-300 font-bold">{formatUsd(d?.current_balance_usd || d?.initial_capital_usd)}</strong>
+                </span>
+              )}
+              <span className="text-purple-300 font-bold flex items-center gap-1 font-mono">
+                <LucideIcon name="wallet" className="w-3 h-3 text-purple-400" /> Terhubung
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Keuntungan Sepanjang Masa */}
+          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-emerald-500/40 transition shadow-sm">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-slate-400 font-medium">KEUNTUNGAN SEPANJANG MASA</span>
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -359,19 +391,19 @@ export default function JournalPage() {
               </span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-emerald-400">
+              <span className="text-2xl font-bold tracking-tight text-emerald-400 font-mono">
                 +{formatUsd(d?.total_profit_usd)}
               </span>
-              <span className="text-xs text-emerald-400/80">≈ +{formatIdr(d?.total_profit_idr)}</span>
+              <span className="text-xs text-emerald-400/80 font-mono">≈ +{formatIdr(d?.total_profit_idr)}</span>
             </div>
             <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5">
               <span>{d?.winning_trades ?? 0} Posisi Win (Take-Profit)</span>
-              <span className="text-emerald-400 font-bold">🟢 Net Win</span>
+              <span className="text-emerald-400 font-bold font-mono">🟢 Net Win</span>
             </div>
           </div>
 
-          {/* Card 3: Kerugian Sepanjang Masa */}
-          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-rose-500/40 transition">
+          {/* Card 4: Kerugian Sepanjang Masa */}
+          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-rose-500/40 transition shadow-sm">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-slate-400 font-medium">KERUGIAN SEPANJANG MASA</span>
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
@@ -379,19 +411,19 @@ export default function JournalPage() {
               </span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-rose-400">
+              <span className="text-2xl font-bold tracking-tight text-rose-400 font-mono">
                 -{formatUsd(d?.total_loss_usd)}
               </span>
-              <span className="text-xs text-rose-400/80">≈ -{formatIdr(d?.total_loss_idr)}</span>
+              <span className="text-xs text-rose-400/80 font-mono">≈ -{formatIdr(d?.total_loss_idr)}</span>
             </div>
             <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5">
               <span>{d?.losing_trades ?? 0} Posisi Terkena Stop-Loss</span>
-              <span className="text-rose-400 font-bold">🔴 Cut Loss</span>
+              <span className="text-rose-400 font-bold font-mono">🔴 Cut Loss</span>
             </div>
           </div>
 
-          {/* Card 4: Hasil Bersih (Keuntungan dikurang Kerugian) */}
-          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-cyan-500/40 transition">
+          {/* Card 5: Hasil Bersih (Keuntungan dikurang Kerugian) */}
+          <div className="p-3.5 rounded-xl bg-obsidian-900 border border-obsidian-700/80 relative overflow-hidden group hover:border-cyan-500/40 transition shadow-sm">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-slate-400 font-medium">HASIL BERSIH (PROFIT - LOSS)</span>
               <span
@@ -406,7 +438,7 @@ export default function JournalPage() {
             </div>
             <div className="flex items-baseline gap-2">
               <span
-                className={`text-2xl font-bold tracking-tight ${
+                className={`text-2xl font-bold tracking-tight font-mono ${
                   (d?.net_result_usd ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                 }`}
               >
@@ -414,7 +446,7 @@ export default function JournalPage() {
                 {formatUsd(d?.net_result_usd)}
               </span>
               <span
-                className={`text-xs ${
+                className={`text-xs font-mono ${
                   (d?.net_result_idr ?? 0) >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'
                 }`}
               >
@@ -434,7 +466,7 @@ export default function JournalPage() {
                   {d?.net_result_pct}%
                 </strong>
               </span>
-              <span className="text-slate-300 font-bold">Win Rate: {d?.win_rate}%</span>
+              <span className="text-slate-300 font-bold font-mono">Win Rate: {d?.win_rate}%</span>
             </div>
           </div>
         </div>

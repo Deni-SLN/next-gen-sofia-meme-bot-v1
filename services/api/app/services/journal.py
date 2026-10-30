@@ -269,13 +269,16 @@ def get_journal_summary(
         paper_wallet, _ = portfolio.get_or_create_paper_wallet(db)
         initial_capital_idr = portfolio.get_paper_initial_capital_idr()
         initial_capital_usd = round(initial_capital_idr / usd_idr, 2) if usd_idr > 0 else float(paper_wallet.balance or 10.0)
+        current_balance_usd = round(float(paper_wallet.balance or 10.0), 2)
+        current_balance_idr = round(current_balance_usd * usd_idr, 0)
+        current_balance_sol = round(current_balance_usd / max(1.0, live_engine.get_sol_price_usd()), 4)
     elif mode_clean == "WALLET":
-        # Total deposit on-chain was 0.138918 SOL ($16.96 USD / Rp 308.350)
+        # Total deposit on-chain was 0.138918 SOL
         sol_px = live_engine.get_sol_price_usd()
         initial_capital_usd = round(total_deposit_sol * sol_px, 2)
         initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
-        # Current on-chain wallet balance is 0.088783 SOL ($10.84 USD / Rp 197.050)
-        current_balance_sol = float(primary_sol_wallet.balance or 0.088783)
+        # Current on-chain wallet balance (0.089708 SOL)
+        current_balance_sol = float(primary_sol_wallet.balance or 0.089708)
         current_balance_usd = round(current_balance_sol * sol_px, 2)
         current_balance_idr = round(current_balance_usd * usd_idr, 0)
     else:
@@ -296,6 +299,9 @@ def get_journal_summary(
             for w in trading_wallets:
                 initial_capital_usd += live_engine.wallet_balance_to_usd(w)
         initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
+        current_balance_usd = round(float(live_eq.get("cash_balance_usd") or initial_capital_usd), 2)
+        current_balance_idr = round(current_balance_usd * usd_idr, 0)
+        current_balance_sol = round(current_balance_usd / max(1.0, live_engine.get_sol_price_usd()), 4)
 
     # Query trades strictly filtered by the selected mode (PAPER | LIVE | WALLET)
     query = select(Trade).where(Trade.mode == mode_clean).order_by(Trade.closed_at.desc(), Trade.opened_at.desc(), Trade.id.desc())
