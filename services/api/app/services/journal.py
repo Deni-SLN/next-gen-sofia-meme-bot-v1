@@ -170,9 +170,9 @@ def sync_solana_wallet_onchain_trades(db: Session, wallet_address: str) -> dict:
 
     added = 0
     updated = 0
+    # 1. Process all verified ledger entries
     for sig_str, item in verified_map.items():
         block_time = item.get("block_time")
-        slot = item.get("slot")
         dt = datetime.fromtimestamp(block_time, tz=timezone.utc) if block_time else datetime.now(timezone.utc)
 
         if sig_str in existing_by_hash:
@@ -208,7 +208,45 @@ def sync_solana_wallet_onchain_trades(db: Session, wallet_address: str) -> dict:
             market_price=item["market_price"],
             total=item["total"],
             mode="WALLET",
-            status="closed",
+            status=item.get("status", "closed"),
+            pnl=item["pnl"],
+            slippage_pct=item["slippage_pct"],
+            dex_fee_usd=item["dex_fee_usd"],
+            gas_fee_usd=item["gas_fee_usd"],
+            chain="Solana",
+            tx_hash=sig_str,
+            notes=item["notes"],
+            opened_at=dt,
+            closed_at=dt,
+        )
+        db.add(t)
+        existing_by_hash[sig_str] = t
+        added += 1
+
+    SKIP_NON_TRADE_SIGS = {
+        "2t3msrenZSYsUqkAYt76jUqB6vy7mzrhdy2kjB8m6TnqiWgAYJMXn2J21iPU614XGisAstUB9oovBB9HBd663vDS",  # CloseAccount ATA refund
+        "Jyfktp3i1xaqQ3EjkJcjosVC7JEuFeoCsNaT21EEpe8ipBKpvNWQqWH5hu92kNCamoqoBYvmZXU9UhBBh4XELW5",  # Sub-instruction
+        "4U7C25DsnWveM9KGyGqk8yZjmAcqrkZt8iupfJxrHEeCaaCmwi34s6UTFkEyRZT3SVLm9q19yibVYDpemGfKGC3F",  # Sub-instruction
+    }
+
+    # 2. Process newly discovered RPC signatures not in verified ledger
+    for sig_str, rpc_info in sigs_map.items():
+        if sig_str in existing_by_hash or sig_str in verified_map or sig_str in SKIP_NON_TRADE_SIGS:
+            continue
+        item = _derive_onchain_tx_metrics(sig_str, rpc_info.get("slot"), addr, rpc_info.get("memo"))
+        if not item:
+            continue
+        block_time = rpc_info.get("blockTime")
+        dt = datetime.fromtimestamp(block_time, tz=timezone.utc) if block_time else datetime.now(timezone.utc)
+        t = Trade(
+            symbol=item["symbol"],
+            side=item["side"],
+            quantity=item["quantity"],
+            price=item["price"],
+            market_price=item["market_price"],
+            total=item["total"],
+            mode="WALLET",
+            status=item.get("status", "closed"),
             pnl=item["pnl"],
             slippage_pct=item["slippage_pct"],
             dex_fee_usd=item["dex_fee_usd"],

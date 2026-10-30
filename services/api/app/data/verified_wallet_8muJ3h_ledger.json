@@ -1,5 +1,43 @@
 [
   {
+    "tx_hash": "4CnrBKwZVbT1SpDx5nckeWVDXgnY3M62v1rapxTxUSULZHAhEKNyc7HZpCDkpMXRmGbkezXpgLCA2H426W7G1Z1L",
+    "block_time": 1793378534,
+    "slot": 463356436,
+    "date_wib": "2026-10-30",
+    "symbol": "SPACECAT/SOL",
+    "side": "sell",
+    "quantity": 5119.71,
+    "price": 0.000408,
+    "market_price": 0.000408,
+    "total": 2.0888,
+    "pnl": 0.1388,
+    "status": "closed",
+    "result": "WIN",
+    "gas_fee_usd": 0.0016,
+    "dex_fee_usd": 0.0052,
+    "slippage_pct": 0.5,
+    "notes": "On-Chain Sell / Exit (SPACECAT/SOL) | Pump.fun PumpSwapV3 | Slot #463356436 | Wallet 8muJ3h...MVos"
+  },
+  {
+    "tx_hash": "rQV7w9BRnjgAFqTSVsQBBpxnvBsqNRQaMcDgyiDjGiWkjTDFojxLcTy2TMiFDq87jYgjEHZLFPiLsKuRDSaSXvt",
+    "block_time": 1793377858,
+    "slot": 463353287,
+    "date_wib": "2026-10-30",
+    "symbol": "SPACECAT/SOL",
+    "side": "buy",
+    "quantity": 5119.71,
+    "price": 0.000381,
+    "market_price": 0.000381,
+    "total": 1.95,
+    "pnl": 0.0,
+    "status": "closed",
+    "result": "BUY",
+    "gas_fee_usd": 0.0016,
+    "dex_fee_usd": 0.0048,
+    "slippage_pct": 0.5,
+    "notes": "On-Chain Buy / Entry (SPACECAT/SOL) | Pump.fun PumpSwapV3 | Slot #463353287 | Wallet 8muJ3h...MVos"
+  },
+  {
     "tx_hash": "5vFonE3JVFDUWBYh3CCRWBguicZZLy2ByB9BYFwPNWNtshS8mCiVCsZMD57atjMrN1jY2yg7oddWnucu365EYUSc",
     "block_time": 1793206251,
     "slot": 462550344,
@@ -16,7 +54,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00481,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462550344 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462550344 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2kJx7EP2knD8vH3mPxKXuv77GucU19maEPBhweREQekQXYV6rwAa3TsrPGuj9TiK4TM48bp6gqnYcyrYDKqN5ZJy",
@@ -35,7 +73,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462550107 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462550107 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "28WRSV5KUFeAmDwbUo7vWN4PDeS4CSE29uEk7vHXfgWwkjYUNK9QEVj82Ax7soXoM4rkt5o22n1pvQTRT22YETaB",
@@ -54,7 +92,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0062,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (OMNI/SOL) \u2022 Slot #462549746 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (OMNI/SOL) • Slot #462549746 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "faHxr2o5MyVPff4bir7kLZLEkmSaQ56BGAVoUYosRmtQxuazjoonCits9PeDmCdoHxntGaykwwcJNBzFwju2K6u",
@@ -73,7 +111,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (OMNI/SOL) \u2022 Slot #462549558 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (OMNI/SOL) • Slot #462549558 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4Wov3mB21g3XRu5AUSDGBmD3cHxmyocjdDgjMf3ZD23iitWif1hh24TVZFea3rtedNCe12Pm8efxTTNYobtXyJCj",
@@ -92,7 +130,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00441,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462548442 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462548442 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3WN4ohhSpspWxB25Pe5C4XC3rh5zU8q8npWpobSdemKpx9GqVeZyREwAqw2FU1cpzwdSu8D1DGaeyFiARXwvvHNr",
@@ -111,7 +149,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462548205 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462548205 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "nqNjaeUWBBhiGNbQbMj9QC5qNzSGBdfV9u9KCxLfYJYccjYDpQGZBEKibAtnpn41U17KsyPuLtLnV5cXkyy9zxK",
@@ -130,7 +168,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (6JAP7/SOL) \u2022 Slot #462548059 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (6JAP7/SOL) • Slot #462548059 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "E9fUZg8Lnn279JfRsjNhYFmP4Wqc1zxbqekbsDkEr6u9SNvdusUsuVdKP7VFE3Nm6HLNn1tzFZVSrAujKk9kzR4",
@@ -149,7 +187,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (6JAP7/SOL) \u2022 Slot #462547836 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (6JAP7/SOL) • Slot #462547836 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "sLWycXF2ryqFtU8dGezEf4NUQC3QAQSvtSV3DsbB2ruFDm9BDeeW4GVSpSdzH6ZnyYFSpVqrryk29xdoxJhwQsk",
@@ -168,7 +206,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00401,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (6JAP7/SOL) \u2022 Slot #462547299 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (6JAP7/SOL) • Slot #462547299 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "ChkmvxfANxXFRT5PFXBJq14gALGteYJiqShMdbLD9RLJdk1LTPCVT6AhKGSSowsnR75K93xv6dZvWcD8pELxbU1",
@@ -187,7 +225,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (6JAP7/SOL) \u2022 Slot #462547076 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (6JAP7/SOL) • Slot #462547076 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5jkmEn7tWY7LAvdXzKoFtGXvQVkEPjtdjRA8cz5t7qYv2UKeFrXfxLw8iYL2Gxrmri17hb5YcPSFQ7eTJ9zZvHsL",
@@ -206,7 +244,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00618,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) \u2022 Slot #462546676 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) • Slot #462546676 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "s6iTfZXJYbPj2z8bj9TZEWeE9rMyGYLXgwHGBh9tZKrt8SnDySwq467DD9i8QZuPh5M3dmtmdom39tNDNRPebNS",
@@ -225,7 +263,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) \u2022 Slot #462545910 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) • Slot #462545910 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4NgemFdioGyoYJFmomxzAFPWkj5YxM1MnreDPn7ooQonfwEJ9mAhNJdSw5czDzAbJ76vTwy9ariadGKeZVomyENm",
@@ -244,7 +282,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00361,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (N3838/SOL) \u2022 Slot #462545700 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (N3838/SOL) • Slot #462545700 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4U74VZTdgoJsjtoionUi1ZQee3TmHZdU7hDTue4tUKrZWnhvokrhiGKHz4PBrGUboyrCaMqN4DxckWEYG6jWrxNN",
@@ -263,7 +301,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (N3838/SOL) \u2022 Slot #462545185 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (N3838/SOL) • Slot #462545185 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5oVi6e5nui7r8uVTWeBLoxNiRa9AsbsKUz17smTjkD1bjX8PnU131paUQbW7Lrrk8SahjM81TFwAAbHaBz2LvCEw",
@@ -282,7 +320,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00578,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (EVILQWEN/SOL) \u2022 Slot #462545082 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (EVILQWEN/SOL) • Slot #462545082 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5XeL9yn7PpvqRTRUfiMbSu9Xd8PzA2Jxmr4egWUXci5YvD4MTJHXFjXXKSisXReHnaWKU1JzeAu9jfbBKWxzkSai",
@@ -301,7 +339,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (EVILQWEN/SOL) \u2022 Slot #462544936 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (EVILQWEN/SOL) • Slot #462544936 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "37TXhdbh61LoQy9rYwqutvXdjGtHzDtE9JavBXeqAiiEgWxGGve3UqEHdnAyu6WwTMCbebQkFddT4wD6YXYNt5N7",
@@ -320,7 +358,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00321,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SER/SOL) \u2022 Slot #462544461 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SER/SOL) • Slot #462544461 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "P6tDmLtoWVu4FjWssnU3czGZRmxUdLakjDWUYkt6gbrprYVbVDsAqjqmkiTpcubj77bT4Nim4fs9KhQ545LaUMU",
@@ -339,7 +377,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SER/SOL) \u2022 Slot #462544348 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SER/SOL) • Slot #462544348 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2SuBeXorY82iWd3KVEboH9SWpd8PDpZ4cJZAev91y6GxFqYfcdcrWpimEk2qPGUoMba4JJBBsQdwxASK6CXoiPan",
@@ -358,7 +396,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00538,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (5QPGD/SOL) \u2022 Slot #462543835 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (5QPGD/SOL) • Slot #462543835 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5HnEfc6bFtuVAkWLiJhCyydMgH5V9UVDd7M6x7J1V1qWJkazWXnQxcfRRK6aG9P6UxjQoVJw9aQYJdPYVxRdzhxC",
@@ -377,7 +415,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (5QPGD/SOL) \u2022 Slot #462543632 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (5QPGD/SOL) • Slot #462543632 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "Phy1g2uu3QY9Xs6HMmqeM46QPuTGMV4sMk9tFqRWeWtHEB1MbfDAJhTVRWp8qQTPk2rj9NCqsV3dcGSyLMPRmBp",
@@ -396,7 +434,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00281,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462543493 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462543493 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "juKDVYJQ9m2C552gq81E1vrEtMmt4mNYq3W5dDsUoEspHzTEQCNjNxVEA9J5z99nVr37ksYBDVBqCW1ef7B3SkW",
@@ -415,7 +453,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462543310 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462543310 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3rRFPLTpxMLvN1jSMnP2tqdBZCoAjSV52Fwu4mUsXzbT1UVyMt4co7xYmUxiygymCw4a5p9ob4asHWiwxEKo8JfG",
@@ -434,7 +472,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00499,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462543086 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462543086 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4PsesS6sR7fKhZokk7QXyf99FUv9tZtiyNs647m2etjo4t7DWXK76wi7h1HpmL4fpBuNFxQsDTzCCKVDs4tTp82v",
@@ -453,7 +491,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462542367 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462542367 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3vHw6DiAqWHNgv31tpgaQ7e1QfqjedvFtS79bbh5hSbfDVb6B42KAmWMnhkJhYJXMEbwZq3LrsGSWL8r5z9pvEfc",
@@ -472,7 +510,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00716,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) \u2022 Slot #462540714 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) • Slot #462540714 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "24mkhYZgF9CotnqM8y2LaWVdcSawjjzZmGEEC1FS6YQfdUpcvvyb36cUjsBexJpi3J7qyDUTZ8RSW1yX35yySZKH",
@@ -491,7 +529,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) \u2022 Slot #462540521 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) • Slot #462540521 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5vDfhiHRFngbXzSNNy6d46eAZoazW6LyrjRrhT5pBaWesjHWn5yurD7bs2ijDxwPKwqFDii9LcdAwL676qvRhX7D",
@@ -510,7 +548,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00459,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) \u2022 Slot #462540369 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) • Slot #462540369 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "217uQ5G6XgwWUvr134LqSxHAbTFP6fYYGD1XwPnhgzcc2KW1zcVx6yAnsnT5vwKWpnpt5U3EepcAzkExKAb19YNk",
@@ -529,7 +567,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) \u2022 Slot #462539582 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) • Slot #462539582 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4Vx6WzEPK2ue9A4rbKEuaj4We5fVAWUnqrTT1jkENx1kcdQAE9tMSDWtxuxx1HmDmDxyuPFzLwnxceJvzkPsLZx2",
@@ -548,7 +586,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00676,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (8QWC4/SOL) \u2022 Slot #462539443 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (8QWC4/SOL) • Slot #462539443 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4ki2aA8gBpcGQk6kDGJFJtoeVrB4naXRb9cwFv5SfeCFbJGaJWkJ31H2CCAbfGpiPC5J9W8QAV8EiCyarfcULXQE",
@@ -567,7 +605,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (8QWC4/SOL) \u2022 Slot #462539200 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (8QWC4/SOL) • Slot #462539200 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "SjfCbv9msXkA9V78JjvciSVGJcAXfuykyDnFSj5MN1GXPLAB4CvRMUKJxXrYsTQ1zGyPUVCDSMZ96vUYh51kiGd",
@@ -586,7 +624,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00419,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (8QWC4/SOL) \u2022 Slot #462538782 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (8QWC4/SOL) • Slot #462538782 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4unjJJGawTKhCukw9CXfjyKt7XDBRrrPQ88tfTsU3t16GYrB5yAW8jx5BiUBTYnKfrNdj1c8R5ENYgqy1W8k1Uq6",
@@ -605,7 +643,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (8QWC4/SOL) \u2022 Slot #462538682 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (8QWC4/SOL) • Slot #462538682 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "dLikzkD9CSz8n9oiv4o9HgijQ43JcQWUTx94p39d9YKYo8o3ehgcBycPYjfD5781VMv8hLAzYkkJcVqS2e7xwW7",
@@ -624,7 +662,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00636,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462538377 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462538377 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "9D3cVqCLqEAgJDRK3aGLg8tTpeY5QDX7eiZdX5Qyuzxq9UEK7yqSkjz7aiRiPVcD4DZy6xfg7fBb3BYCmy4QXRN",
@@ -643,7 +681,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462538299 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462538299 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3KZ5wH4bwM2Q6B6uuDv7xG9RpPP1B1wUrrdNHSDoqhnK6LfoCcbeU95Rmnuwh4LwmNJ1crNejJ5MZ7oTaJRcSvbG",
@@ -662,7 +700,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00379,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462538215 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462538215 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "63eYenxzHyEegNLfWkKSznh2nFKS29E59hXAuFjD9TLPvfUrMKDg8ciSawKEa3cqtDQZofEP7wukwDhsWNnVqsbs",
@@ -681,7 +719,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462538054 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462538054 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2c3krb9Ck1anhBDwfm1DrwgPTYqTpGjKsiQFriG3FWV5VdoMy52yCc49U3YkV6NUqUGGWf6hwFM1tb1qa2zvzMMW",
@@ -700,7 +738,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00596,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462537919 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462537919 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2P6JZS2MWMiBYGnAU641TaNpJiEWHwaPnCSWWpkr1uzsk4dx4AT8vLLBFWaETgeFbSnkrGNk8aYXvXK1aB1LfDFD",
@@ -719,7 +757,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462537684 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462537684 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2tuKKmkXSmiLfvce9vEtW2jKBUGSyjZrjXUN9naGGstmMM8aKVPWBFn5rEuUVsXG8eFqMCneQHuXC4tcPKvPFEcS",
@@ -738,7 +776,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00339,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (9UUXC/SOL) \u2022 Slot #462537631 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (9UUXC/SOL) • Slot #462537631 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "75B68ymzVcwDACAHQxxzUnxjEwmnwzak7pDYG2ecbnzfxtdtPMjzeTrF1odqZkVRYHN8MGkEsAEup25woRTeB4B",
@@ -757,7 +795,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (9UUXC/SOL) \u2022 Slot #462537384 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (9UUXC/SOL) • Slot #462537384 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "qpUkT1QyPDjqVDyCbGEadRiTRPpadJyK7mx59Qti4kPAAD2wbZcg5TnB5Kjof6ZGJ4AExeAH1BGBZ5WVzBD9KzU",
@@ -776,7 +814,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00557,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) \u2022 Slot #462537238 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) • Slot #462537238 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3Q9YRtBUdAvahjsmR7QxodLs13Hf3joPimnJq3FciKUXqAojFAzdsrHi683gfCBsW8oasffyP2Um8Xq5R68XrjzH",
@@ -795,7 +833,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) \u2022 Slot #462536708 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) • Slot #462536708 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "of6wyomFS52ozUF1zeuAVG4oJUxLFpbAkLRjTie7CPdubRamQyB9opZDQtioNMWwq7xBKP16YTsxEESaR55QWvQ",
@@ -814,7 +852,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00377,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) \u2022 Slot #462536609 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) • Slot #462536609 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2FoSmCvU5udxRdL26RBXLAvigJ5pNV7s4BeZ6sVteZXxxnMdRc1ik4nvHWdkyEb4Zr7ASz7p5RXLb4qJAtdcNLr6",
@@ -833,7 +871,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) \u2022 Slot #462535819 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) • Slot #462535819 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3teZ2hn9DFr1YbjXzTqTB57XPm5U7i9qtTS8wXbHqDqB5q4oWsAj2bjPgbugii8dWYNMAFCByknee5YUoVp9xyCu",
@@ -852,7 +890,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00517,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (6P3HH/SOL) \u2022 Slot #462535748 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (6P3HH/SOL) • Slot #462535748 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5TZmCuDZQmpYMt6oPPhxGaGEv4yy5BcojRSNRiY2wMHFkFeggA3ymnGgkRKQxEeYy8i2Vbbj859XJJvLSVPXYmDo",
@@ -871,7 +909,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (6P3HH/SOL) \u2022 Slot #462534951 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (6P3HH/SOL) • Slot #462534951 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "66FP227NLRLCAAuRFAKajcVLcb6ZtomrDfEz6PghyW3Ncbjm1LfV2oVNkvbv6DmyxyHgSB19ShqSEeNMCrMt2ayX",
@@ -890,7 +928,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00337,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #462534846 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #462534846 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5RtDDyLCs9subaHH2ciQsUSPd4dNPXVBB5AfEnNEJA4W5j84YihTF1DopZaSBxyC3TE9nKNDmBoP63um6HH7VNHz",
@@ -909,7 +947,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #462534704 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #462534704 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "FJYQDyPERXTUdFuy3WyiWyLvwFEU4M2cGauR9g5cvoD6goptbbJ99McbFvXST7h6CsEg6zj9KLThox51EqKzYsH",
@@ -928,7 +966,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00477,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #462533576 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #462533576 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2d3QQi6Zu3b17s5pAG3LXinrpmWxp6VegcUYGsNAbgu1oRwXsWHD7eLzHbyt2mshEvqbFCk2r2VrwBNNbwvv1CaB",
@@ -947,7 +985,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #462532826 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #462532826 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5THfKeBuU3MsEuksNs6i913Aij9ToJ7zLXdAzGpBtAkptDUyk2NHXWfC8XzDDcn3Zy1Cp4iXmGAoeBfAkum1dmKY",
@@ -966,7 +1004,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00694,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) \u2022 Slot #462532763 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) • Slot #462532763 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5S5ZbShtht5b2Zj8Vknkr4fuCXdGFmrYYcbKZviy4n1Kn8VX7oGfrgEMNPuqRgfqfsWEPSS7sVtWNco7CP725HUs",
@@ -985,7 +1023,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) \u2022 Slot #462532595 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) • Slot #462532595 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "39Ym3fmyoo16FD2EtXXRVAwn7LxfGy5nefMhhtCh3NVwYEuzXCr5iuhnzcJ1SqAyww81THPPtuRRXAtGKZeRxYBq",
@@ -1004,7 +1042,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00437,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WOW/SOL) \u2022 Slot #462532138 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WOW/SOL) • Slot #462532138 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3FRhY7AXXdXbhwwLgVvUMS9qYbj8B7haDvqN777yDTm2UuedHErctv76x2EaakuQNaL3ioqSo55xc2MREZF6fiSZ",
@@ -1023,7 +1061,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WOW/SOL) \u2022 Slot #462531954 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WOW/SOL) • Slot #462531954 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "23x9CjGwxKZqxCdsrbmXLeMcoQrN4Nb3hFLg9fJAKE3Y3GihMGdBgirN1o7dmQ2x2LyG1LgatuthquSAutv3DpxR",
@@ -1042,7 +1080,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00654,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) \u2022 Slot #462531701 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) • Slot #462531701 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2kYMMPyvqW472nngf7QgahHK1yZ35QkHramp7LUWy16pmBgLTspFJwZBUb1QjHbDhVgBbxJFUUvFYryVadGXTyiD",
@@ -1061,7 +1099,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) \u2022 Slot #462530058 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) • Slot #462530058 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5uqfENtWv26x89PztKm1nVCf6UK2s8J6W1Td1BQaeNXNVyexvBMQVjjFexVtJFJnL4TPKuPwMD2EJWRLPYxEzaM1",
@@ -1080,7 +1118,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (4YEUQ/SOL) \u2022 Slot #462529997 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (4YEUQ/SOL) • Slot #462529997 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "ACsNuuCMUhe4igpPRtM8beRWMAxbSHT2dztyd83aDwHRA5HTVFKYdNqA4SLAJx9Yj8RCbAvKgcjjYj2RWeUdbCD",
@@ -1099,7 +1137,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (4YEUQ/SOL) \u2022 Slot #462529605 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (4YEUQ/SOL) • Slot #462529605 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4JhzkhdBZiDourZGvWdWmKYgp1Uym6YrDg4GYj7733iWmGc2dBxXZiVeBRr63s39SjtTGG6hEh4PUpxmFzUc2ECx",
@@ -1118,7 +1156,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00615,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (4PKL2/SOL) \u2022 Slot #462528648 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (4PKL2/SOL) • Slot #462528648 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "59KTx6rhkLo3FRzAB4rhkR3k43pFt4kEbDjrjsg3ER2DY1R6Y5rWZ1ZRxX9Ke6emTsPNCNwu6m64ZSmApY8Fr79v",
@@ -1137,7 +1175,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (4PKL2/SOL) \u2022 Slot #462528429 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (4PKL2/SOL) • Slot #462528429 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "53f1tefP563FAntRfxBV123KQa8cBKEftfS9LRCYD9gTWN6gH5ZuDV92rpAg1G65KqTxwM7jkvR9sMMf8XQ1Ln6t",
@@ -1156,7 +1194,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00435,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (4PKL2/SOL) \u2022 Slot #462528020 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (4PKL2/SOL) • Slot #462528020 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "34VpeYsm6u4Cw8rjCDYHEQbqGDJcYTYh7YvT3xhHSRncby6NqfAv9BHrK2bj5Ra7swhLvq6Ec8d7zra87puufKTt",
@@ -1175,7 +1213,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (4PKL2/SOL) \u2022 Slot #462527935 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (4PKL2/SOL) • Slot #462527935 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5h2e3rG6f8nf5hMDMsRYGJwsbMVPtPoQrbUrpTngeGmhL9UeRmVyXP3CNwzehWamSihAcXtebgdQ7gtcRsfKM9nt",
@@ -1194,7 +1232,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00575,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (8YWLU/SOL) \u2022 Slot #462527810 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (8YWLU/SOL) • Slot #462527810 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4fbZMsFG3qpLLJ3ZnXsfBHCinF17Ru9juJpYk1iUyqK8txP62teujrRYaUYApPN8FpUgNpmvwQviTKtceAWFm9dR",
@@ -1213,7 +1251,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (8YWLU/SOL) \u2022 Slot #462527559 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (8YWLU/SOL) • Slot #462527559 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4zvnHGLv1qaZaNxUr4Yb91ojpySAFaHzC5fWcSgLZRERVWXMDpwTHi3kgKM9KhhijsmyRH4FWtbRHFCTnXmy4h9Y",
@@ -1232,7 +1270,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00395,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (692VV/SOL) \u2022 Slot #462526840 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (692VV/SOL) • Slot #462526840 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "hxqf3LJqaJooxa9YBiwYiEd3LSC9zcumhnsTti2uZQK6wSe59RjYPUAKmV8yx7ZvFZaAxAyKjuN3Hin8YZcKKFN",
@@ -1251,7 +1289,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (692VV/SOL) \u2022 Slot #462526491 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (692VV/SOL) • Slot #462526491 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2LzA1LpugRGtcA1ZzkFNf81KxPXpuj7tbYdJ3CMnMdd5kr7cGV7SjVzzzwP8iaWuppXi6WaWcZkyLQksxu1RXWAu",
@@ -1270,7 +1308,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00535,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (692VV/SOL) \u2022 Slot #462526097 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (692VV/SOL) • Slot #462526097 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "48yczMh5Qi98Q3XS48NGum4cHmvE1gtszQuTnKibBNDt5qqpMz7dAurjaSPuWUjxPHiUcv9ZN3xj18SnuVadkx48",
@@ -1289,7 +1327,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (692VV/SOL) \u2022 Slot #462525793 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (692VV/SOL) • Slot #462525793 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "zNbnDvBPTPYT7z9PAtPHTwgVcsAiaKVLndbiDUHqMi89cxswYeDt1zGfAALptg5Me2ykTGLn2Yr9o9srMnNR6xi",
@@ -1308,7 +1346,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00355,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (POTPOT/SOL) \u2022 Slot #462525446 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (POTPOT/SOL) • Slot #462525446 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "21hu1eqNAVnv2RTF6Mqd1KF5UbvhHsPSWss51ZCuwVnqKfkNnwhyWkK1jWy82qQbZoZckmXEQDFKV7SVouwGtJc8",
@@ -1327,7 +1365,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (POTPOT/SOL) \u2022 Slot #462525201 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (POTPOT/SOL) • Slot #462525201 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "341jXeFyL7aLxNHJ8Mi2s44Hh7bHW5xwHc7GE9y9jJ5K5pp4vjoZr9GnMX8AhoPYAQbRkQcNC1QBF1cSz95UfcZx",
@@ -1346,7 +1384,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00495,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462524432 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462524432 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "ifH2WCqYGhhvhWFXY5WLU4gHrjC2HMLGWNEcGXL3Gty7T2riWxuxWZtLa2C7FH2S6oyk3RT6azG9uFHS8X9qWDx",
@@ -1365,7 +1403,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462524329 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462524329 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "PyEzUjKZCE1YG3RcBuFR6zrLmTfpeMz7MPBVvwAghB6sLeJaRuLTdLDpLysuAg2yRrxKw18mUAeGwXTzAg6L8tG",
@@ -1384,7 +1422,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00316,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (7XV8M/SOL) \u2022 Slot #462524254 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (7XV8M/SOL) • Slot #462524254 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2ZWg76s49WYBu3o3snCrxBBYpkjkjxFnGr3WcoDoMiM44dq1BKDdmvZKjNzpB46pn93wVWmimTMDZb12ZGH8JCMN",
@@ -1403,7 +1441,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (7XV8M/SOL) \u2022 Slot #462524046 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (7XV8M/SOL) • Slot #462524046 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2tDRbDmAMPqXMYM5rH79DycCubqMim3N1SqYG5wDKYMJAg79Qq3oVLHhczWCsUnV2KZk1fJ2KE111ScsQyaX577r",
@@ -1422,7 +1460,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00533,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (7XV8M/SOL) \u2022 Slot #462523651 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (7XV8M/SOL) • Slot #462523651 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4CFgUSXWK1B2qNdzu29qg3MtVTrdHfHMSufh4685gwjEBNFXeyHVuHknGgurGB2zx542rLzXToSC2sqr6YLgoBuM",
@@ -1441,7 +1479,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (7XV8M/SOL) \u2022 Slot #462523578 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (7XV8M/SOL) • Slot #462523578 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5v96VfM3JqGe7reevBDVrbijyJUTvaFqCEjsgqTHCeYaMTvmEXtubqAS11s74qCRYwZsJFR5e2xsT7AJEXuUAQdC",
@@ -1460,7 +1498,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00672,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (PURR/SOL) \u2022 Slot #462523215 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (PURR/SOL) • Slot #462523215 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3QZquDc9iLgGWAMUma9m6y6qbBobmKDM8AFh9HLtcTQ2WogcoFLKT5iXyEMW7ZNuEVEfTDUCS2twvEtKQnYKXx77",
@@ -1479,7 +1517,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (PURR/SOL) \u2022 Slot #462523001 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (PURR/SOL) • Slot #462523001 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "1zom3w8aJZaz2e5s17532Fv5JzacjvMRoCwjdQMof7cHUJ1RBEasoDjH3FaEWbjCMWX7AtsjsHruy2rm69oKwGX",
@@ -1498,7 +1536,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00493,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (5C5K1/SOL) \u2022 Slot #462522345 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (5C5K1/SOL) • Slot #462522345 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4JgZA5ZB54G6EBYnNhBUmby9Tqj8ndqp3hBNMUtpXuVfELkuFjRdmQzokQyXLyQ487Mdx3aCtF4Vk2kXpEFtTWdL",
@@ -1517,7 +1555,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (5C5K1/SOL) \u2022 Slot #462522046 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (5C5K1/SOL) • Slot #462522046 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2EpD4DLhe7YhxP4T2FFYHLvQtTQBSEzhEfVoc2JbMP1KHfbK8Y5E5XfyWRQngbX6mB9rWaJwxHJSYuNvkVqCJKCp",
@@ -1536,7 +1574,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00778,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SYNTHESIS/SOL) \u2022 Slot #462521491 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SYNTHESIS/SOL) • Slot #462521491 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4n9K8CDGFN2bNQeQrS8dVr1bCgq76VE3f4nnUTQZJzvbnE6xTN6artVCYKKcFvLq5DybXTGaAydgSC36mSf3t1K",
@@ -1555,7 +1593,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SYNTHESIS/SOL) \u2022 Slot #462521140 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SYNTHESIS/SOL) • Slot #462521140 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3MAUwVPCXHQkrkmPTdSVy5BY4tQ7YTTEQXpcdnZahai3BbjLzjy92vyQFnRtVp2WuSVsLHD9pYYAaSs9X3vEc7ZA",
@@ -1574,7 +1612,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00527,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (EVILQWEN/SOL) \u2022 Slot #462520144 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (EVILQWEN/SOL) • Slot #462520144 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "DXJvTjFJsV8xyrARvv5bUt6i1y75mPJgJA9ZTbXanfqxsf93stJGMrcRoKUScRn5j7mvGX5Tbrh8YQQtzDYgprF",
@@ -1593,7 +1631,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (EVILQWEN/SOL) \u2022 Slot #462519924 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (EVILQWEN/SOL) • Slot #462519924 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5qQmTnGr5gjkHecwMjauCs68LermnNKuQ9K94FqHTX8JV8sXF42wg7CYx6Npza397PStw7AkSGcSWVnbZS15mrjz",
@@ -1612,7 +1650,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00757,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (6SXYU/SOL) \u2022 Slot #462519802 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (6SXYU/SOL) • Slot #462519802 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5yqgcyWUcvp2NkRyDzQ6YmSHrYWbjW9saMDRzVYdMaBxLg236KdP42HzHUUqomXWxiSLmFzVvEkSFhwRUycF95gg",
@@ -1631,7 +1669,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (6SXYU/SOL) \u2022 Slot #462519734 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (6SXYU/SOL) • Slot #462519734 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5axWbUYrTUMqWehM6saYuk8X4anvPJ1bgX2Yeg8f3E4JMeVrrcAfLJHaJ6vgbewV461Lsf1nXTZ2bV1nN5n1Qk8s",
@@ -1650,7 +1688,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00506,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (6SXYU/SOL) \u2022 Slot #462519577 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (6SXYU/SOL) • Slot #462519577 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4dX1MynsUUAy6VWqP3b8mPGszx4Z1VrZgYMveWkv26fqyLx86DdJbQ8BxCkBZ1K2doUuujZNfY2yfdmT28sJ8drq",
@@ -1669,7 +1707,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (6SXYU/SOL) \u2022 Slot #462519355 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (6SXYU/SOL) • Slot #462519355 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "LeRPRMvLpy4iiGqnjBxCHVPbV2yCcBF4cfrJxVLecEXbQgr7wDQM1eGDVSeRnVmGH6dTMMSGea4o9hU5CPNiXM9",
@@ -1688,7 +1726,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00737,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (6SXYU/SOL) \u2022 Slot #462518874 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (6SXYU/SOL) • Slot #462518874 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "52rgpK9EpMFitV2CxjHtup3ygEi4mAwnHmy2TFfZd1tpmVXF5KYhe7KrWZxMVdLBeCcofgkodaXTuZeRk3Zf9PUp",
@@ -1707,7 +1745,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (6SXYU/SOL) \u2022 Slot #462518737 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (6SXYU/SOL) • Slot #462518737 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4DzgGtud3axxhr4Xcomi7AQZ4cCeCxWYK8psSjEHHMofYnBistHy58yMHuwSk1qKjr8aB5C896ETBkSEUwvHdwS2",
@@ -1726,7 +1764,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00486,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (6SXYU/SOL) \u2022 Slot #462518641 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (6SXYU/SOL) • Slot #462518641 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3KvJbedAFhD1hKcUiQA6a6j4rro1q2goa93NJHXq7M9BwLYJoy8KThrBZoUjvEMJ1fX5XTHQzsE32KcmsbF7zCuj",
@@ -1745,7 +1783,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (6SXYU/SOL) \u2022 Slot #462518485 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (6SXYU/SOL) • Slot #462518485 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3YryA2CYsfYM4w6tVLUfubWCyX4Ship2jy3edEe75QT5DpGSC8kybG9EGkwHM5wp2WYRsxaNy6mbk9xE459aPkE3",
@@ -1764,7 +1802,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00632,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WBTC/SOL) \u2022 Slot #462518158 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WBTC/SOL) • Slot #462518158 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4uu58yDVUHAjyeLHK4ZZNceJNZUQ1NjWjgcUecpiAUD377i2fJKJZ7yjpFtimBGZaXURbGmwMD4CapfviyHkJsrG",
@@ -1783,7 +1821,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WBTC/SOL) \u2022 Slot #462515896 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WBTC/SOL) • Slot #462515896 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "b3uVungG6WZjZB8ov1LC8uQEMJwoeW3TC1b7EvQxqMC3Tn3kWjqHvSETeLeQ4w29xq14qE4HVsvTdAut9TZVt8h",
@@ -1802,7 +1840,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00466,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (89QYY/SOL) \u2022 Slot #462515790 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (89QYY/SOL) • Slot #462515790 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "35HTfDxCnGv7NwDFBEtyrJCjLMcVNfijrohrZaGwA8WYPurcyVc88NWjpFpYo3LQzFqPEDs9dEXxwxu9TFuzNkcs",
@@ -1821,7 +1859,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (89QYY/SOL) \u2022 Slot #462515119 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (89QYY/SOL) • Slot #462515119 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3zaMRUVw5uws9KHeTaopaoApByBDFA8GNRxRTP5ZsFnMYzxD5QnPwZuV51qKYFRB1fnPSYaPiLTUi4E1cQbQLLoD",
@@ -1840,7 +1878,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00612,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (8N9BO/SOL) \u2022 Slot #462514907 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (8N9BO/SOL) • Slot #462514907 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2WjH83MbyfcWAucyhmqLf9YMjmws1aeYWcQDhaTA6wayaahcuxEhWuFEyQTk171PWMvz9q99mvGwmvPmonYpn3hL",
@@ -1859,7 +1897,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (8N9BO/SOL) \u2022 Slot #462514727 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (8N9BO/SOL) • Slot #462514727 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2BmwwkjeSYU9ngsqjgcWvPC1njMeK2UoiPwhBnEegBgmgTFk4kGTZeVDtB7oFznUjcgukdF9Kn7zuzRYPdHKxLjd",
@@ -1878,7 +1916,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00445,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (89QYY/SOL) \u2022 Slot #462514491 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (89QYY/SOL) • Slot #462514491 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3LF592a9um9Zo5qhNpXgNWpMCHjfjxrACq3Ggn3aX9rDPDBxPQeK51L5MH9uKB8bdTAnfFawpCZbu2r5PPn9cSW",
@@ -1897,7 +1935,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (89QYY/SOL) \u2022 Slot #462513710 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (89QYY/SOL) • Slot #462513710 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2PoAd5WyBGE8CokxerVDa44yN9tw67kHnpbv3kmtViDejvB4pLSP9xUaDvqYGV4zoykKum6NYzoikPMbfpUdaBMQ",
@@ -1916,7 +1954,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00591,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRIAL/SOL) \u2022 Slot #462448849 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRIAL/SOL) • Slot #462448849 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3kwpiYRUpfy9BaNoSzz8gwc7NcEu3JPEVZ5uLfJahdwsUy1F1TJ5VmZ3R7jfzCCqkPdgWmrg6eZwLWA1dWcb6gGZ",
@@ -1935,7 +1973,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRIAL/SOL) \u2022 Slot #462448448 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRIAL/SOL) • Slot #462448448 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5S1o3g2zcKtfo8UPx3VTr1i3Ybe9NMdcizWt5xaKkK1ThxuAmRV65hqoryk7i16E5RYC4wvWgn1g1bjTtFjpStST",
@@ -1954,7 +1992,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00822,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRIAL/SOL) \u2022 Slot #462448368 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRIAL/SOL) • Slot #462448368 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3iZHAMozqRDm5fzmUu82NNMVDtU94r5EEMLMichH5J3DxxT6Cic3MECHRoFvYwmhGuGv6kbvQ6z58uD3HfwsKVys",
@@ -1973,7 +2011,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRIAL/SOL) \u2022 Slot #462447885 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRIAL/SOL) • Slot #462447885 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3SfAGZpBUvHf8wPaSXMzzwAkTG65DLxSFmtircFr4U3LUbH5N5sWJZBTPByzvvhopKVXU8bQpWEL37voPcg8nECe",
@@ -1992,7 +2030,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00571,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRIAL/SOL) \u2022 Slot #462447083 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRIAL/SOL) • Slot #462447083 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "SPkkpB5GKHsKdWX12MVLfAhpJPUfKALUfNTxeGN4cj1pcWhtQSmSAmS2mBFdWHYGMEdmi33QBHMW4CQCu3BRs9C",
@@ -2011,7 +2049,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRIAL/SOL) \u2022 Slot #462446806 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRIAL/SOL) • Slot #462446806 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "623qPGqUd3iRg9D9rTrJ4AqbRLR4C3JJ7vTNFW3sFUGB5MGRdRHytaePWM7o8ic36V3D6FgSsn1dG5bcWCh4rbmn",
@@ -2030,7 +2068,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00801,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) \u2022 Slot #462446614 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) • Slot #462446614 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3a2DSDBCpRcmifcMK4KdH1X7eLpxJjpfZZvT4tT3tbJBJkxrhgBgoESDFKY5i4zAYj595YmLgLnHPoU91hffdRud",
@@ -2049,7 +2087,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) \u2022 Slot #462446513 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) • Slot #462446513 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2bEVpJw29dPtUjBcGSESG1QvDLWNhBzaUqjsz7PaGUeQbLYeyZkzkv3vXzP5MDv1Rkp8sDjBczUtt3p9zueFcsA6",
@@ -2068,7 +2106,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0055,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) \u2022 Slot #462445929 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) • Slot #462445929 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5mTzTp61uf4LhQ25H1znoxrcKAMM8vPAtwLYf7ZCVSSJnB3ej56qs2AcWKQiipKkqNCie7WxMHh9QVJy7Aa5GHQP",
@@ -2087,7 +2125,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) \u2022 Slot #462445484 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) • Slot #462445484 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2aatoHUibb4P83BedqUs52bKTETgWTFZnYqjV1NSob3WJta5ZUopnEkfX3rxW3vzRR4boDzEcCvtBKibEgafs3az",
@@ -2106,7 +2144,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00696,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (9QSSF/SOL) \u2022 Slot #462442771 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (9QSSF/SOL) • Slot #462442771 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5782NLJGhe7TWK2aG4heLK5zHb8Y3E4Z5r8nU74WhnncDj3KuCCCQ16mFuD4BC7JaxGnp9ADeZUNyrv84zyxE61U",
@@ -2125,7 +2163,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (9QSSF/SOL) \u2022 Slot #462442689 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (9QSSF/SOL) • Slot #462442689 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5KPwofnZgcn8GzpmQ8TU5MZ1pQ1NdWgZJ1grLVFtWK6fnrSk14pg3JNJemXL8CZmzfVF56v9QMSFAeVhTjFo2Q7m",
@@ -2144,7 +2182,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0053,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) \u2022 Slot #462440044 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) • Slot #462440044 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2kSVs2GQgCQvBUyM6TjFyUig4jWTAZ3dm9NftCt7XGnXPgZhDxDikgimim2YMADmn69daiJ8DhHc792nENLeBeFa",
@@ -2163,7 +2201,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) \u2022 Slot #462421744 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) • Slot #462421744 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "q6EsVvbejdYfFXkLmp7QBJRE9WyH5idWyC6yfsxx6G2e8Nn2G1LhMS2QYoS53woMxDY9ZbgbbGnvW7DjWA2bYib",
@@ -2182,7 +2220,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00676,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRENCHBOT/SOL) \u2022 Slot #462421620 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRENCHBOT/SOL) • Slot #462421620 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2UC8NqxihJ44Q2FMP13fhXBAjSkiUcBSho8aLGtt93wSgUT3viLuPCosAvz7qAP9uyBikJjVcqqEKznMNaXoWCGu",
@@ -2201,7 +2239,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRENCHBOT/SOL) \u2022 Slot #462421403 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRENCHBOT/SOL) • Slot #462421403 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2HsU4gEnuBN7RrYYVip3DUzQzFBDUcvfVQi1KVAwB5bsNBoK2fVXUxwuDaPaY3sXXEf49U58co9a4szQksDM786z",
@@ -2220,7 +2258,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0051,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #462420977 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #462420977 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "XcxnZrgZtEX4mirF6Mp5zXzYYmixHiLwRoR7orG9zPEQYBNMd3S8UJoSzt5ufi86H59j3xEcVPT7tcPTwnLTxGE",
@@ -2239,7 +2277,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #462416514 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #462416514 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2tReiYaJKTsQBKujCn4ooxb9kgr77wPuxdRPfFTuApNfZ6zdRdpiPDFtRRYXTSEHtehm7hTnx3uUNwZmag18xbE2",
@@ -2258,7 +2296,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00656,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #462416419 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #462416419 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4MEs4rn4BFpSPYfNhJLQeEwLAaqUtu61dd2sM2C216nmPrbWm5Ew9pV2YP3suUxon7KYzafuJc9pmuCRSYDvHKE4",
@@ -2277,7 +2315,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #462414796 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #462414796 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3XNJBgE7czQWVqaCTrLgF6JUz9j2CCDhv3EwDnuYPr1XtG6QeUQoLwsgvaDEpMiuPkXwYJ1q3V6fzU8GtAgWWk3J",
@@ -2296,7 +2334,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00489,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APYHN/SOL) \u2022 Slot #462414674 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APYHN/SOL) • Slot #462414674 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5eZH6ndPDatGGZ4nSeJeGadQAGXyMU331vT2dVqopaebbeydQqs5ezUkh1mqH6r5JSyyeR5ie55nd7e2YatncZMK",
@@ -2315,7 +2353,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APYHN/SOL) \u2022 Slot #462414612 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APYHN/SOL) • Slot #462414612 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2aEL5QahrA5EExJVokqwwoPdn1g7zvXYnBkEjQJLtLyn3QQvH8sbF27VfNdvjGUsMhLDC5DXDNzSovnG2AQeENox",
@@ -2334,7 +2372,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00635,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) \u2022 Slot #462413845 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) • Slot #462413845 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3GcrxgGtfdmfAWmYUydbZtKCgdrRi2eHTdkUsmNU3HE7wZEgVV4Rz1nt2QJy3AP31fxbkfoZb3MdWyakBqSUf8yS",
@@ -2353,7 +2391,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) \u2022 Slot #462413364 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) • Slot #462413364 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5W8uQXdjKZrpDfAt2xBkxU9kGJjd4HeFnTormqeUka5GVZ6VRQhEx2oGFDHxKfpUKTpLJCDkBLvag2GKw7thY6tC",
@@ -2372,7 +2410,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00384,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (GUARD/SOL) \u2022 Slot #462413288 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (GUARD/SOL) • Slot #462413288 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5bxnZYniadTsZeaaD9GKu8RDKssEMdwuibshwcDDwTKcxwwAyjtLSA2oosrvoGpAKJDKkHj7Dp7bQsDRb8BtPN2s",
@@ -2391,7 +2429,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (GUARD/SOL) \u2022 Slot #462411227 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (GUARD/SOL) • Slot #462411227 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5HSiF1zN6D2CsfT7yHetvBa7vufFMxXfAQxWjVke6hhn6jyE14php5b1pgdZNMKnHH5YgZPzcjrrghMnd5L5R4c",
@@ -2410,7 +2448,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00411,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (BOLS7/SOL) \u2022 Slot #462139499 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (BOLS7/SOL) • Slot #462139499 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4uzh6gMJDAMMpg5k8kzPrV5tGWH1PQ8qikonFoZFNQndA9nNh6S2RpEu2tcCDtf6vp3ey4JbE2Cqwdb5eBsovLgZ",
@@ -2429,7 +2467,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (BOLS7/SOL) \u2022 Slot #462139384 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (BOLS7/SOL) • Slot #462139384 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "iKLQFLPUcyLMEdHXpt5FTvsTg5b2NB8FxdujuVWB1oqTx9a2moE2d7uCQi6CaXWbNqxpMw3UF6sRHxj2X1DJMkJ",
@@ -2448,7 +2486,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00499,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (BOLS7/SOL) \u2022 Slot #462138244 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (BOLS7/SOL) • Slot #462138244 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5yEhjkoa8GwFNNo4uS36umSgRsntF91dzL5jbfF2cCjijwjKkTNgdqd5wMvLJffeQfdC1MzQqZUHyFFoBtvVVoeq",
@@ -2467,7 +2505,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (BOLS7/SOL) \u2022 Slot #462137860 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (BOLS7/SOL) • Slot #462137860 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3oNgVrhz9CsbCcnBgtSA4bgt9jtkbVYLT6aAYzvwMN8RWquwiLh8Pv1JAh2WfQYPZHSAdYsGKZqbEGuLKbRwNJiq",
@@ -2486,7 +2524,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0036,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SI/SOL) \u2022 Slot #462137228 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SI/SOL) • Slot #462137228 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "42cApAqHgHmr6SLEBYVhUtQyJL6a3fP32TnXt1dEUpCne1CErJjYSi4i481ZKWMRhBTJfVxQaiex9yMXh9SVyVTR",
@@ -2505,7 +2543,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SI/SOL) \u2022 Slot #462136998 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SI/SOL) • Slot #462136998 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4HP3SQXB5TbfNfGatbQkVqVmBDC4PQE9r6DnZBkkYfNV6dHEvNxoSeiExbSoFxyoHRQu6budGZwXdvu599UTXqmc",
@@ -2524,7 +2562,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00448,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (295N8/SOL) \u2022 Slot #462136612 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (295N8/SOL) • Slot #462136612 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2QGyFvjTYkE7ALtEMZRQ1trfcepzuRWZWoUDNb4GyzXTdRrmN96Mv4nU7xvgT7uVofXBexXrPDyDBoJQVegWeQM5",
@@ -2543,7 +2581,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (295N8/SOL) \u2022 Slot #462136428 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (295N8/SOL) • Slot #462136428 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4BZZuqGcVp4nEAkVwDWshrMDun3ojP3cks7BBUMB7nNczFycuJqxTUSgwHBBfejMJ7VK7opFmanNkrhrUkAgALMc",
@@ -2562,7 +2600,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00309,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (BEZOGE/SOL) \u2022 Slot #462135483 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (BEZOGE/SOL) • Slot #462135483 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "XDBUxHsgvTNCkiruMKJejdhg4KW8UY8CnNVSUPUkiHgBXVRqynbN31yegGDXjVaiRo7u5A4hPQfyXZm3EkxHSoF",
@@ -2581,7 +2619,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (BEZOGE/SOL) \u2022 Slot #462135032 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (BEZOGE/SOL) • Slot #462135032 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "eG87MhQyHywpNyzJW6pXW1pLN1y2othP6t2tYQyguBYYdDrAbXJ4X6oCadPJEXder3CuDoCtjMMWpfDFCb4BE7M",
@@ -2600,7 +2638,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00567,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) \u2022 Slot #462134385 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) • Slot #462134385 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "eggbgW7pP7m6YKRQf6Yg7EFeSYfeEGYFUSHwTd6jLxQm1YuxnNyyo8eLgHij7RtdUeJNt2eNAwBPbfTKd6DpUTV",
@@ -2619,7 +2657,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) \u2022 Slot #462132997 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) • Slot #462132997 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3XY7aGH4Fe8rSKTXUCpifUpS4t5EejvXvK9zXgcU8C1CAzLD2fB3EtiCKZKBRaYB4EYBny5dBwN6Bje7jSc8Wuxo",
@@ -2638,7 +2676,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00258,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462132888 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462132888 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4WPooLSE4hNKmpvpA39JNE4y5e5A9ab4Af6swed8r8aHUS6H7R1xWT2GW3b11boKhtqQbWppFaUjeB7AsbEf9UzF",
@@ -2657,7 +2695,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462132217 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462132217 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2tPm6B5Xp9jdZAnT4iggbCBxGfSL5mXL15Npru3GQ2DdoCPNtdtC72X9H9s9A7zhXBiepGFMKWLSvpkGXRLcisea",
@@ -2676,7 +2714,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0068,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WOW/SOL) \u2022 Slot #462132092 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WOW/SOL) • Slot #462132092 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3HLB5jsVXyB1Hz61gXMbn8kJHXsdfrFoNA9d2SVmb7qkmrPPx9qHNuYPnfRKme5jgSfzXDW6m8qioQihN3haxoNX",
@@ -2695,7 +2733,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WOW/SOL) \u2022 Slot #462131487 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WOW/SOL) • Slot #462131487 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "bL5yaKQcSXvXF1FuJd1rwLqmtmaQHXeWmJEHyGJnyNowe6SDXBNsd5nxuFBBdPwsjh96MUvfwmzK59gQDQPwSfu",
@@ -2714,7 +2752,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00618,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HERMIT/SOL) \u2022 Slot #462130950 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HERMIT/SOL) • Slot #462130950 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5KdhLR2XUUQnHi6zbywwRyrwXwqj6ivgHNaRxNKyuBkPL1vgap3CnL1m95s9qAswr2KxRDKCwKZLqQY4Vsa9jf3C",
@@ -2733,7 +2771,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HERMIT/SOL) \u2022 Slot #462130712 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HERMIT/SOL) • Slot #462130712 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "MfLEdDtmK5JJ7Q3jbQNAuAYHoLHZGi4Te2eSassru6m6CoVqjM16egCGbZzqJ6yu8TEa4sdXmPMH2Hqu6oDgXTQ",
@@ -2752,7 +2790,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00682,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #462130546 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #462130546 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4rn9HpcBqSfBDNNTC1zQhuxsrprzrwW6jBKbyBXjCC6M1tD8Sv6v1cpHCV11qhhtdj5UfpEThrsi7Q35dCdQy83i",
@@ -2771,7 +2809,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #462130112 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #462130112 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5mSEiyUh4kfvR93wan7MUTRQmH7QsXq2cCm6vonGeNfFDMQG2iqjE1m6MdArcWHFdunJTCRf6Z76GSmNRNb6zWAz",
@@ -2790,7 +2828,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.01016,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SER/SOL) \u2022 Slot #462129830 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SER/SOL) • Slot #462129830 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3gKGGepkwCQLehkJ4FH87K1AYrLp5M5Wq988zb1v9RLXzq2RzosRBskJG8ANpmi11WXeqm3SnSc97Q57sYEcBUjN",
@@ -2809,7 +2847,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SER/SOL) \u2022 Slot #462129307 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SER/SOL) • Slot #462129307 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4ouU4Ard5KM2P3iaYnMZ2gWdxSvZq2xpFp1sWg8qtQPS9PJtB6WzZtF331ocidtLAoRB5TC7DJVzryhM946koZpY",
@@ -2828,7 +2866,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00684,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WOW/SOL) \u2022 Slot #462129051 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WOW/SOL) • Slot #462129051 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "59XQiFQAGFgcEaxDLJ1khD9PKeStTcCKhQtrDH3V4BwjApKeBhhUfawS8JrytCiKGTrazXBtsHQXnADCSsFT146U",
@@ -2847,7 +2885,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WOW/SOL) \u2022 Slot #462128945 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WOW/SOL) • Slot #462128945 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "42zUtF1tD6sdACgmvEeDeE2Z4KooZVGE6sDngdfKgfzxSui2pF69EUG6HgaYhHN1L4pZDPA1HRWaX16PSQbZz93H",
@@ -2866,7 +2904,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.01018,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HERMIT/SOL) \u2022 Slot #462127390 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HERMIT/SOL) • Slot #462127390 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "KsmM28M52yMf2RgHpojBiRvuPxt2okGQNHKeYssHsysJfhU9kQByptcC2HUVoArsVYYpXsNjjUFEyVYM5gVtXjo",
@@ -2885,7 +2923,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HERMIT/SOL) \u2022 Slot #462125723 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HERMIT/SOL) • Slot #462125723 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5VHpRsdwPiFpgjbSjuqsWXvxFj3NiXF6s5TXFHYCYPUrbA2HD63XSKc7XjqDgSbSM4c4cBAwWqp4mQ3YGvxQysSB",
@@ -2904,7 +2942,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00686,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462125631 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462125631 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3cvmAJrUFYE6rPiYWAWneh9eGr66faxWowuq3N3Xv529vvEKiZofXh5LJm7zLQg8xrAJN3nCqXwiXN8kR4vzDXCA",
@@ -2923,7 +2961,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462124971 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462124971 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3A4XMGzTGKJPdK8S8JPjinMEGP23oLkFAYR1Gi78Uz6FTqXCrWMsmqKmkVjbRvi35nNWmiJK4yETSrVHah3uGZPm",
@@ -2942,7 +2980,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0075,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPE/SOL) \u2022 Slot #462124935 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPE/SOL) • Slot #462124935 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "61XPBQsfb6j17ymK36ss3skrQuh5DBnQc4HcuLZAtUs73TJNhunEUNAjYwoZQCKnuy6DudThmEJcMiydpLfz5tCi",
@@ -2961,7 +2999,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPE/SOL) \u2022 Slot #462124558 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPE/SOL) • Slot #462124558 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "61GwWWA6uc3YYqn2BG9pSPoRk43E8k8mHqgLqnWutM8JJrhQ9khrfxLWbouE8KoeWHYEUZTofrDnaw6Ym85zWYFd",
@@ -2980,7 +3018,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00688,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (BEZOGE/SOL) \u2022 Slot #462124471 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (BEZOGE/SOL) • Slot #462124471 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3awoxDzLkpzMpFz7i7NC8Umw46EvpqcmVjW5MEF9hiTRrxnDAwvgghctep1n1JTuPzGF4yJ2fdhybzD2i4e59mJX",
@@ -2999,7 +3037,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (BEZOGE/SOL) \u2022 Slot #462123702 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (BEZOGE/SOL) • Slot #462123702 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3CEpUWBRAQyefN9nJcZKa2pbrW32NTcZueyMjxndC7yfU2p3aEnhbaPCL3FnP8KVuk9EwNANTUEiAjkj91F1Hrub",
@@ -3018,7 +3056,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00752,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (PURR/SOL) \u2022 Slot #462123297 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (PURR/SOL) • Slot #462123297 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "xCeWj8p6Earn359LDN69wyHJD5qHS2xh4ceSPEnSf7Cqs6NTvLrfmBMMesLNMfzJGJh3queLfMEMcTfGvdMQQfS",
@@ -3037,7 +3075,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (PURR/SOL) \u2022 Slot #462122924 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (PURR/SOL) • Slot #462122924 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "JVMLhnc5jcapHihr9dLqNn4xc4wEszwfaChx31haogmJ8PsnjpdtQo4gamDy3Y96pxLGLYnGjDqW8QiunPo5Zv5",
@@ -3056,7 +3094,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00689,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #462121789 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #462121789 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "jbhMiDw5dGKa2YZS7A61RUstD4X6fgBafWW7HcqtbBy29RRjg6D9iB39dbBTWfaJ2jTVfYaGYV8iSA8E3zTWD7u",
@@ -3075,7 +3113,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #462121092 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #462121092 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "27Hytbknn3JGCcNyf6d97pbYJttEfEE7hFh8oMcoPGKZcSFGcQoCqwQRSGDv4R6FtGLWTVmSb5tDNxeUmw8UWQ45",
@@ -3094,7 +3132,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00754,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (OMNI/SOL) \u2022 Slot #462120991 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (OMNI/SOL) • Slot #462120991 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "35DLUh3NZosLGLjeUd4ahPC118CyiRm6umRRhpRm9qexdrJjCRMevhafaHgEsXuNCcghpAJivAeeCqpT1YWYSPnD",
@@ -3113,7 +3151,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (OMNI/SOL) \u2022 Slot #462120700 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (OMNI/SOL) • Slot #462120700 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5YspHuPqZcyLnfEoPGTo2zLeyuJkhLeshoPsg1gXyRuTKMrRcwyYqthAorBKe4CGeGqQSN8RWrnzjUELkvfDwoDg",
@@ -3132,7 +3170,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00691,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (N3838/SOL) \u2022 Slot #462119820 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (N3838/SOL) • Slot #462119820 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3VoVNhzsrzmZPgoLkoE4iMnaZSxE7D5W32iCnTFc5QCvUGUDfs6vueavcvkisxrvnDVDBNjJuTAS56P1cwZfqBWv",
@@ -3151,7 +3189,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (N3838/SOL) \u2022 Slot #462118962 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (N3838/SOL) • Slot #462118962 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "AoRPYSGuNrENMTgWJKdiGtiXLr4dReXYqFRA9XxTtne2ZVLA9r1FeUDH3n9fQewmbXnZ1SFqFjsJqwT78m2Yd96",
@@ -3170,7 +3208,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00756,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) \u2022 Slot #462118710 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) • Slot #462118710 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4jFBx8QynmbtpAPPekzT5Jz85tNQfizTTbaTetJ8QydNX35VzPMwGXkfBTiab6N3dnSvvG4tWFvKrUEpJHJAVCZt",
@@ -3189,7 +3227,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) \u2022 Slot #462117707 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) • Slot #462117707 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4rQxzsxSF9tkgNJJG4YFEy6b6n7mFLBVn8BswxRkmP7q63z6nDSdZa4dqCAqxUpkY1L24NZnWuSCPUP5gtgnCMJr",
@@ -3208,7 +3246,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00424,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (OMNI/SOL) \u2022 Slot #462116587 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (OMNI/SOL) • Slot #462116587 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3QTf7kNQF9ESxseC6uvtSTwVDRoy2d3cMjpo1hqjKQ1zaqP3kbLy4Rjap8iPCML3n78ptJAVxKirSZq2TdXFowf5",
@@ -3227,7 +3265,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (OMNI/SOL) \u2022 Slot #461830341 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (OMNI/SOL) • Slot #461830341 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5Ps5tybQQjmpwe8oHj1Cvcxp3gYFeMnCmeno2QpnVbY7g6oWJA3Pf4JAUxCDb62GP4CiSv6pQvX2pMNznuhiP9Bb",
@@ -3246,7 +3284,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00525,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3DvUNQf9XkyvaHE5U1E8ajrMMsdguAWhFqALV3MANswitkZzCE9S1BBMqjRe1K6ZD7rn1YcpSfsuuwGihgqZAueg",
@@ -3265,7 +3303,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00703,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) \u2022 Slot #461737535 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) • Slot #461737535 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "62NDdyjNPNRLKajHnFSoyciYJ6sC9Yvyh1H2SG5RxdcEbfmBz2qpvjYX55coprb5jFNAHxLEYARckGdULp1oJVL8",
@@ -3284,7 +3322,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) \u2022 Slot #461737475 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) • Slot #461737475 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "44Lh5nDgYgXV5k83X6kxpS6R3Ct9922jRhPmw4WyqeLRfy9jGjY9LZRyq7YgZyQ1tWPkBLARFTEc9YNbWqLF4Hqu",
@@ -3303,7 +3341,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00414,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (BEZOGE/SOL) \u2022 Slot #461736497 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (BEZOGE/SOL) • Slot #461736497 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "ucH87WAbhgLeGjMQcZRgmdrES8UapkSeH5VU3GkUTECWEhvYgWG7bs61HrpuwGMHLNBrKkCTZweWQTEdecTj8Mw",
@@ -3322,7 +3360,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (BEZOGE/SOL) \u2022 Slot #461736294 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (BEZOGE/SOL) • Slot #461736294 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3ihie6NogfwGeF5LwjN4gnJWv7JHXsBzBMd4ZQueetV7jF632cdEJjhKzgwqbvMQPQ83TrAPj6w95cwgA7sm6J4f",
@@ -3341,7 +3379,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00657,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #461735896 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #461735896 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "27zgcAunuFE7xCFL3KoDSt4KwJfo1tRLhgpPeyG6zUAM9E1DTuSEiYq1L96cYr1geZ36125kMzJcTqBM9yDMsCqC",
@@ -3360,7 +3398,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #461734675 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #461734675 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3KpAzX8qDuCDNfSUuT93js81JpJLUXDSHhxcjnmu8mohYdfvb9FC3botmGNNUvw8KPZc5PXhfDWMct4Dcd2ky5J9",
@@ -3379,7 +3417,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00367,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #461734596 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #461734596 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "VCFc4PEwBioriEMztpDuQ2Uvkabs5kduTXxJ8J87UPVRfuZPtNHiHdoegfARS4oJ9UFSCJtNmPteLogo4mMzR29",
@@ -3398,7 +3436,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #461733917 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #461733917 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4fGfRFnuoFh2TMEo8JvGZzndzLTn7zqQ4i9dYpexghvFvdRtMYqR3pfoYjDNGSbEwaTBrsTa85BqVECvLV5GQZ9h",
@@ -3417,7 +3455,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #461733631 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #461733631 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2vK9zaFRe7WZPsRSrwmXeK8jYd3XpnS5Zk5RQ7CnT1oiE5uCwMuFFTvJXq6L5kGa44FyA8B8BSqezLeSSRpytfwV",
@@ -3436,7 +3474,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #461733319 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #461733319 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5Zp2LERSKGULfTuzRQ8gQfg7cZDtcZ6NXa7zuZ45XKn2Lhyr99wrTtHAXWyMoLX1Euv7zBxaqezVLg36TLBNt23h",
@@ -3455,7 +3493,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0032,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (POTPOT/SOL) \u2022 Slot #461731317 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (POTPOT/SOL) • Slot #461731317 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4DD35bCbSfm8Ey8xhmr85zUnSxN2UJr4fX9WSV5r34BZqS4sgsEckNE7PVEUenPUgwKBEHWS5RfG9STJoiarCBky",
@@ -3474,7 +3512,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (POTPOT/SOL) \u2022 Slot #461731110 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (POTPOT/SOL) • Slot #461731110 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3wyLrqFfPrjekvszjvde1dWcC5z2Dgcgfi7gUs5fKHYF3gYP6iy5Mr7SnH8exGriBLUnU4jVhjFBDKUYN7GnANRC",
@@ -3493,7 +3531,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00563,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) \u2022 Slot #461731039 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) • Slot #461731039 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3W4vdM8QpBovXXvKyYfzdE36w8s55AmLpJTWKzb6QZHvHKLZ8P1vNuHEb3p3YWkFgjtNop19Vz35ruJRkkMwyvjw",
@@ -3512,7 +3550,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) \u2022 Slot #461729728 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) • Slot #461729728 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3gwR2cjjyCSzsA27UfaqB5MX5uTpZctAp1R92pXj3B6PHB9CDAYA29uYowNUv52EN7pwm1BjvZfkkE1tvRqKodF3",
@@ -3531,7 +3569,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00273,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) \u2022 Slot #461729175 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) • Slot #461729175 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "26MMocKbP7vbsqG4GHgfH4vf1MAtyncMgSunYrTFsCbdsSMmNrWFCNTQNEiVrue721Ggtm24nitjKLGnWFJVhthn",
@@ -3550,7 +3588,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) \u2022 Slot #461728291 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) • Slot #461728291 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4vz3deC9GwPshN2guB7pPrittpgqXW2aC7m2XgTxMZfiNjDDRwZzV8C2aotd4SSdwDqWfdERiThc3jo1Ej9cjMBr",
@@ -3569,7 +3607,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00516,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (GUARD/SOL) \u2022 Slot #461727915 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (GUARD/SOL) • Slot #461727915 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "UpYLxoeWGDCmzsdcMNhext2LENJxr1WV4ujfwLewSa3DaueYYPM2oAsHcGPZwjLWmhxth4q7BmJpjEUbQu3E9oD",
@@ -3588,7 +3626,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (GUARD/SOL) \u2022 Slot #461727303 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (GUARD/SOL) • Slot #461727303 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "NxE1BpKdFqrqBC51DLPFBMamCRtMjQgjXN4qYiFs9nV7GBfmRA6jFu9ueimxKnJCVpjfGKoyqmu5MMUWdhic9nf",
@@ -3607,7 +3645,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00362,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) \u2022 Slot #461727227 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) • Slot #461727227 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5X3LE8bEmcgF3cTnogscPPsqchR1SuTk6SdDMH6jhyp1wVcERY8iuvGXXbGk33T6JsiGFkyfu6kws22p5FEvh9fN",
@@ -3626,7 +3664,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) \u2022 Slot #461725521 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) • Slot #461725521 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "268X8ofbeYpPSwwXyVwSdZthGq8aKCivY3xfkFmLRX1tFufnv9GDE8SX67Yarcqr9v7hZ6P6sLjw4swWkoCaqV3x",
@@ -3645,7 +3683,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00469,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) \u2022 Slot #461725421 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) • Slot #461725421 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2FY1Hfc1KJYLUjWJTrqJo6VGmvwAQyaqjE7RhrsUFHWnJFkysLg9qPbdGgE5B1RYV9fSfgnnPLjScXHajea6Tb5X",
@@ -3664,7 +3702,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) \u2022 Slot #461725191 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) • Slot #461725191 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4JDwuGVS9vTE4fWxLTSV7fmaBkCUL9az9wfVnPLdV394gxRkdLsRXUBD8YxPaBBYq8azAfNJYbGbnavZAhXxFAbq",
@@ -3683,7 +3721,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00315,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (N3838/SOL) \u2022 Slot #461724958 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (N3838/SOL) • Slot #461724958 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5tFvr3XGG35fvkfTTAa3ecayGHaEPBLfMSwud5sbKj6XLHyaikU3RYaJptEqpDh7eXnUqq7u38FHXx5sR6S8owua",
@@ -3702,7 +3740,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (N3838/SOL) \u2022 Slot #461723776 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (N3838/SOL) • Slot #461723776 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "34yA5Q8eWGydLhsYs1iP8F7Tf7if1KrVp4y4rbPPUu18zpbwHDc1fg9xN11my3BsZL272xSaDSejymZpJMcB7VYa",
@@ -3721,7 +3759,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00422,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) \u2022 Slot #461723510 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) • Slot #461723510 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "32h3WUiMXbfvGpBRzP5eFGpsAbR4NN3SQ1Awws12SMcJADb4nLbd3mW4ywCPgAwAyeAW6YH4zWMsdCaaXh1eWiLQ",
@@ -3740,7 +3778,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) \u2022 Slot #461723417 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) • Slot #461723417 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4rXkgGfgghU7mYvaaH27Rre9i2GDzCFjCq2gy5WCEvpkuZuP74cpcW9PrFx7zNQARkfN3jeqVEu1QZypRFVv5PP4",
@@ -3759,7 +3797,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00665,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) \u2022 Slot #461721625 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) • Slot #461721625 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4oPgQkRUsT2EhWhvoeEuckRhsHkBkq6McTnnpUMEzXG5Hf9k69XuRv4rcNTqeYBPVyxa2coN3eRheuJMkLupqgV4",
@@ -3778,7 +3816,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) \u2022 Slot #461719022 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) • Slot #461719022 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "Mebi1VF6zVfCMWip1xjatuHnC3gEGtrPVKKtCQ8BUR3YWRT6ia7Vq1WVsFjarcnbDdswxjByLxPjYTKcZL8iqqx",
@@ -3797,7 +3835,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00376,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (POTPOT/SOL) \u2022 Slot #461718892 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (POTPOT/SOL) • Slot #461718892 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "SUAb1sbbpbd29XLDtKmhKkqtKQJPRoL58CaZHbvNqsTvoNbV4fw8KawMakBPhdpBRrNJ5JC51YiKnHUknxGNVMv",
@@ -3816,7 +3854,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (POTPOT/SOL) \u2022 Slot #461717656 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (POTPOT/SOL) • Slot #461717656 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5mnYFXV3BsHq3wm4pRCpMrSFagH1aVqsuCuNW1GfD5Luy1WdwJjR4qY1fxGoQmWAK4tZxG7GCZtCRXdJaTECYncZ",
@@ -3835,7 +3873,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00619,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) \u2022 Slot #461717241 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) • Slot #461717241 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "42GKht15nTQo6WceYrr8zwpEypNzK2jRZGUmTZiugkqsa5QDMxyGADhLgEEuaqpQc1mEHEkg2YeVVQgVnrd1cXzo",
@@ -3854,7 +3892,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) \u2022 Slot #461716873 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) • Slot #461716873 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "SPJsgRPQGrmtCbWkTmFqLxj4kguuAXTcpDMgoKGEtJLCiC8irYA3qwKxAa6DNnCuSMTBhLxxqYzWzsmpVkUPZzV",
@@ -3873,7 +3911,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00329,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (N3838/SOL) \u2022 Slot #461713640 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (N3838/SOL) • Slot #461713640 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2PY85wEwvgLkcQgDuH3Lijb2bVLDmFY46GDimqCUfkZYeRvvBZJ7AWfMVD4ZTqR5cyJp6yrTJ1sLP7PX642aesdY",
@@ -3892,7 +3930,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (N3838/SOL) \u2022 Slot #461713407 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (N3838/SOL) • Slot #461713407 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5T4Rrr4sRMp9CYPPgbAaUgvkpYk45UtDfBb6g5gxQqYvFhGfRiu3X1Dz9fJ9Zrp7DTCHfttM1A7DGXxwvnbxXdDW",
@@ -3911,7 +3949,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00572,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SI/SOL) \u2022 Slot #461712732 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SI/SOL) • Slot #461712732 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2NoaYLLqQwcZyr5PheMMLWbonA6MDhQa5NLV2JdVqCq89qacLmkWV5VzefMNzYYKBJu4W7gtmpGHnQebGQAG7x3J",
@@ -3930,7 +3968,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SI/SOL) \u2022 Slot #461712460 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SI/SOL) • Slot #461712460 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2tEnscRAA3NHPhD3F14KS7jUVJG3McdtrTfTksxwLEX6AYCLeuyKzRct9BQLLxWkqfeAahxYZzaHyLySRMQUKxig",
@@ -3949,7 +3987,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00418,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRENCHBOT/SOL) \u2022 Slot #461712375 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRENCHBOT/SOL) • Slot #461712375 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "65TvDG5p6GT6bEW8PoArmEa1gvdPYdg2kQ1JKpevGZd8tPb5o9Z7QBAR3A5FiDGYSREZXoExrcfNBBWrC8A9K9pD",
@@ -3968,7 +4006,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRENCHBOT/SOL) \u2022 Slot #461711874 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRENCHBOT/SOL) • Slot #461711874 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5xbSrmoB2d69MBJYkVyCMv62tgiQL5zCWxCyeZ7JBP5PimAThmRdLPF6TFr4EzVBSrP7asov7SKYQ1bwAc4mSFw7",
@@ -3987,7 +4025,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00525,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRIAL/SOL) \u2022 Slot #461711133 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRIAL/SOL) • Slot #461711133 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2RduNwiQQWRqV9iGrYSchqv21nVtt8Nw5Xj8rd3LFEoz23a8BJdRF3nXBD8t2GvaNFrs4DnXtPHQDpMV6W6mYTkq",
@@ -4006,7 +4044,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRIAL/SOL) \u2022 Slot #461710744 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRIAL/SOL) • Slot #461710744 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2vpgvWbr9ky41SRwRnKT7nUKzHi8DMCe4o62TT59EGo2et7yDmwy6uDEXpMZ9JpEEBMpKb3M2sP7mtsu9d8ep4ok",
@@ -4025,7 +4063,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00371,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (N3838/SOL) \u2022 Slot #461710728 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (N3838/SOL) • Slot #461710728 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4KgqKKXsHnTMndkdKbN4aWEHg39GJUztrwugY5bZ3qUXRmxguXdNyemrUGSdDrPTi8LrYg2wsr9QvnxZWGhA7dPy",
@@ -4044,7 +4082,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (N3838/SOL) \u2022 Slot #461708014 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (N3838/SOL) • Slot #461708014 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2Zjvvc8MKR9BWZTe8jEx57feamuDys7UAJ9ZYTtz1BKoWyaxvhUNRAXhZZd2YppCCRdBe3tj5R7jv37a6aZGweSE",
@@ -4063,7 +4101,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00478,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) \u2022 Slot #461707033 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) • Slot #461707033 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2Sgh94EKH8nqKtgbcd2obuoZCZSdXJiWqG14VYY5LpQemtDrDyBvkR9Ctryj2Pm5gCaUPHXypkvWSFkfdFAgrYsd",
@@ -4082,7 +4120,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) \u2022 Slot #461706167 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) • Slot #461706167 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2ZuEjo3fi5uMg2mrn3qcYcPP5Y7YAxVAhF5UvAfTv9n9Xzz6krb5Nfi4kP2vzkwstkj7Bn6z5D5LzySaCBWr3nhh",
@@ -4101,7 +4139,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00324,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (BEZOGE/SOL) \u2022 Slot #461706033 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (BEZOGE/SOL) • Slot #461706033 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "44yhys3LyaZciCbWv7Z6bJ3MiCg7D59uhv5o1dyJPGNFtjG3tjr59gwykRq14GVcUXsc74iRQY7tH8HfsoBEFA9m",
@@ -4120,7 +4158,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (BEZOGE/SOL) \u2022 Slot #461705924 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (BEZOGE/SOL) • Slot #461705924 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2TJbeJ2HqWaiQ4mjKrvtXbTvxPkMZrB8YHQEpSB3WdgY4s4PJVmvhVw6nCishgGoX1y5w7Wg79BKsoyhWGrzJF5K",
@@ -4139,7 +4177,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00431,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) \u2022 Slot #461704273 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (MONKEYS/SOL) • Slot #461704273 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "TfwAoD2JrYqv7McKLydRDDmDwmfqXCHn1VzvRpjFmwMJaY9AFJzgwM4cJCFg86a25HCX6T9PQ9Yg5qeiRQzcZ3q",
@@ -4158,7 +4196,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) \u2022 Slot #461703627 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (MONKEYS/SOL) • Slot #461703627 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2xhDt1uYSxBEggtc4eTfV8iW66BEbuTzGvBBMVVk7s8Yz5zpLNe9EnXUvic2GZkytF54jpfBoD8peDcozBQF7uRW",
@@ -4177,7 +4215,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00277,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) \u2022 Slot #461703460 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) • Slot #461703460 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5MxREvvLVZPAkXhybo8wc7e3NcprbUUTTanCipp8rh9GuoDmD4aznEMSEFP42Qz1yKc1h8dYXsaCswxakPM8DL3X",
@@ -4196,7 +4234,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) \u2022 Slot #461702851 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) • Slot #461702851 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4ZEXXzK5xfgvavfPFCdZEZfzWj5mxnTga16DKSS2FL9YnLwyCz8JhrocPyxzcyPrzrbdefSduinf21CMS256Mdw6",
@@ -4215,7 +4253,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0052,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRENCHBOT/SOL) \u2022 Slot #461700807 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRENCHBOT/SOL) • Slot #461700807 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4vfrnpGpSgD9KCERe9tdT7hmxvgtkts2j852irXi8gMj9s2yLJebceX24nGLiEEEK8jxDTPTWxZ3DLfSv8FcAuYY",
@@ -4234,7 +4272,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRENCHBOT/SOL) \u2022 Slot #461700414 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRENCHBOT/SOL) • Slot #461700414 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5N1A2nnW31MYTHSoJY4QtbrFGRffRPxWd6VpueQP9edTBdkvL22UfFhuBb7DzyEYcPqoWVUB3ZhoeJTJdAQie4Ci",
@@ -4253,7 +4291,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00627,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #461699654 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #461699654 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2DPzZzkHG4dWGuxAbZRNStvnZk7h7V74bXfMWMxdVEpueQXMZq5e7JaGMpH1z5QyBb5Hi9GMpq5wguBE1N9c453S",
@@ -4272,7 +4310,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #461699202 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #461699202 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "6UwA8bdkjwJQn2zxffdnYz5GE9bqTR4HFPt13ncpGJCxtafKcfcAhTDfuaJUH5kYFuSTBUJ7w2K6rfpaPXvMk8s",
@@ -4291,7 +4329,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00473,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPE/SOL) \u2022 Slot #461697905 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPE/SOL) • Slot #461697905 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3tnr2GVsvnKH5oTy2hBtzk5xPVT6z6wrg7aHeZYh7DhH2qntMi3p74EKNANs4zBuUckQ9NjPvv17kKNuJosbkU1b",
@@ -4310,7 +4348,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPE/SOL) \u2022 Slot #461697799 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPE/SOL) • Slot #461697799 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2gkAixBcPcGV4VsGce93viZMvkzvvYz124NP1FLfkdosXT2RrizYy5HnkpyaJiqNbogref24LVQUMF2eMQLvFQxz",
@@ -4329,7 +4367,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #461697007 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #461697007 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3rG4uh3fnTM48acVbYXGKEhLxTGhqAqb7BGUXxDCxV4DABymSWxTGsRxmzXASEwjiEzQdQQrHoSdkgTCMxjxWdcL",
@@ -4348,7 +4386,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #461696483 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #461696483 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "MaS9oBzYfBgiCLyQhqjWJJx9wQ6G8UHKMjn1T9MZWHkaGZtcfgbqqJT6rT1J2jaV5QWN4aB7B7CzxKfYpmiHCtX",
@@ -4367,7 +4405,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WOW/SOL) \u2022 Slot #461696427 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WOW/SOL) • Slot #461696427 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2fyMEAeeg3CtzZBev7DQjgsXBfxJ6LDK1r4Usu1NyNK2qGFrrma8D7G8gVGx8nJqacAs5sA5DgzJaYtoh99sNZzv",
@@ -4386,7 +4424,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WOW/SOL) \u2022 Slot #461696251 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WOW/SOL) • Slot #461696251 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "37iTWAtYZjAbCrGvefF1DSRp217YNS6eNWuBpo3dTX1ifg96TGCZVnS638Ln81gNanh2yiWzypnPwS514LyQKAQ9",
@@ -4405,7 +4443,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00534,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ANSEM/SOL) \u2022 Slot #461695544 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ANSEM/SOL) • Slot #461695544 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5uL2Mp7vjBzZUGG2HZXUB3ECjQHPtN4wkmhdvDgZZrBzjDtZCmn4huhLNGSnftrTxy15Ges9Zac3xqKd3Sj9VkjV",
@@ -4424,7 +4462,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ANSEM/SOL) \u2022 Slot #461695359 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ANSEM/SOL) • Slot #461695359 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4RbsVYTx3dPsufSvhywZe5WSWdK5f4Bf3ChuKCvAfjGaAde4tdLccUefQp4CNYcmQ8oXisAgUPh3k76wgNPs4Wbf",
@@ -4443,7 +4481,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0038,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #461694644 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #461694644 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2avXMWoU6XkSoGZCfjpR9buVcxYRXsoZQ6ypDABVy7SdvxJFd7nojSEZ3Ys3NGnFZ58tn4yhmhB3AqB4rUvKEVj6",
@@ -4462,7 +4500,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #461694508 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #461694508 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2hvzfCzrQPwZiUrBGzHY1eegNUd3Rwspn1h5w4Q2ZX1YQqJeoakFFQhZ3LjC4o1H12gpVoo1SmsxwpiLwHQyAzpV",
@@ -4481,7 +4519,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00758,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (OMNI/SOL) \u2022 Slot #461694119 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (OMNI/SOL) • Slot #461694119 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3KviTer7ooPibd1DWDRmTUoCRMh93Ch4DxopYu5WbV3rHDeZiQo3ViA2FZEdbxbZy7CSimgUtESD8fGQkwNpZvRJ",
@@ -4500,7 +4538,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (OMNI/SOL) \u2022 Slot #461692248 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (OMNI/SOL) • Slot #461692248 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5uL1RBt8PAPA9THLKzRKjCDgTbFER92ZGFBee981MPmVDWStTgkatvivvVwE45zAgGC2xacBcZYxJNHiKX1XXQtv",
@@ -4519,7 +4557,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00499,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) \u2022 Slot #461691416 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) • Slot #461691416 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3G43tk56BEZ5g8noVqAgEbnRQXY9PKJHbfW46KAmQGtPEVkD4M91KHZPDQGyYM7w364YW4ueNhJCGPsY9jNkXYxt",
@@ -4538,7 +4576,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) \u2022 Slot #461564766 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) • Slot #461564766 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4maXsQMdsGtg5VMHA14j9reqGZspeAdATFCqodWeYnFYALcvZU18UgEcUPpaL8GjTBQrpvU1dqGQ9S3YnMY29UcT",
@@ -4557,7 +4595,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00637,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (POTPOT/SOL) \u2022 Slot #461563087 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (POTPOT/SOL) • Slot #461563087 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2Tuus1ouZ1STTJeiTs61MA9qZAU9CXCKWNUtkd5XqUkdAH2W6oqsXDsCT2wP4z2BztqCzJYyYh2ChDgxRsvTsjEW",
@@ -4576,7 +4614,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (POTPOT/SOL) \u2022 Slot #461563047 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (POTPOT/SOL) • Slot #461563047 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3KbABGQmkbQ2Pa4scWU3r5fm8u1syDun1WQzHnjYp8TLMLZA2YdJQQRioTCdin6pu3pZbqVQMPrVXah5yka25S2v",
@@ -4595,7 +4633,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00481,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WOW/SOL) \u2022 Slot #461562026 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WOW/SOL) • Slot #461562026 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3FsdRNp7vBDUBcUdUK3byxMpJt7HEf1WMJPuRKQ8UyFh87EMNFFDVoirCbA6WGeNMTTxWmbda2tcNsFV57S8mray",
@@ -4614,7 +4652,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WOW/SOL) \u2022 Slot #461561754 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WOW/SOL) • Slot #461561754 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "49Lt1Ypmo8cEAiYaQoKMgrqbsoGNLVopoNH8gCmstuhg44VSxsXazGuvqtNJaXR5rikLHFyUR5Wfpum5qgaT3CAW",
@@ -4633,7 +4671,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00619,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (GUARD/SOL) \u2022 Slot #461561624 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (GUARD/SOL) • Slot #461561624 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4EwXqgEuGp5dTRQULaAkRcp5dPss2aHujNfVT8nYGRCUV1GUNZv1arUJFHNE4M8hTgspsVDojQTHPJuYtyLYotiL",
@@ -4652,7 +4690,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (GUARD/SOL) \u2022 Slot #461555480 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (GUARD/SOL) • Slot #461555480 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5ZPMZ1c3uVsGxS1Q8HfQwBouZZJx5Lq78GjRbTAgtvcVguttuTDbVe65MuYBeibbVkYaArtBJvjQNxFU65rHtvLq",
@@ -4671,7 +4709,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00463,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) \u2022 Slot #461553596 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) • Slot #461553596 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "tn1YiYqivT8JzpDP2fxb1AU5f6B3Ezy6P1s9eK74YTMdz8Q9smrKkHn9cf9CkNqnAPLsoX7PxMkyGemXhdEUmFj",
@@ -4690,7 +4728,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) \u2022 Slot #461545880 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) • Slot #461545880 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3UesftVNwjbtvnkkroS8HpCMcDt1FfTFThUSJ5ug2xPJpzooQTYQ17Zy3iqW4RGBNSMzZdDU9zvrdwGYoBtycrHg",
@@ -4709,7 +4747,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.006,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #461545757 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #461545757 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4DfruH8RHG8e5z4NsH76cHssDgifM4wZqnpVPFQgeyt8msWAvHLz4WEKfcVhq5XE8WiJhFtZ666mc7pG58T7rLFn",
@@ -4728,7 +4766,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #461544251 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #461544251 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "wuFriDX3spTUMaVqqreUggzWExY2QJTA1iyMmnzLLh32HtbomG2WoRdhxiiu1cm9xNMgFBgUf8q1dHimqhH8Uzy",
@@ -4747,7 +4785,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00841,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #461544060 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #461544060 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "ZVHLkRARctNt32MkJbxXiqWU3Y6wDuKxhknq3ZX6ma6x18MrNmgPDJgXLLMKXfPEkfPDRVkPuizfLyr87aduNYD",
@@ -4766,7 +4804,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #461543021 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #461543021 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "XGJ7bWLiEd1fPRV9rmE27JvW7SxcFiZNyjVjhN7VKM1cpFoKYrgY8CxEMFxffKPtGsx5PE1occSKKfUkH1auNQj",
@@ -4785,7 +4823,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00582,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (N3838/SOL) \u2022 Slot #461542441 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (N3838/SOL) • Slot #461542441 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2PePu1xaNFZGc7vBicMahhYt9yEYKbHkxJu7GP4r3jSLvBMSzRiYzT95GP6WiCYrRaWLx9mxFJfpBidS8oxPygvA",
@@ -4804,7 +4842,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (N3838/SOL) \u2022 Slot #461542005 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (N3838/SOL) • Slot #461542005 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2dGddBYH4w5C8LXswaKUPiZeR74eyjdHoMQ15ZDwwpqSbGwBaMb3TtX2QgKDLcDvTsvfo131DaxBSiNAAykAb88x",
@@ -4823,7 +4861,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00823,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #461541202 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #461541202 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2zY1iufmGsPcu92982gmGTnY6C2aX1fT4o6PfvX1Jk4e4PwvD5asaSYEnFeeeuTFXcTS9XyVmDB3gWS92G6dgDfC",
@@ -4842,7 +4880,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #461452526 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #461452526 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5NDFYA9VdNCRRPcyGq3uUetzzztCKNgxPjjPm2GmY8jFp8Z4CxjsKqtsrjH6W4BADpc7atFDxQaZ52bGUdS6csJy",
@@ -4861,7 +4899,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00564,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HERMIT/SOL) \u2022 Slot #461447839 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HERMIT/SOL) • Slot #461447839 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3cZe4NDt3rUhHJuW4rLZfAzp155CduWGo78nhMwMPCLpfLWrwx1cEgjkzm9EvxPzdE4Fp1m4jsh4YtQTxwJMRXvq",
@@ -4880,7 +4918,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HERMIT/SOL) \u2022 Slot #461447722 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HERMIT/SOL) • Slot #461447722 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2aNYN3Jg8A1A59jQz9eeHc8HdaXu9ZrLR8sExX3bbq9oA5Nud7DsauujE3sAwLQeJjmCAuWyYZXTsVbzYSDckU1R",
@@ -4899,7 +4937,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) \u2022 Slot #461446655 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) • Slot #461446655 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5EvjmrcHBKNSHz1dQvgyPU8unNUmjpgDfNPLRghsfgPLsons1DEPxhHbifFaANfjSB4cy1H7uyf2xiFPU2mrrTwh",
@@ -4918,7 +4956,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) \u2022 Slot #461441137 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) • Slot #461441137 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3jtfcujEM8v9Ssb5LFq8Jmnz3wxuhoZL957riF65Av6o1uV2VuuHF4xgbrzMHPWjanBLnZATMpPAD1KPHNMReoaC",
@@ -4937,7 +4975,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00546,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (PURR/SOL) \u2022 Slot #461440971 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (PURR/SOL) • Slot #461440971 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4Ntd3FD7ZVar7EfakfU5cGLSAhR9d8vffcrgnQ7m88J87zPbAa3Cnqsjk4mdfazxNGnKBmPopSGFAGHeMauJTk5m",
@@ -4956,7 +4994,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (PURR/SOL) \u2022 Slot #461440938 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (PURR/SOL) • Slot #461440938 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5GJUTz3iv49uiBVsEpyJhZBppcWeicr9JzAxzJUbUu1Bm5vdR1rNFadziAiR6bUY1K4Tr4sheXJcA3mic3Y5Hjuy",
@@ -4975,7 +5013,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00684,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #461440904 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #461440904 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "cb13Sc6GGHzbPLngbVeSYDqDqwYCVp5etoUtJjPNLkEeLpwJ5LSeLX6ETtBhGoyeQgW96V7G72jAK5jDG3xftGM",
@@ -4994,7 +5032,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #461432367 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #461432367 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3zGsTXo8WL17WU3GEebEPDML5PseQsGeUwExSCgjcibFrfWVWPtbiB5VyRSNPLv9zuf1HDatJ2kuNgX37ibTujbd",
@@ -5013,7 +5051,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00528,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SER/SOL) \u2022 Slot #461337303 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SER/SOL) • Slot #461337303 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "29pHtkhqh8z2NyKBRJ5d54yJWpdUkhW1tmC56Yi7o4mrtFfWaML1Ni6649iG3urDzJQcduUiQSw5ftgpp756H6Xz",
@@ -5032,7 +5070,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SER/SOL) \u2022 Slot #461337031 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SER/SOL) • Slot #461337031 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "31BTDpsZQpaqgc98YQCtE6FoyUEomTSAWrhXCEvPm8N9YJwPoHGA6TZyCMTcESigNo5qGPsRKuTR7YpGneFbEUGs",
@@ -5051,7 +5089,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00666,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRENCHBOT/SOL) \u2022 Slot #461336949 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRENCHBOT/SOL) • Slot #461336949 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2cQbADE53uM1xeRiNuC1LMdN51FBU63bhVkZ2NpQKcrV4oS88pJP5RW6ShoiLu1uWEQbF5VU8qrfDhYcXj9vc1D9",
@@ -5070,7 +5108,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRENCHBOT/SOL) \u2022 Slot #461336373 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRENCHBOT/SOL) • Slot #461336373 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4xgH9U51px5S2ogEAcBkZyMfbqCCYEktbqP5UqSXMrWBor9Phh8fMtENjcZj8txxG22NNRUyowidDA57wnRutWRB",
@@ -5089,7 +5127,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0051,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ANSEM/SOL) \u2022 Slot #461336273 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ANSEM/SOL) • Slot #461336273 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3p1WPyFpgvKdCoYeKoUNxYu8RRJgKQs3PyeE4TSo9zGP1jneznTrmH4ge3YBU3njGwKPos3h4J1U3BPw4WDsc167",
@@ -5108,7 +5146,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ANSEM/SOL) \u2022 Slot #461336174 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ANSEM/SOL) • Slot #461336174 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3fNHPkaPsQ2Fcs2Q1cqtUWrR4pokXsKZNZv4ognMNAjzBdUP8mZNczBib34pJF9v1anTFf1Qw7YZJnDBaiQdjN1a",
@@ -5127,7 +5165,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00647,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPE/SOL) \u2022 Slot #461336003 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPE/SOL) • Slot #461336003 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "Vx5eMCb9NkaWcu7KyLgpzTFbkgz1PanZQyucX7GsG9wHExcKP3tum14LWvijuLZCM3cX4Df8bkC5dERJQmH8MiU",
@@ -5146,7 +5184,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPE/SOL) \u2022 Slot #461335446 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPE/SOL) • Slot #461335446 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3XD1bdaubhrBLg7rNGZEJR2EDcK6zUksrynFa1xBJGpXuuAnRnE2m4zCf7GJX4jAkNt4379kkKFrS6mhXB7KFdVE",
@@ -5165,7 +5203,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00388,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #461334803 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #461334803 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2fmahzkphWfuP2xRzSRB63AsFRoJ5bR8fxYK8MuR1qgvwVfCPFoZTv3yv3FoBgcuGuWUqxA3nttA5vSSfbYV5BiT",
@@ -5184,7 +5222,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #461334069 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #461334069 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "QjzH4KsWEbbL8ksrtXe1vqQxT9BBYVCbkfNHUuG4EzTRvSCGwCeLx83LnNmSdvZrwzYVgPbEVVWgwcVD8A9NsXA",
@@ -5203,7 +5241,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00525,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "NrBkLysMbjzPnQ2nCVkrHKdFRikziJcrrVZNWizZewiAhj4QJcN8csTzeZpM7Ccvxvw9MmnuWxvSYHRx8xjNxST",
@@ -5222,7 +5260,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00663,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) \u2022 Slot #461333697 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) • Slot #461333697 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5huqEGn7ipdt5rii8iPELs3ReDFYne5s6UFm91mUqVTmXYZFRoGU8yCdCW2yZwcML6Q8tu4qSH66ZCaT2Wd2TEg1",
@@ -5241,7 +5279,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) \u2022 Slot #461333004 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) • Slot #461333004 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5ApDw7L1Gt3j46fEnXodWCVfEw8kaC8fbikHewfJEkdyE3aWZzYVFVnkn2kE65a5wCQ9y2CSGdPnLcQ9YWKnshu4",
@@ -5260,7 +5298,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00384,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) \u2022 Slot #461331947 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (INTANGIBLE/SOL) • Slot #461331947 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2E7yC112uhxSsY4woXUQbWZqygB285MWo1xfmcfzGPBqtg3zZVsMgozgiHH3UfFHm2ThtYcrWXwyQLaHcmJeTfKV",
@@ -5279,7 +5317,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) \u2022 Slot #461331609 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (INTANGIBLE/SOL) • Slot #461331609 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4hntWfEWRDeGSRk1z3MQkeghBpf67TRAU8JoLg7465kxCY9ofaPJHpLETDKzxo3CS1ppUKetbZTHXfDy6G2mKwJX",
@@ -5298,7 +5336,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00618,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SYNTHESIS/SOL) \u2022 Slot #461331168 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SYNTHESIS/SOL) • Slot #461331168 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2cUmuXv88QknmNNgWGbdZcDXsm6b97h5o3N6AmqtooQqvja3bm3HbMnuU5SyjNSiUxHoaQWcienzEdsGJdXEpr8a",
@@ -5317,7 +5355,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SYNTHESIS/SOL) \u2022 Slot #461330331 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SYNTHESIS/SOL) • Slot #461330331 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "GRRyDQt8Y3xTgMM5p3hqKtt66yKmzQaj4vmCsGNFg3Z47Boz9Erd9RtPdxghQM9E18wRu6h91ZxpYzaniPo62Ha",
@@ -5336,7 +5374,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00339,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPE/SOL) \u2022 Slot #461329480 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPE/SOL) • Slot #461329480 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3a7bbqCCHLyBjoJGFVEWspQTHSahmfNhU9RBzQx99gGGig6wdgu7qo1sRxFS3QrFD9azd4ZFMnCnRzerdCUvhdfq",
@@ -5355,7 +5393,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPE/SOL) \u2022 Slot #461328734 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPE/SOL) • Slot #461328734 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4o29yndnbdKNGErXpaocuUdZzooV7GXmRmFcKwKqwnE3jmZz2dQJWreQRd9tf7d2WPgCx5DTXgmz49WqPiZUYbBt",
@@ -5374,7 +5412,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00574,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WOW/SOL) \u2022 Slot #461328717 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WOW/SOL) • Slot #461328717 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "62NN7MjR2SovHRrq12ttJSx5dbmPE6VDGjPjHR6jVqmcmWV8iVoZFxF7gCfTZoT2kvQX8s6vQsUUsryK7W3BFy9",
@@ -5393,7 +5431,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WOW/SOL) \u2022 Slot #461328425 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WOW/SOL) • Slot #461328425 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3snRhRthk6rjrEqQu2rZCavf2gP9X4yP2hC9B9uFL1Kd3QUPcoXUp2szRiNUtNjD8CdJUjioF3GxDVa27EqpvH6n",
@@ -5412,7 +5450,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00295,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SER/SOL) \u2022 Slot #461326688 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SER/SOL) • Slot #461326688 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5n9rWTQB4JGLKpuoJ5UisXipZUZjYZgx1oY6WrvLDWRbJtd4QmMdaSyJ7pcukdCR3tfTDyJsmWuuzFa7GeuZoTz2",
@@ -5431,7 +5469,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SER/SOL) \u2022 Slot #461326587 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SER/SOL) • Slot #461326587 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3ieaZSVgyfybrMzuezDC9o5fntFv3AuYkwtPnzrEhZnFcMjLt1vLScq1HPmawjGSN9wWKTK7S1jLcsSA6UpfGqkx",
@@ -5450,7 +5488,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00529,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SI/SOL) \u2022 Slot #461325801 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SI/SOL) • Slot #461325801 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2J4j4ZCAjBrvYps74gYAwbyRKt8LrKLNh4KN8TemKywwUpRh2U6FxW4eFrkxzZtxyGcTmtGxJpnAyt6K2Hw2DrgZ",
@@ -5469,7 +5507,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SI/SOL) \u2022 Slot #461322926 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SI/SOL) • Slot #461322926 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4SJVyU1RKJBmnnaY3PnwUdVeT35pYkLg54yY6Kq8PcZCBvRykmKziPq7SQZMKi5WQiK8iNAhcPM8JW5euodWJte8",
@@ -5488,7 +5526,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00367,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (OMNI/SOL) \u2022 Slot #461322341 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (OMNI/SOL) • Slot #461322341 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2NvJR2qy1gnWX18wGEXrfybcNRriaZFMnnknLepWjiYUkRn7PKRTb9fdA4CmsLKo1r4RkLbrUA2DzR8K2evRcBpf",
@@ -5507,7 +5545,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (OMNI/SOL) \u2022 Slot #461322082 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (OMNI/SOL) • Slot #461322082 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5uTi3Cx3PrTmMJXctDXD9KRXvuNrJNG5cwdeYWuzBw85Fm7Es1GcN4Vzt7dw15XWetij7JPAXucS4TLYH6TVd6x3",
@@ -5526,7 +5564,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00485,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SER/SOL) \u2022 Slot #461321889 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SER/SOL) • Slot #461321889 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2FSjEtVMyHASdDdDkoiHaAkrPeDrXSmFieJpJFA2sGZuYh6ZNwbTCSh6a1QmDAtgiSzmrWgweHvfDzDE2AEuvqq7",
@@ -5545,7 +5583,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SER/SOL) \u2022 Slot #461321434 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SER/SOL) • Slot #461321434 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2NeHzyp41tWQjJcDCW8BxfLyaYQWyb1QPdex2Sz4e7nKy7Z9oarn4AB28vw6z1aBjbgAfTc1X8yqSYJSMmJvnWJe",
@@ -5564,7 +5602,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00323,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (OMNI/SOL) \u2022 Slot #461319504 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (OMNI/SOL) • Slot #461319504 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "Q7i9EqhMKRBS7BovDoca3fMRaCDZzhfSnKoKM1qs9dFLmMDgoFn2KMxWWatKqSELReawqcGipo4NFvnrG1iZ4DR",
@@ -5583,7 +5621,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (OMNI/SOL) \u2022 Slot #461318976 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (OMNI/SOL) • Slot #461318976 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2BzwdPKjM1rpuDGkAvaSfCeKZiMy1viRgB5V3itJXnQcSSM3mMJVufQ48i1Lazy1V33xgghSqhBwGhdJHXiKoikF",
@@ -5602,7 +5640,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0044,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) \u2022 Slot #461318724 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) • Slot #461318724 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "7fWR14xVMZHz6iTv8M8KpZxtM882A2HfWd6R36KbiDRnTD7EGRgxn6MCiv9c26KHd5Mxb5uqNeKHc1QJGm3H791",
@@ -5621,7 +5659,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) \u2022 Slot #461317947 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) • Slot #461317947 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2NfxkC9JTZPhXuh4dwMSPg6nRupEgKSXYNzUbYDp2eZaVfFB826TDhLUjvNPZEGGLPoH87XiaUAjFR1BBEPc4mvk",
@@ -5640,7 +5678,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00675,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (GUARD/SOL) \u2022 Slot #461317737 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (GUARD/SOL) • Slot #461317737 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "31rDsn87vdpLW7Z4Bnxb31f1BTkrNRkUtCxE8krkr33Q8GfRe93TwiXvuPSj9jjiotnFREybPdTnqsw8tPo9fPb5",
@@ -5659,7 +5697,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (GUARD/SOL) \u2022 Slot #461315948 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (GUARD/SOL) • Slot #461315948 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "43G5ZjtiZR9MDabKXs4UhJZ71y2UocnFP3KmVDbMdjmfJMvxSwqJxb2j1yEWxHUDMjoCBrhtYxgiBBQQgEAraRJz",
@@ -5678,7 +5716,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00396,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) \u2022 Slot #461314742 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) • Slot #461314742 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3aJf77CZFJcURJGpCRAfkgzgz3ZxxrUs6zrLJ6X596iKb7Ye1XWZ5u9JkviUwkG2ThZNyDqo441dHds6z9YKqPLf",
@@ -5697,7 +5735,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) \u2022 Slot #461313665 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) • Slot #461313665 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5UFdcd8U3WtPkRHW5oCiTxp4f2Pc12MRu6yp5WWYNYjmTWSsBALbFThfaBLJjV67NuKvS9R7MbEnyqw9SKpUGyWr",
@@ -5716,7 +5754,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0063,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) \u2022 Slot #461313386 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) • Slot #461313386 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4XdvurZ8vBYXtSehEsy85hSSbyTbUu5eSwxq2AeJaUPigaKEUX9Y9iCAwFitHxma46rWpVduTmFQBJBnC8KoxfWg",
@@ -5735,7 +5773,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) \u2022 Slot #461313123 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) • Slot #461313123 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3ykqjFfihN1haFRJmVTCYPcYyCxtrVPALj9WACcN7UoS5CfPJLNR6a2hdzRzsi43T6kgenX6UsYYQLgCHok5Y9Qv",
@@ -5754,7 +5792,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00351,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SI/SOL) \u2022 Slot #461312456 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SI/SOL) • Slot #461312456 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "57t6dgtDkPHu2V6P1DT6xD3HEqqkpyh9GkoGDGZabLwFHJmQhh9bcs4xxnWbrTrc5CtafngLRAtnt9oasLrRqi54",
@@ -5773,7 +5811,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SI/SOL) \u2022 Slot #461311617 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SI/SOL) • Slot #461311617 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4VBhECWFfGihohAhzd3W7JM6kmHwdytTH15R7qEsVYZge8hD3p9cpNx3XNaASQD9RGy4ohtdbwERWHYf2Wf6T1vn",
@@ -5792,7 +5830,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00586,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ANSEM/SOL) \u2022 Slot #461311328 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ANSEM/SOL) • Slot #461311328 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "sZEpkA71FmPZf25GYy6fviLZVS5Ln291eK8Awzk58z1JxC1tE5piihEdx3PySxh4cxQuQvLJSRhtZ6w55zfA27g",
@@ -5811,7 +5849,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ANSEM/SOL) \u2022 Slot #461311077 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ANSEM/SOL) • Slot #461311077 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5i7uKZ6FTHZhVaJB8DxhZsD4gRdJLhB2BxvUmY2jkZ5BHXYyrwA4CS9b8V4z4HAHBnytZ1uUtjvrGaqXLg1nq7Rm",
@@ -5830,7 +5868,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00424,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPE/SOL) \u2022 Slot #461309489 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPE/SOL) • Slot #461309489 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2S87QtrNepzStVFm4bV9dRckwHCB13XLYPb2QoP9XkfZf9wCaW3mvzjwV3keAEB8ncXq4iHaYRs3L8TjATrG1Qw1",
@@ -5849,7 +5887,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPE/SOL) \u2022 Slot #461306977 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPE/SOL) • Slot #461306977 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2wrkxNK3XxUimuQrXxAmnyDa7iQP8MNymHT2NQ4cCS5PNgnYgSpMRW4vkfou1zAG5GniDts6SXZSWSpHRFGFjXGU",
@@ -5868,7 +5906,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00541,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (OMNI/SOL) \u2022 Slot #461306063 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (OMNI/SOL) • Slot #461306063 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5fEnBktFLUj54zhKZuadE58TnxhyWZNTk1SyL7JnSro2N4WR4ivs6eBhx7q4agYLqJcCCMAwGgvWku9G6psnL9Gt",
@@ -5887,7 +5925,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (OMNI/SOL) \u2022 Slot #461305797 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (OMNI/SOL) • Slot #461305797 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3mxGTBxZo8EkwY9xBX2ubhs3R2im8B7oyX8nrjvxqDf4WdigmQzvufM1V3PW1Kq8P6hsW48Jpu8Wyagq6cE4t6pm",
@@ -5906,7 +5944,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00379,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (TRIAL/SOL) \u2022 Slot #461304230 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (TRIAL/SOL) • Slot #461304230 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "f5RTV9dCEe8qXeM7fDZ5KSLSDsWCVHhqzAKqWjmDbh57naN6fJVtFoQmK953Cygv12gUoybjXt3UbDGeuuhKtoe",
@@ -5925,7 +5963,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (TRIAL/SOL) \u2022 Slot #461303271 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (TRIAL/SOL) • Slot #461303271 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5FmdjqBmsVJqBmyfCFsSUdggWhfLNZsf7tgKhkcqSSUER5asg1ihkW1Q8mLyzVkvj2ZYzike6vcfEXp5Fu3cV48q",
@@ -5944,7 +5982,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00497,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SER/SOL) \u2022 Slot #461302968 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SER/SOL) • Slot #461302968 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3JrUDbPJrjsuHkHygwE6TWaCQBsFok6HkW4jaZifJ6pGS2wMABaky3F7Xetxc2DmD76VwURBKqYiN2mkfRZxVRpo",
@@ -5963,7 +6001,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SER/SOL) \u2022 Slot #461302440 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SER/SOL) • Slot #461302440 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "25cZn8Q3AcBNcjMCjHqHRpyqWrGiJMCSqbfbYvaWpLSCm8JsWSWJ2uPtwrqT7Kd24QLmidLqybH4WFkFCwE43boo",
@@ -5982,7 +6020,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00334,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (GUARD/SOL) \u2022 Slot #461299969 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (GUARD/SOL) • Slot #461299969 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "345ApUHnfG3pKtU9BBQYVGfoJidpDrpMaKa8XfAgL3G5QnT8kRV7hmUsh5UF1KZvXKfHeff5wS6wXqQuyTRDKutM",
@@ -6001,7 +6039,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (GUARD/SOL) \u2022 Slot #461299797 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (GUARD/SOL) • Slot #461299797 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2EHZQB5AT3hdSxWFNGPvRVvNfyjNbVrfyvR2pTjwUAQuphBsZYA6SscRa4ksdAV1mwfwGrsJyYEVAkKG8rbgJirS",
@@ -6020,7 +6058,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00452,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #461299670 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #461299670 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2XvFekc6X2y7NeC277vKjafEUeazALsyDRAM97LVnfjuZc6kLsQVES7NTT8LChGUJuXckDCAYhqkmZ5xvesPaZur",
@@ -6039,7 +6077,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #461299472 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #461299472 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3bp5SXAkSTVuppfsvGMBGGxFNEvaQJANHHJu5XDCjMCKJq5t8SdnkqhJcpoaF4j9htasWk3HX4Wg7EGwRbPFp7y7",
@@ -6058,7 +6096,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0029,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WBTC/SOL) \u2022 Slot #461298853 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WBTC/SOL) • Slot #461298853 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3aLmXt9HYUEYj9X8E4ujwJPk55RQ6e8Zm45bxP7e4WfA45gnK5msccdfBx5q92MZ5s1SYTWHE2hUaJugDDbtZD4y",
@@ -6077,7 +6115,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WBTC/SOL) \u2022 Slot #461298267 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WBTC/SOL) • Slot #461298267 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "36bSisiwvY2i1kAAt8MaZnBgvnUv3fUVGyfvVYmPszujr6vuhRhtRkmDnst9z9Dqea4zjTzWCqVBMY94JawrH4Ra",
@@ -6096,7 +6134,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00524,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (EVILQWEN/SOL) \u2022 Slot #461296235 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (EVILQWEN/SOL) • Slot #461296235 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5Aa48eAzyJh5iDMVh1ayVgCcQnyWZYogAxBDoqRFfCjYmMosJaZ7qkJZiLUMetrhDTp4xqSGZJ7rkqjNNbFtoR7i",
@@ -6115,7 +6153,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (EVILQWEN/SOL) \u2022 Slot #461295975 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (EVILQWEN/SOL) • Slot #461295975 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "8YwtHQbBNfaPvftpm96WQU8kXiaXenyK5oJ8F98oqzkkT5ZFbjS9Nrg8mC9TrRsan79WooEkgXTJioLMzjRPdM1",
@@ -6134,7 +6172,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00642,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (EVILQWEN/SOL) \u2022 Slot #461295141 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (EVILQWEN/SOL) • Slot #461295141 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4p3XuHJ7XHrFCTUSUUv8wFyovU4zuMq5df5Dcd1aNkP7AaQ8eU6x5NowATvkW1KZmAY2MfSsc6kdh84NtDZ47REU",
@@ -6153,7 +6191,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (EVILQWEN/SOL) \u2022 Slot #461294057 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (EVILQWEN/SOL) • Slot #461294057 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "7bfcaXQoAFbCYHhLxD7Y1XQ3VAk23U5GHpmxN9ZHrkiX27snxj6hUthiwJxmkNJaPhahtKRVC13K9fczDsQEcgB",
@@ -6172,7 +6210,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0048,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SER/SOL) \u2022 Slot #461293464 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SER/SOL) • Slot #461293464 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3sjKafXKC1USLoneMSQuQxK2RFdPxtzH2obRgcqFH9SUD2JNBgfWJdZidgyjGfFj1cj2FbHRmnaeL7BeH2p98nVk",
@@ -6191,7 +6229,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SER/SOL) \u2022 Slot #461291216 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SER/SOL) • Slot #461291216 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2hmGfS8shkJ7bwYdUP7YTB1ViUejLqaiB3rL99CpiPBxuC7R3QjgzYM3rkHZ3FvAWwe477cNtka45RmkWYVXErGV",
@@ -6210,7 +6248,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00597,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SI/SOL) \u2022 Slot #461291122 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SI/SOL) • Slot #461291122 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2p6LUCjfK5rHAr5VexbQxaBxAkM9Svpemk8d7yptyZwo8ZPoatydEoJJgxv12Jxn8tGFcaYjEeiCA4ncqy2oh35N",
@@ -6229,7 +6267,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SI/SOL) \u2022 Slot #461289700 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SI/SOL) • Slot #461289700 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2aawYspAB7285zxtug9Ca29ZuMg321A81EpoQwMpXQ9TSPJCbuB99ydHUWi1N8MAh2yugG9Qfq9yUxrGL7zMTgCT",
@@ -6248,7 +6286,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00435,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) \u2022 Slot #461289258 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) • Slot #461289258 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3mbnnWL4u5qnXbXp8v2h493jDudvfBMoiJ1vUe3HwUjBC3wgQuVNgNxz188MmcFGGcBYox4Ec6qWaTVCA68Hvpgv",
@@ -6267,7 +6305,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) \u2022 Slot #461288736 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) • Slot #461288736 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "KaP8qJTgFCVkBmPTQFCT8vQzfMwXJVWak7n1xrwtKToZNQRk2cjictUSRBoSRzXLmcUi4hrNTSQxjFZuSj3TfcE",
@@ -6286,7 +6324,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00553,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) \u2022 Slot #461287679 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HYPERFAST/SOL) • Slot #461287679 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2XqRH2xqyQAXYoLDDUAGKj6HpngcjEH8hqAAci2MhVozAD4u1eUWEpkvrM3UZCaFx6EhG1B7YPzi6Ff38uor3MCL",
@@ -6305,7 +6343,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) \u2022 Slot #461287470 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HYPERFAST/SOL) • Slot #461287470 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3mrNZWFGC8iMVEhN58oqD3kKA2yez8sD3UBFeQ3RKeUFLVfxP4kn7TPnjhorgTCRD21frpAPWkgzMN6qeAUxaH7r",
@@ -6324,7 +6362,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00391,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (GUARD/SOL) \u2022 Slot #461286553 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (GUARD/SOL) • Slot #461286553 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3R5WdeT4qeYhsDAeiMCc4WZmGJLbLwhSqH4VaNu6VcfCVCc9P3Qt5i1cpzG261VRSGrB313G8qEvWBtw9KYmvfbM",
@@ -6343,7 +6381,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (GUARD/SOL) \u2022 Slot #461285958 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (GUARD/SOL) • Slot #461285958 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2HyGFe1pEE3DHWQ7FfWWzJxqyoACEWG2WXLQsuKNwiKcCqnMBCifF5A9yMno6kjTggDkKnBR2csBpDdLD7MgF6HQ",
@@ -6362,7 +6400,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00508,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) \u2022 Slot #461285035 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) • Slot #461285035 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "67dAhNPFQwY427LXBzEZUcZjkhPjGMFUMd4cCT266xy7kzn2GfNW74RkvVUC9f6NyHWciyPRzmkHvU6JHbeACmDw",
@@ -6381,7 +6419,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) \u2022 Slot #461284395 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) • Slot #461284395 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "u8ZtnT1sBvgru1pPxbFow2LiRCroD88XhS5rpRbyxosALVdqBdSF7basRCQqsU8ZypGL1scYR7eShEsyRpFu9xG",
@@ -6400,7 +6438,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00506,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) \u2022 Slot #461284190 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WIZARDCAT/SOL) • Slot #461284190 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3Gj8F2mN1ucuAtkyyh9Fy6YnqGJ6FNrtrb3UeSHtNP2fxandfvAFkssm76t89RkhynSTE5MWF3m8S7GfYTEmuUFQ",
@@ -6419,7 +6457,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) \u2022 Slot #461283373 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WIZARDCAT/SOL) • Slot #461283373 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2MeWKhHmvkXfHAhfn6m7SRFyzxehnXyg3WHeFuAZiwhovDXgZpQz6G8cAJtiSoJ7KQ7pTZVSxyiEkzcb1mtYzHTi",
@@ -6438,7 +6476,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00639,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (POTPOT/SOL) \u2022 Slot #461282123 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (POTPOT/SOL) • Slot #461282123 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "gPb6FVqRovt1Ta7ddB77MHh6PF6zfkDJ2NFypbT8P1Ueuhqievzrv8AXNLAo1bVo8DMw6S1q6HNJQS9dCDR3aBJ",
@@ -6457,7 +6495,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (POTPOT/SOL) \u2022 Slot #461281633 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (POTPOT/SOL) • Slot #461281633 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "64DCPABpdAofZyK1LaR6qXQ8bokX7nuZExFhvX7ktAYFr2p8RP2rhPQxBXc9aZhT64Rzi2kfQPrM3Jahr9f6Lzx1",
@@ -6476,7 +6514,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00489,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #461281291 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #461281291 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "zPsAJ7jMfwSAVpNEMrXJXjjJ1XBLvbeK5oy6uzyqm9hQhRuqBCUf2pvedvCTPgToe8jFnCWFdM9FujA1G4NukqD",
@@ -6495,7 +6533,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #461280742 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #461280742 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2SagfdV5zpqVsJGUi31L9D4dR1EEhsANWxZWv8dDguspkn6XqEyUPcuUecaXp6MGAwpx1TuKm6Ukhu9Y4XajeKGK",
@@ -6514,7 +6552,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00622,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #461280618 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #461280618 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5ZpvuwmsVxsh3XJrtJDXYyX9r5Etd9pw66ZAFz8ASMZiqZanBNBxqHPtJtab5dcnHEtywGvEzTnMDStUqVfbFr5e",
@@ -6533,7 +6571,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #461279831 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #461279831 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "USS64YNLHCxpx7hwp3j9WabK2xxi8CUNLaqpSx3tgeGPaFG6s3XKLJ72yW2CBAu8QwT5tkS28Yzb4ixQZR7FGye",
@@ -6552,7 +6590,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00472,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WBTC/SOL) \u2022 Slot #461279589 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WBTC/SOL) • Slot #461279589 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5GKhUd9aDgRAyLW64v32SHZ9bAV6zvnVYwQegkY3WcD6U5Hm4cAocRdjo4VVUAzmpZofYDj3ouUMBvrbNC5sUwL9",
@@ -6571,7 +6609,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WBTC/SOL) \u2022 Slot #461278487 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WBTC/SOL) • Slot #461278487 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2UEfmyvBGCiufjixeWsmkZzgoD69rZD4PxiicAWLz6385h8uUnjkjdgLa19kCTvjZYs7om7nQ3Quee9T3V7L2nCP",
@@ -6590,7 +6628,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00605,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (N3838/SOL) \u2022 Slot #461278445 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (N3838/SOL) • Slot #461278445 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3Ke1msiSriDnVKtso3MPesMC8wVhGFvLGMp5dyuNaFiLMKBNupvZYFJUqiqMkLBL3xuCaUGYHfqMtL2wkHwqQUBZ",
@@ -6609,7 +6647,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00549,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (N3838/SOL) \u2022 Slot #461278296 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (N3838/SOL) • Slot #461278296 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5b3DDkvCu285r6G7Abrb5KchKZR755ovvM5jLQoxV7Tbyz4uja9PrardiXuYTxn9HJPWcHsWnFcN3jR2v1BM8jmM",
@@ -6628,7 +6666,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00852,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #461278062 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #461278062 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2ChWAMKf2oHfDtetMTqxTzN8CGH24DF2prC5vaVyGkzGSTr8HheEs4vrbfUEfPtHvz3jnCw11X4GabgzZT3Cm37L",
@@ -6647,7 +6685,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00732,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #461277347 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #461277347 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2f4VzxCMkkKfY754xNxSEAhb449JeA27qw1dGwwmvJgC3Yr5WAmefTikuS74SYTDyUoU42jMbJGmP5D6PwuxexYA",
@@ -6666,7 +6704,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00588,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) \u2022 Slot #461276960 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SHIBANA/SOL) • Slot #461276960 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2sEhd4nYW4uNnBEPiXowF6uiv7xrmTn56bacAogHRAyWVnnkdipbFKfAFAbaUD94TBtx77M7n4Nhr3Zvdc2SqVCc",
@@ -6685,7 +6723,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00519,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) \u2022 Slot #461276143 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SHIBANA/SOL) • Slot #461276143 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3wETGqrFZGMK6dQahZmn5q4oRriG2RfMQpw6hVyqWGis8NVJnvEeyGxujAjoKVYZE7fAL7hrzetAPpMtUYhsF8iy",
@@ -6704,7 +6742,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00835,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (SYNTHESIS/SOL) \u2022 Slot #461275680 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (SYNTHESIS/SOL) • Slot #461275680 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "Z1e6JUdjBzcyaLQzCJX4D86GU2oPQRkfjk3pDaveRbuCGQhjPUGXbdF9tibXXS3cCVAztpZ6BUpNSfKtcG8rSfk",
@@ -6723,7 +6761,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00702,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (SYNTHESIS/SOL) \u2022 Slot #461275319 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (SYNTHESIS/SOL) • Slot #461275319 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "Rc5kzNbgXA8RaFEfV9A43Fph3KHVyUnprb5nwHnfThPeG1cQvDFywo1zUgAbxFqmZJU9WuDHLWXh1J8P6yPk4Kq",
@@ -6742,7 +6780,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00571,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (N3838/SOL) \u2022 Slot #461275115 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (N3838/SOL) • Slot #461275115 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3eS7wPZXy2e5cJmLT4SygnzxFjP63JN7TywwpeYo7NmFNDqVPbRnyL8y18ehqvYumUhN8Rnrn5ALuTwiR2N86Vit",
@@ -6761,7 +6799,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00488,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (N3838/SOL) \u2022 Slot #461274753 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (N3838/SOL) • Slot #461274753 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "5PoJb8M3Q3dLaP2cdwrFmVUSZqtv6RoFnfg7EiPrwBR6ZreZqFF22UmCp88wAcwGJ2B89PktmtfbJmMKGTiFS1MS",
@@ -6780,7 +6818,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00705,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #461274523 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #461274523 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "25tHVJaVbdTrsfeJHxprLReWSAC7o5XbP1SnhYQbLoseHjfg1Gzg4D64CeM6fAXaTv2ea3aAw3Ads3bcLXyAEpHo",
@@ -6799,7 +6837,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #461274481 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #461274481 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4hLQQtAthpdsAdJGpw5EGVuEjQVSSgBT818fFWVePvsmrooJbjaHCw9dxrxVJyhEBjNwrjVxqdnzRfXD4LUv4JbF",
@@ -6818,7 +6856,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00554,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (HERMIT/SOL) \u2022 Slot #461273539 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (HERMIT/SOL) • Slot #461273539 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "41ifnY5HEimkPdws9fygZ6ZFDedeSL3nWbCqNcDbjjimdr2Vxn37khAr9w8ciQVX8vKehakrGoW6vtA4JCvinPJZ",
@@ -6837,7 +6875,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00458,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (HERMIT/SOL) \u2022 Slot #461272973 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (HERMIT/SOL) • Slot #461272973 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2v9xXCBVujz3NC5W5ywe1uzeqUN5GuNaScxKmPD184r5gP8jnAsXPLQauGsfVrmagRrCPLaGPgqXefm7uaFxafcq",
@@ -6856,7 +6894,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00688,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (CA/SOL) \u2022 Slot #461272637 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (CA/SOL) • Slot #461272637 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "28kMcP6mvo1MH73YcEtiKZLowTVSWqJhRRG8fc5DmAALKwehfvQahmxhgZuZVQC49dANK6635BweQXE6HAfth5cP",
@@ -6875,7 +6913,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00641,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (CA/SOL) \u2022 Slot #461272513 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (CA/SOL) • Slot #461272513 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3CcXJGaS5VPvKjkugtCbjyGZZuNhVsbddn1EEanoJuVxxG58r2z1Xdj83aYEN8t1ZVa2ATA6u38GR4LiQWxvMeri",
@@ -6894,7 +6932,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00537,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (WOW/SOL) \u2022 Slot #461271580 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (WOW/SOL) • Slot #461271580 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3HdpdLhyWgAMCxFwxFf91UTAhnKhiHkax7sNZYVEasqshCgf8xRpjeWeEyivQGkDkmMXGJ5oyAS9VCZ9BxtrPAWK",
@@ -6913,7 +6951,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00427,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (WOW/SOL) \u2022 Slot #461270045 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (WOW/SOL) • Slot #461270045 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "872ZctzoyP2HqzjrN5Zupx4n4oeGpQRZCHpghjNkpNA34c7nqo9nmdjqvJuMtX7iar5Wwmtz8GLSJymNuG4s8KH",
@@ -6932,7 +6970,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00671,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (GUARD/SOL) \u2022 Slot #461268920 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (GUARD/SOL) • Slot #461268920 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "2yoPDP9uLkZvRsRfc7GqUhEoyt3EK8HSnyyRD59tFBZsPDibqEpjimH7iGTDt9EKoFPes52e1GYsLNSWAFnfa6Mi",
@@ -6951,7 +6989,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0061,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (GUARD/SOL) \u2022 Slot #461268173 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (GUARD/SOL) • Slot #461268173 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4yn7TwVSQcckAG2FrvoTMjRF2otgVQrvrN1vr4Z4jDNhxsJDt7wJfd2BYHoVgB7PKNpQ65P5xd5WwaptkoariU1b",
@@ -6970,7 +7008,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0052,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (APE/SOL) \u2022 Slot #461266924 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (APE/SOL) • Slot #461266924 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3yxunWFRNmvVhXSSg57Av19FzkPdLkG47DReuMtYZhLr5hfZAcorg7h9wFSpMrgV7ZJ4f5bhLKPcDbfYPMqGJGBN",
@@ -6989,7 +7027,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00397,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (APE/SOL) \u2022 Slot #461266010 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (APE/SOL) • Slot #461266010 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "3epHF1RYWzzrcR21uD1WqPQvjs3F6xzWsY7L6P9Rv3yZffXihA8u5ekK5Nd5t7Kk7hqS83A6bgozkrFLWLcLiyLh",
@@ -7008,7 +7046,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00654,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) \u2022 Slot #461263556 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (VILLAINLON/SOL) • Slot #461263556 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "65AXbsJwK3gaNHYCaENEXW7f3Jx7FozYWY5yD2EhQM89qgNi42X7NHnyBGHJ3mCCtaycZJSS3dzfiKugXkoToAif",
@@ -7027,7 +7065,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0058,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) \u2022 Slot #461262420 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (VILLAINLON/SOL) • Slot #461262420 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4KHYfDGXbScF3nh47y7mhJyAfTEWD5Mu7iPaCT1s4sAaFk229yCg2TcsY3ev99PnBtuenVAsXeR9Mitxkj5MYJ19",
@@ -7046,7 +7084,7 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.0039,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) \u2022 Slot #461261792 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Sell / Exit (ODDYSSEY/SOL) • Slot #461261792 • Wallet 8muJ3h...MVos"
   },
   {
     "tx_hash": "4jb3abr5ycbZwXGQb8d6aYrntvCTBxXXuHi82Xb789QZpMkNMxbwY9eNVyuHuRuoYo6uRnjvaMwEq8BnLhZx9mS6",
@@ -7065,6 +7103,6 @@
     "gas_fee_usd": 0.0011,
     "dex_fee_usd": 0.00366,
     "slippage_pct": 0.5,
-    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) \u2022 Slot #461261732 \u2022 Wallet 8muJ3h...MVos"
+    "notes": "On-Chain Buy / Entry (ODDYSSEY/SOL) • Slot #461261732 • Wallet 8muJ3h...MVos"
   }
 ]
