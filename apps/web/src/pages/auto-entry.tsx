@@ -442,6 +442,63 @@ export default function AutoEntryPage() {
                 </div>
               </div>
 
+              {/* QUICK DEX VENUE SELECTOR BUTTONS */}
+              <div className="p-2.5 rounded-xl bg-obsidian-950/80 border border-obsidian-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-slate-400 font-bold uppercase text-[11px] mr-1">🎯 Filter Target DEX:</span>
+                  <button
+                    type="button"
+                    onClick={() => setScanTargetPool('ALL')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                      scanTargetPool === 'ALL'
+                        ? 'bg-amber-400 text-obsidian-950 shadow-sm'
+                        : 'bg-obsidian-900 text-slate-300 hover:text-white border border-obsidian-800'
+                    }`}
+                  >
+                    Semua DEX
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScanTargetPool('PUMP_FUN')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                      scanTargetPool === 'PUMP_FUN'
+                        ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-sm ring-1 ring-pink-300'
+                        : 'bg-obsidian-900 text-pink-300 hover:bg-pink-950/30 border border-pink-500/40'
+                    }`}
+                  >
+                    <span>💊 Khusus Pump.fun</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScanTargetPool('RAYDIUM')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                      scanTargetPool === 'RAYDIUM'
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-obsidian-950 shadow-sm ring-1 ring-cyan-300'
+                        : 'bg-obsidian-900 text-cyan-300 hover:bg-cyan-950/30 border border-cyan-500/40'
+                    }`}
+                  >
+                    <span>⚡ Khusus Raydium</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScanTargetPool('OTHER')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                      scanTargetPool === 'OTHER'
+                        ? 'bg-indigo-500 text-white shadow-sm ring-1 ring-indigo-300'
+                        : 'bg-obsidian-900 text-indigo-300 hover:bg-indigo-950/30 border border-indigo-500/40'
+                    }`}
+                  >
+                    <span>🌐 Lainnya</span>
+                  </button>
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {scanTargetPool === 'PUMP_FUN' && <span className="text-pink-300 font-bold">Memfilter khusus koin rilis Pump.fun</span>}
+                  {scanTargetPool === 'RAYDIUM' && <span className="text-cyan-300 font-bold">Memfilter pool likuiditas Raydium AMM</span>}
+                  {scanTargetPool === 'OTHER' && <span className="text-indigo-300 font-bold">Memfilter pool DEX alternatif</span>}
+                  {scanTargetPool === 'ALL' && <span>Memindai seluruh DEX Solana secara otomatis</span>}
+                </div>
+              </div>
+
               {/* FILTER CONTROLS GRID */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                 {/* Filter 1: Peluang Cuan Minimum */}
@@ -492,9 +549,12 @@ export default function AutoEntryPage() {
                     className="w-full px-3 py-2 rounded-xl bg-obsidian-950 border border-obsidian-700 text-white font-mono font-bold focus:outline-none focus:border-cyan-400"
                   >
                     <option value="ALL">Semua Pool (New + Final + Migrated)</option>
-                    <option value="NEW_CREATIONS">Koin Baru Rilis (&lt; 3 Jam)</option>
-                    <option value="FINAL_STRETCH">Final Stretch (Bonding Curve &gt; 80%)</option>
-                    <option value="MIGRATED">Migrated Raydium Pool</option>
+                    <option value="PUMP_FUN">💊 Khusus Pump.fun (Bonding Curve / PumpSwap)</option>
+                    <option value="RAYDIUM">⚡ Khusus Raydium (AMM / CLMM Pools)</option>
+                    <option value="OTHER">🌐 Multi-DEX / Lainnya</option>
+                    <option value="NEW_CREATIONS">🌱 Koin Baru Rilis (&lt; 3 Jam)</option>
+                    <option value="FINAL_STRETCH">🔥 Final Stretch (Bonding Curve &gt; 80%)</option>
+                    <option value="MIGRATED">🎓 Migrated Raydium Pool</option>
                   </select>
                 </div>
 
@@ -579,13 +639,37 @@ export default function AutoEntryPage() {
                                 <h3 className="text-base font-black text-white tracking-tight">
                                   {token.symbol}
                                 </h3>
-                                <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-obsidian-950 text-slate-400 border border-obsidian-800">
-                                  {token.category === 'NEW_CREATIONS'
-                                    ? 'POOL BARU'
-                                    : token.category === 'FINAL_STRETCH'
-                                    ? 'FINAL STRETCH'
-                                    : 'RAYDIUM'}
-                                </span>
+                                {(() => {
+                                  const lp = String(token.launchpad || '').toLowerCase();
+                                  const dx = String(token.dex || '').toLowerCase();
+                                  const ca = String(token.contract || '').toLowerCase();
+                                  const isPump = lp.includes('pump') || dx.includes('pump') || ca.endsWith('pump');
+                                  const isRay = lp.includes('raydium') || dx.includes('raydium');
+
+                                  if (isPump) {
+                                    return (
+                                      <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-pink-500/20 text-pink-300 border border-pink-500/40">
+                                        💊 PUMP.FUN
+                                      </span>
+                                    );
+                                  }
+                                  if (isRay) {
+                                    return (
+                                      <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                                        ⚡ RAYDIUM
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-obsidian-950 text-slate-400 border border-obsidian-800">
+                                      {token.category === 'NEW_CREATIONS'
+                                        ? 'POOL BARU'
+                                        : token.category === 'FINAL_STRETCH'
+                                        ? 'FINAL STRETCH'
+                                        : 'RAYDIUM'}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               <p className="text-xs text-slate-400 font-sans line-clamp-1">{token.name}</p>
                             </div>

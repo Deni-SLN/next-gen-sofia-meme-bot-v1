@@ -65,8 +65,8 @@ def snipe_token(body: SnipeRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/smart-money")
-def get_smart_money():
-    return memecoins.list_smart_money()
+def get_smart_money(platform: str | None = Query(None)):
+    return memecoins.list_smart_money(platform=platform)
 
 
 @router.post("/smart-money/{wallet_id}/toggle")

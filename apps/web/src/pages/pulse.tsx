@@ -12,6 +12,7 @@ export default function PulsePage() {
   const [mode, setMode] = useState<'PAPER' | 'LIVE'>('PAPER');
   const [minSafety, setMinSafety] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [platformFilter, setPlatformFilter] = useState<'ALL' | 'PUMP_FUN' | 'RAYDIUM' | 'OTHER'>('ALL');
   const [activeColumnTab, setActiveColumnTab] = useState<'MICRO' | 'MID' | 'GRADUATE' | 'MAJOR' | 'ALL'>('MICRO');
   const [autoScan, setAutoScan] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(5);
@@ -176,6 +177,26 @@ export default function PulsePage() {
       // 2. Blokir ketat koin amal, donasi, dan mayhem
       if (t.is_charity || isExcludedTokenClient(t.symbol, t.name)) return false;
 
+      // 3. Filter Platform / Venue DEX (Pump.fun vs Raydium vs Lainnya)
+      if (platformFilter !== 'ALL') {
+        const lp = String(t.launchpad || '').toLowerCase();
+        const dx = String(t.dex || '').toLowerCase();
+        const ca = String(t.contract || '').toLowerCase();
+
+        const isPump =
+          lp.includes('pump') ||
+          dx.includes('pump') ||
+          ca.endsWith('pump');
+
+        const isRay =
+          lp.includes('raydium') ||
+          dx.includes('raydium');
+
+        if (platformFilter === 'PUMP_FUN' && !isPump) return false;
+        if (platformFilter === 'RAYDIUM' && !isRay) return false;
+        if (platformFilter === 'OTHER' && (isPump || isRay)) return false;
+      }
+
       if (t.safety_score < minSafety) return false;
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
@@ -241,14 +262,14 @@ export default function PulsePage() {
       allRawTokens.filter((t) => (t.market_cap || 0) < 100000 || t.is_new_creation)
     );
     return sortAndLimitTokens(filtered, 10);
-  }, [allRawTokens, minSafety, searchQuery]);
+  }, [allRawTokens, minSafety, searchQuery, platformFilter]);
 
   const midTokens = useMemo(() => {
     const filtered = filterTokens(
       allRawTokens.filter((t) => (t.market_cap || 0) >= 100000 && (t.market_cap || 0) < 1000000)
     );
     return sortAndLimitTokens(filtered, 10);
-  }, [allRawTokens, minSafety, searchQuery]);
+  }, [allRawTokens, minSafety, searchQuery, platformFilter]);
 
   const graduateTokens = useMemo(() => {
     const filtered = filterTokens(
@@ -262,17 +283,45 @@ export default function PulsePage() {
       )
     );
     return sortAndLimitTokens(filtered, 10);
-  }, [allRawTokens, minSafety, searchQuery]);
+  }, [allRawTokens, minSafety, searchQuery, platformFilter]);
 
   const majorTokens = useMemo(() => {
     const filtered = filterTokens(allRawTokens.filter((t) => (t.market_cap || 0) >= 1000000));
     return sortAndLimitTokens(filtered, 10);
-  }, [allRawTokens, minSafety, searchQuery]);
+  }, [allRawTokens, minSafety, searchQuery, platformFilter]);
 
   const allFilteredTokens = useMemo(() => {
     const filtered = filterTokens(allRawTokens);
     return sortAndLimitTokens(filtered, 10);
-  }, [allRawTokens, minSafety, searchQuery]);
+  }, [allRawTokens, minSafety, searchQuery, platformFilter]);
+
+  const pumpFunScanCount = useMemo(() => {
+    return allRawTokens.filter((t) => {
+      const lp = String(t.launchpad || '').toLowerCase();
+      const dx = String(t.dex || '').toLowerCase();
+      const ca = String(t.contract || '').toLowerCase();
+      return lp.includes('pump') || dx.includes('pump') || ca.endsWith('pump');
+    }).length;
+  }, [allRawTokens]);
+
+  const raydiumScanCount = useMemo(() => {
+    return allRawTokens.filter((t) => {
+      const lp = String(t.launchpad || '').toLowerCase();
+      const dx = String(t.dex || '').toLowerCase();
+      return lp.includes('raydium') || dx.includes('raydium');
+    }).length;
+  }, [allRawTokens]);
+
+  const otherScanCount = useMemo(() => {
+    return allRawTokens.filter((t) => {
+      const lp = String(t.launchpad || '').toLowerCase();
+      const dx = String(t.dex || '').toLowerCase();
+      const ca = String(t.contract || '').toLowerCase();
+      const isPump = lp.includes('pump') || dx.includes('pump') || ca.endsWith('pump');
+      const isRay = lp.includes('raydium') || dx.includes('raydium');
+      return !isPump && !isRay;
+    }).length;
+  }, [allRawTokens]);
 
   const totalRawCount = allRawTokens.length;
 
@@ -319,11 +368,40 @@ export default function PulsePage() {
                   </span>
                 )}
                 <span className="font-black text-base text-white tracking-tight">{t.symbol}</span>
-                {t.launchpad && (
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-obsidian-950 text-cyan-300 border border-obsidian-800">
-                    {t.launchpad}
-                  </span>
-                )}
+                {/* PROMINENT DEX / LAUNCHPAD BADGE */}
+                {(() => {
+                  const lp = String(t.launchpad || '').toLowerCase();
+                  const dx = String(t.dex || '').toLowerCase();
+                  const ca = String(t.contract || '').toLowerCase();
+                  const isPump = lp.includes('pump') || dx.includes('pump') || ca.endsWith('pump');
+                  const isRay = lp.includes('raydium') || dx.includes('raydium');
+
+                  if (isPump) {
+                    return (
+                      <span
+                        className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 shadow-sm flex items-center gap-1"
+                        title="Token aktif di ekosistem Pump.fun (Bonding Curve / PumpSwap)"
+                      >
+                        <span>💊 PUMP.FUN</span>
+                      </span>
+                    );
+                  }
+                  if (isRay) {
+                    return (
+                      <span
+                        className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm flex items-center gap-1"
+                        title="Token aktif di pool Raydium AMM / CLMM"
+                      >
+                        <span>⚡ RAYDIUM</span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-obsidian-950 text-indigo-300 border border-obsidian-800 flex items-center gap-1">
+                      <span>🌐 {t.launchpad || 'DEX'}</span>
+                    </span>
+                  );
+                })()}
                 {t.age && (
                   <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
                     {t.age}
@@ -736,6 +814,90 @@ export default function PulsePage() {
             </Link>
           </div>
         )}
+
+        {/* DEX / PLATFORM FILTER BUTTONS FOR SCAN ACCURACY */}
+        <div className="bg-obsidian-900/95 border border-obsidian-800 p-2.5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-2.5 shadow-md">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-mono text-slate-400 font-bold uppercase mr-1 flex items-center gap-1">
+              <span>🎯 Filter Scan DEX:</span>
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                platformFilter === 'ALL'
+                  ? 'bg-amber-400 text-obsidian-950 shadow-md font-black'
+                  : 'bg-obsidian-950 text-slate-300 hover:text-white border border-obsidian-800'
+              }`}
+            >
+              <span>Semua DEX</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-obsidian-900/70 text-current">
+                {totalRawCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('PUMP_FUN')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                platformFilter === 'PUMP_FUN'
+                  ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md shadow-pink-500/25 font-black ring-1 ring-pink-300'
+                  : 'bg-obsidian-950 text-pink-300 hover:bg-pink-950/30 border border-pink-500/40'
+              }`}
+            >
+              <span>💊 Khusus Pump.fun</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-pink-950/80 text-pink-200">
+                {pumpFunScanCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('RAYDIUM')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                platformFilter === 'RAYDIUM'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-obsidian-950 shadow-md shadow-cyan-500/25 font-black ring-1 ring-cyan-300'
+                  : 'bg-obsidian-950 text-cyan-300 hover:bg-cyan-950/30 border border-cyan-500/40'
+              }`}
+            >
+              <span>⚡ Khusus Raydium</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950/80 text-cyan-200">
+                {raydiumScanCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('OTHER')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                platformFilter === 'OTHER'
+                  ? 'bg-indigo-500 text-white shadow-md font-black ring-1 ring-indigo-300'
+                  : 'bg-obsidian-950 text-indigo-300 hover:bg-indigo-950/30 border border-indigo-500/40'
+              }`}
+            >
+              <span>🌐 DEX Lainnya</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-950/80 text-indigo-200">
+                {otherScanCount}
+              </span>
+            </button>
+          </div>
+
+          <div className="text-[11px] font-mono text-slate-400">
+            {platformFilter === 'PUMP_FUN' && (
+              <span className="text-pink-300 font-bold">💊 Menampilkan hanya koin Pump.fun (Bonding Curve / CA: ...pump)</span>
+            )}
+            {platformFilter === 'RAYDIUM' && (
+              <span className="text-cyan-300 font-bold">⚡ Menampilkan hanya koin yang terdaftar di pool Raydium AMM</span>
+            )}
+            {platformFilter === 'OTHER' && (
+              <span className="text-indigo-300 font-bold">🌐 Menampilkan koin multi-DEX (Moonshot, Orca, Meteora)</span>
+            )}
+            {platformFilter === 'ALL' && (
+              <span>Memindai seluruh DEX Solana &amp; tren pasar secara realtime</span>
+            )}
+          </div>
+        </div>
 
         {/* COMPACT MINIMALIST TAB BAR & FILTERS */}
         <div className="bg-obsidian-900/90 border border-obsidian-800 rounded-xl p-1.5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-2">

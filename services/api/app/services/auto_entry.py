@@ -520,19 +520,21 @@ def get_scanned_memecoins(
     all_raw: list[dict[str, Any]] = []
     pool_filter = (target_pool or "ALL").upper()
 
-    if pool_filter in ("ALL", "NEW_CREATIONS"):
+    is_venue_filter = pool_filter in ("PUMP_FUN", "PUMPFUN", "PUMPUN", "RAYDIUM", "OTHER")
+
+    if pool_filter in ("ALL", "NEW_CREATIONS") or is_venue_filter:
         for item in pulse.get("new_creations", []):
             item_copy = dict(item)
             item_copy["category"] = "NEW_CREATIONS"
             all_raw.append(item_copy)
 
-    if pool_filter in ("ALL", "FINAL_STRETCH"):
+    if pool_filter in ("ALL", "FINAL_STRETCH") or is_venue_filter:
         for item in pulse.get("final_stretch", []):
             item_copy = dict(item)
             item_copy["category"] = "FINAL_STRETCH"
             all_raw.append(item_copy)
 
-    if pool_filter in ("ALL", "MIGRATED"):
+    if pool_filter in ("ALL", "MIGRATED") or is_venue_filter:
         for item in pulse.get("migrated", []):
             item_copy = dict(item)
             item_copy["category"] = "MIGRATED"
@@ -567,6 +569,23 @@ def get_scanned_memecoins(
             audit_badges.append("Dev Holding Aman")
 
         composite_score = round(profit_meta["profit_score"] * 0.55 + safety_score * 0.45, 1)
+
+        # Apply venue / pool filter (Pump.fun vs Raydium vs Lainnya)
+        is_pump = (
+            str(t.get("launchpad", "")).strip().lower() == "pump.fun"
+            or "pump" in str(t.get("dex", "")).strip().lower()
+            or str(ca).strip().lower().endswith("pump")
+        )
+        is_raydium = (
+            "raydium" in str(t.get("launchpad", "")).strip().lower()
+            or "raydium" in str(t.get("dex", "")).strip().lower()
+        )
+        if pool_filter in ("PUMP_FUN", "PUMPFUN", "PUMPUN") and not is_pump:
+            continue
+        if pool_filter == "RAYDIUM" and not is_raydium:
+            continue
+        if pool_filter == "OTHER" and (is_pump or is_raydium):
+            continue
 
         # Apply minimum filters
         if safety_score < min_safety or profit_meta["profit_score"] < min_profit:

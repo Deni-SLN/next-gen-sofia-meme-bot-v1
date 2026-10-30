@@ -10,6 +10,9 @@ SMART_MONEY_WALLETS = [
         "label": "Pump.fun Graduation Mega Whale",
         "address": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
         "chain": "Solana",
+        "platform": "PUMP_FUN",
+        "platform_label": "Pump.fun & PumpSwap",
+        "platform_badge": "💊 PUMP.FUN",
         "entity_type": "WHALE_SMART",
         "entity_badge": "🐋 WHALE • 🧠 SMART MONEY",
         "specialty": "Raydium & PumpSwap Graduation Accumulator",
@@ -27,6 +30,9 @@ SMART_MONEY_WALLETS = [
         "label": "Ansem-Style Solana Alpha Sniper",
         "address": "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",
         "chain": "Solana",
+        "platform": "PUMP_FUN",
+        "platform_label": "Pump.fun Early Bonding",
+        "platform_badge": "💊 PUMP.FUN",
         "entity_type": "SMART_MONEY",
         "entity_badge": "🧠 SMART MONEY",
         "specialty": "Early Bonding Curve & Narrative Sniper",
@@ -44,6 +50,9 @@ SMART_MONEY_WALLETS = [
         "label": "Solana Institutional Trench Whale",
         "address": "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG",
         "chain": "Solana",
+        "platform": "RAYDIUM",
+        "platform_label": "Raydium AMM High-Cap",
+        "platform_badge": "⚡ RAYDIUM",
         "entity_type": "WHALE",
         "entity_badge": "🐋 WHALE",
         "specialty": "High-Cap Meme Liquidity Whale",
@@ -61,6 +70,9 @@ SMART_MONEY_WALLETS = [
         "label": "GMGN Smart Degen Legend #07",
         "address": "7YttLkHDoNj9wyDur5pM1ejNaAvT9X4eqaYcHQqtj2G5",
         "chain": "Solana",
+        "platform": "PUMP_FUN",
+        "platform_label": "Pump.fun / GMGN Trenches",
+        "platform_badge": "💊 PUMP.FUN",
         "entity_type": "SMART_MONEY",
         "entity_badge": "🧠 SMART MONEY",
         "specialty": "GMGN Top Win-Rate Insider Alpha",
@@ -78,6 +90,9 @@ SMART_MONEY_WALLETS = [
         "label": "Jito Priority Bundle Whale",
         "address": "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
         "chain": "Solana",
+        "platform": "RAYDIUM",
+        "platform_label": "Raydium Block-0 Bundle",
+        "platform_badge": "⚡ RAYDIUM",
         "entity_type": "WHALE",
         "entity_badge": "🐋 WHALE",
         "specialty": "Zero-Slippage Block-0 Whale",
@@ -95,6 +110,9 @@ SMART_MONEY_WALLETS = [
         "label": "PumpSwap Velocity Smart Trader",
         "address": "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
         "chain": "Solana",
+        "platform": "PUMP_FUN",
+        "platform_label": "PumpSwap / Pump.fun",
+        "platform_badge": "💊 PUMP.FUN",
         "entity_type": "SMART_MONEY",
         "entity_badge": "🧠 SMART MONEY",
         "specialty": "Momentum & Volume Breakout Scalper",
@@ -112,6 +130,9 @@ SMART_MONEY_WALLETS = [
         "label": "Solana Meme Sovereign Whale",
         "address": "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
         "chain": "Solana",
+        "platform": "RAYDIUM",
+        "platform_label": "Raydium LP Burned Swing",
+        "platform_badge": "⚡ RAYDIUM",
         "entity_type": "WHALE",
         "entity_badge": "🐋 WHALE",
         "specialty": "Mid-Cap to Major-Cap Swing Whale",
@@ -129,6 +150,9 @@ SMART_MONEY_WALLETS = [
         "label": "Base & Solana Cross-Trench Smart Money",
         "address": "0x99C84fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q599aB",
         "chain": "Base",
+        "platform": "OTHER",
+        "platform_label": "Base DEX & Multi-Chain",
+        "platform_badge": "🌐 MULTI-DEX",
         "entity_type": "SMART_MONEY",
         "entity_badge": "🧠 SMART MONEY",
         "specialty": "Multi-Chain DEX Liquidity Hunter",
@@ -146,6 +170,9 @@ SMART_MONEY_WALLETS = [
         "label": "Raydium Sniper Smart Alpha #19",
         "address": "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
         "chain": "Solana",
+        "platform": "RAYDIUM",
+        "platform_label": "Raydium Distribution Sniper",
+        "platform_badge": "⚡ RAYDIUM",
         "entity_type": "SMART_MONEY",
         "entity_badge": "🧠 SMART MONEY",
         "specialty": "Low Top-10 Holder Distribution Sniper",
@@ -163,6 +190,9 @@ SMART_MONEY_WALLETS = [
         "label": "Leviathan Deep-Pool Whale",
         "address": "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
         "chain": "Solana",
+        "platform": "OTHER",
+        "platform_label": "Orca / Meteora Pools",
+        "platform_badge": "🌐 METEORA / ORCA",
         "entity_type": "WHALE",
         "entity_badge": "🐋 WHALE",
         "specialty": "Deep Liquidity Whale Accumulator",
@@ -773,7 +803,7 @@ def _compute_daily_wallet_metrics(w: dict, date_str: str) -> dict:
     }
 
 
-def list_smart_money() -> dict:
+def list_smart_money(platform: str | None = None) -> dict:
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
 
@@ -846,18 +876,27 @@ def list_smart_money() -> dict:
         item["rank_status"] = "UP" if rank_delta > 0 else ("DOWN" if rank_delta < 0 else "SAME")
         ranked_wallets.append(item)
 
-    whale_cnt = sum(1 for w in ranked_wallets if "WHALE" in str(w.get("entity_type", "")))
-    smart_cnt = sum(1 for w in ranked_wallets if "SMART" in str(w.get("entity_type", "")))
-    active_copy = sum(1 for w in ranked_wallets if w.get("copy_enabled"))
+    # Optional venue / platform filter
+    selected_platform = (platform or "ALL").strip().upper()
+    if selected_platform and selected_platform != "ALL":
+        display_wallets = [w for w in ranked_wallets if w.get("platform") == selected_platform]
+    else:
+        display_wallets = ranked_wallets
+
+    whale_cnt = sum(1 for w in display_wallets if "WHALE" in str(w.get("entity_type", "")))
+    smart_cnt = sum(1 for w in display_wallets if "SMART" in str(w.get("entity_type", "")))
+    active_copy = sum(1 for w in display_wallets if w.get("copy_enabled"))
 
     return {
-        "wallets": ranked_wallets,
+        "wallets": display_wallets,
+        "all_wallets": ranked_wallets,
+        "selected_platform": selected_platform,
         "usd_idr": usd_idr,
         "ranking_date": today_str,
         "updated_at": now_wib.strftime("%d %b %Y • %H:%M WIB"),
         "update_cycle": "Update Otomatis Setiap Hari (00:00 WIB & Real-Time On-Chain)",
         "summary": {
-            "total_wallets": len(ranked_wallets),
+            "total_wallets": len(display_wallets),
             "whale_count": whale_cnt,
             "smart_money_count": smart_cnt,
             "active_copy_count": active_copy,

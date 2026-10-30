@@ -9,6 +9,7 @@ export default function CopyTradePage() {
   const isUltrawide = useUltrawide();
   const smQuery = useApiQuery(() => api.getSmartMoney(), []);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [platformFilter, setPlatformFilter] = useState<'ALL' | 'PUMP_FUN' | 'RAYDIUM' | 'OTHER'>('ALL');
   const [filterType, setFilterType] = useState<'ALL' | 'SMART_MONEY' | 'WHALE' | 'ACTIVE_COPY'>('ALL');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [copiedWallets, setCopiedWallets] = useState<string[]>(() => {
@@ -87,6 +88,14 @@ export default function CopyTradePage() {
       if (copiedWallets.includes(String(w.address || '').trim().toLowerCase())) {
         return false;
       }
+      // Platform / Venue Filter (Pump.fun vs Raydium vs Other DEXes)
+      if (platformFilter !== 'ALL') {
+        const plat = String(w.platform || '').toUpperCase();
+        if (platformFilter === 'PUMP_FUN' && plat !== 'PUMP_FUN') return false;
+        if (platformFilter === 'RAYDIUM' && plat !== 'RAYDIUM') return false;
+        if (platformFilter === 'OTHER' && (plat === 'PUMP_FUN' || plat === 'RAYDIUM')) return false;
+      }
+      // Classification filter
       const eType = String(w.entity_type || '').toUpperCase();
       if (filterType === 'SMART_MONEY') {
         return eType.includes('SMART');
@@ -99,7 +108,14 @@ export default function CopyTradePage() {
       }
       return true;
     });
-  }, [allRankedWallets, copiedWallets, filterType]);
+  }, [allRankedWallets, copiedWallets, filterType, platformFilter]);
+
+  const pumpFunCount = allRankedWallets.filter((w) => String(w.platform || '').toUpperCase() === 'PUMP_FUN').length;
+  const raydiumCount = allRankedWallets.filter((w) => String(w.platform || '').toUpperCase() === 'RAYDIUM').length;
+  const otherPlatformCount = allRankedWallets.filter((w) => {
+    const p = String(w.platform || '').toUpperCase();
+    return p === 'OTHER' || (p !== 'PUMP_FUN' && p !== 'RAYDIUM');
+  }).length;
 
   const whaleCount = allRankedWallets.filter((w) => String(w.entity_type || '').includes('WHALE')).length;
   const smartCount = allRankedWallets.filter((w) => String(w.entity_type || '').includes('SMART')).length;
@@ -297,6 +313,89 @@ export default function CopyTradePage() {
           </div>
         </div>
 
+        {/* PLATFORM / VENUE FILTER TABS (PUMP.FUN / RAYDIUM / LAINNYA) */}
+        <div className="bg-obsidian-900/95 border border-obsidian-800 p-3 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-mono text-slate-400 font-bold uppercase mr-1 flex items-center gap-1">
+              <span>🎯 Filter Platform:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                platformFilter === 'ALL'
+                  ? 'bg-amber-400 text-obsidian-950 shadow-md font-black'
+                  : 'bg-obsidian-950 text-slate-300 hover:text-white border border-obsidian-800'
+              }`}
+            >
+              <span>Semua Platform</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-obsidian-900/70 text-current">
+                {allRankedWallets.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('PUMP_FUN')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                platformFilter === 'PUMP_FUN'
+                  ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md shadow-pink-500/25 font-black ring-1 ring-pink-300'
+                  : 'bg-obsidian-950 text-pink-300 hover:bg-pink-950/30 border border-pink-500/40'
+              }`}
+            >
+              <span>💊 Khusus Pump.fun</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-pink-950/80 text-pink-200">
+                {pumpFunCount} Dompet
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('RAYDIUM')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                platformFilter === 'RAYDIUM'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-obsidian-950 shadow-md shadow-cyan-500/25 font-black ring-1 ring-cyan-300'
+                  : 'bg-obsidian-950 text-cyan-300 hover:bg-cyan-950/30 border border-cyan-500/40'
+              }`}
+            >
+              <span>⚡ Khusus Raydium</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950/80 text-cyan-200">
+                {raydiumCount} Dompet
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlatformFilter('OTHER')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 ${
+                platformFilter === 'OTHER'
+                  ? 'bg-indigo-500 text-white shadow-md font-black ring-1 ring-indigo-300'
+                  : 'bg-obsidian-950 text-indigo-300 hover:bg-indigo-950/30 border border-indigo-500/40'
+              }`}
+            >
+              <span>🌐 Multi-DEX / Lainnya</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-950/80 text-indigo-200">
+                {otherPlatformCount} Dompet
+              </span>
+            </button>
+          </div>
+
+          <div className="text-[11px] font-mono text-slate-400">
+            {platformFilter === 'PUMP_FUN' && (
+              <span className="text-pink-300 font-bold">💊 Menampilkan dompet spesialisasi transaksi Pump.fun &amp; PumpSwap</span>
+            )}
+            {platformFilter === 'RAYDIUM' && (
+              <span className="text-cyan-300 font-bold">⚡ Menampilkan dompet spesialisasi pool likuiditas Raydium AMM</span>
+            )}
+            {platformFilter === 'OTHER' && (
+              <span className="text-indigo-300 font-bold">🌐 Menampilkan dompet Base DEX &amp; Orca/Meteora</span>
+            )}
+            {platformFilter === 'ALL' && (
+              <span>Menampilkan seluruh dompet dari semua DEX Solana &amp; Multi-chain</span>
+            )}
+          </div>
+        </div>
+
         {/* FILTER TABS (ALL / SMART MONEY / WHALE / ACTIVE COPY) */}
         <div className="flex flex-wrap items-center justify-between gap-2 bg-obsidian-900/90 border border-obsidian-800 p-2 rounded-xl">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -399,6 +498,30 @@ export default function CopyTradePage() {
                         <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 font-bold">
                           {w.chain}
                         </span>
+
+                        {/* PLATFORM / VENUE BADGE */}
+                        {w.platform === 'PUMP_FUN' ? (
+                          <span
+                            className="px-2 py-0.5 text-[10px] font-mono rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 font-black flex items-center gap-1 shadow-sm"
+                            title="Spesialisasi Trading di Pump.fun (Bonding Curve & PumpSwap)"
+                          >
+                            <span>💊 PUMP.FUN</span>
+                          </span>
+                        ) : w.platform === 'RAYDIUM' ? (
+                          <span
+                            className="px-2 py-0.5 text-[10px] font-mono rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-black flex items-center gap-1 shadow-sm"
+                            title="Spesialisasi Trading di Raydium AMM & CLMM"
+                          >
+                            <span>⚡ RAYDIUM</span>
+                          </span>
+                        ) : (
+                          <span
+                            className="px-2 py-0.5 text-[10px] font-mono rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-black flex items-center gap-1 shadow-sm"
+                            title="Spesialisasi Multi-DEX (Base, Orca, Meteora)"
+                          >
+                            <span>🌐 {w.platform_badge || 'MULTI-DEX'}</span>
+                          </span>
+                        )}
 
                         {/* AUTO-MIRROR ACTIVE STATUS */}
                         {w.copy_enabled && (

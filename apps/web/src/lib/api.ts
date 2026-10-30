@@ -486,7 +486,12 @@ export const api = {
     block_legacy_tokens?: boolean;
     mode?: string;
   }) => request<any>('/memecoins/snipe', { method: 'POST', body: JSON.stringify(data) }),
-  getSmartMoney: () => request<any>('/memecoins/smart-money'),
+  getSmartMoney: (platform?: string) =>
+    request<any>(
+      platform && platform !== 'ALL'
+        ? `/memecoins/smart-money?platform=${encodeURIComponent(platform)}`
+        : '/memecoins/smart-money'
+    ),
   toggleCopyWallet: (walletId: number, enabled: boolean, max_copy_usd?: number) =>
     request<any>(`/memecoins/smart-money/${walletId}/toggle`, {
       method: 'POST',
