@@ -3,7 +3,7 @@ import csv
 import json
 import os
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import httpx
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -479,57 +479,191 @@ def get_journal_summary(
     }
 
 
+def _format_wib_datetime(dt: datetime | None) -> str:
+    """Format UTC datetime into clean Indonesian WIB (UTC+7) string."""
+    if not dt:
+        return "-"
+    try:
+        if dt.tzinfo is None:
+            dt_wib = dt + timedelta(hours=7)
+        else:
+            dt_wib = dt.astimezone(timezone(timedelta(hours=7)))
+        return dt_wib.strftime("%Y-%m-%d %H:%M:%S WIB")
+    except Exception:
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _detect_venue_platform(symbol: str, notes: str) -> str:
+    """Detect platform DEX venue (Pump.fun, Raydium, Orca, Jupiter)."""
+    s_sym = (symbol or "").upper()
+    s_note = (notes or "").lower()
+    if "pump" in s_note or s_sym.endswith("PUMP") or "pump.fun" in s_note:
+        return "Pump.fun"
+    if "raydium" in s_note or "cpmm" in s_note or "clmm" in s_note or "amm" in s_note:
+        return "Raydium"
+    if "orca" in s_note or "whirlpool" in s_note:
+        return "Orca"
+    if "jupiter" in s_note:
+        return "Jupiter"
+    return "Solana DEX (Pump.fun / Raydium)"
+
+
+def _clean_journal_notes(raw: str | None) -> str:
+    """Clean corrupted unicode chars and standardize separator dashes."""
+    if not raw:
+        return "Eksekusi on-chain Solana terverifikasi"
+    cleaned = raw.replace("\ufffd", " | ").replace("•", " | ").strip()
+    while "  " in cleaned:
+        cleaned = cleaned.replace("  ", " ")
+    return cleaned
+
+
 def export_journal_csv(db: Session, mode: str = "LIVE") -> str:
-    """Generate Excel-compatible CSV string containing trading records filtered by mode (PAPER | LIVE | WALLET)."""
+    """
+    Generate a neat, beautifully formatted, and comprehensive Excel/CSV report.
+    Includes:
+    1. Executive Summary Header Block (Mode, Saldo Saat Ini, Modal, PnL, Winrate, Fee)
+    2. Explicitly labeled column headers with currency units
+    3. Proper Indonesian WIB time conversion (UTC+7)
+    4. Clean numeric formatting without scientific notation or trailing zeroes
+    5. Direct clickable Solscan Explorer URLs
+    6. UTF-8 BOM (\ufeff) for flawless opening in Microsoft Excel on Windows
+    """
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
     mode_clean = (mode or "LIVE").upper().strip()
     if mode_clean not in ("PAPER", "LIVE", "WALLET"):
         mode_clean = "LIVE"
 
+    # Fetch official journal summary metrics for the executive header block
+    summary = get_journal_summary(db, mode=mode_clean, limit=10000)
+    initial_cap_usd = float(summary.get("initial_capital_usd") or 0.0)
+    initial_cap_idr = float(summary.get("initial_capital_idr") or 0.0)
+    cur_bal_usd = float(summary.get("current_balance_usd") or 0.0)
+    cur_bal_idr = float(summary.get("current_balance_idr") or 0.0)
+    cur_bal_sol = float(summary.get("current_balance_sol") or 0.0)
+    total_trades_cnt = int(summary.get("total_trades") or 0)
+    win_cnt = int(summary.get("winning_trades") or 0)
+    loss_cnt = int(summary.get("losing_trades") or 0)
+    open_cnt = int(summary.get("open_trades") or 0)
+    win_rate_val = float(summary.get("win_rate") or 0.0)
+    tot_prof_usd = float(summary.get("total_profit_usd") or 0.0)
+    tot_prof_idr = float(summary.get("total_profit_idr") or 0.0)
+    tot_loss_usd = float(summary.get("total_loss_usd") or 0.0)
+    tot_loss_idr = float(summary.get("total_loss_idr") or 0.0)
+    net_res_usd = float(summary.get("net_result_usd") or 0.0)
+    net_res_idr = float(summary.get("net_result_idr") or 0.0)
     from app.services import wallets as wallet_svc
     primary_sol_wallet = wallet_svc.get_or_ensure_primary_solana_wallet(db)
     active_sol_address = primary_sol_wallet.address or wallet_svc.DEFAULT_USER_SOLANA_WALLET
 
+    # Query all trades strictly for this mode, latest closed first
     query = select(Trade).where(Trade.mode == mode_clean).order_by(
         Trade.closed_at.desc().nullslast(),
         Trade.opened_at.desc().nullslast(),
         Trade.id.desc(),
     )
-    all_live_trades = list(db.execute(query).scalars().all())
+    all_mode_trades = list(db.execute(query).scalars().all())
+
+    total_gas_usd = sum(float(t.gas_fee_usd or 0.0) for t in all_mode_trades)
+    total_dex_usd = sum(float(t.dex_fee_usd or 0.0) for t in all_mode_trades)
+    total_fee_usd = total_gas_usd + total_dex_usd
+    total_fee_idr = round(total_fee_usd * usd_idr, 0)
+
+    now_wib_str = (datetime.now(timezone.utc) + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S WIB")
 
     output = io.StringIO()
     # UTF-8 BOM ensures Microsoft Excel on Windows reads UTF-8 characters and currency signs without garbled text
     output.write("\ufeff")
 
-    writer = csv.writer(output)
+    writer = csv.writer(output, lineterminator="\r\n")
+
+    # =========================================================================
+    # 1. EXECUTIVE SUMMARY HEADER BLOCK (KOP DOKUMEN & RINGKASAN STRATEGIS)
+    # =========================================================================
+    writer.writerow(["===================================================================================================="])
+    writer.writerow(["LAPORAN RESMI JURNAL TRADING & EVALUASI KINERJA - NEXTGEN SOFIA MEME BOT"])
+    writer.writerow(["===================================================================================================="])
     writer.writerow([
-        "ID Transaksi",
-        "Waktu Buka",
-        "Waktu Tutup",
-        "Koin / Token",
-        "Network / Chain",
-        "Wallet Solana",
-        "Posisi",
-        "Jumlah (Qty)",
-        "Harga Eksekusi ($)",
-        "Harga Eksekusi (Rp)",
-        "Total Nilai ($)",
-        "Total Nilai (Rp)",
-        "Biaya Gas ($)",
-        "Biaya DEX ($)",
-        "Total Biaya ($)",
-        "Total Biaya (Rp)",
-        "Slippage (%)",
-        "Keuntungan / Kerugian ($)",
-        "Keuntungan / Kerugian (Rp)",
-        "Hasil (WIN/LOSS/OPEN)",
-        "Status",
-        "Tx Hash Explorer",
-        "Catatan Bot",
+        "Filter Mode Trading:",
+        mode_clean,
+        "Alamat Dompet Solana:",
+        active_sol_address,
+        "Waktu Ekspor Laporan:",
+        now_wib_str,
+    ])
+    writer.writerow([
+        "Modal Awal Deposit:",
+        f"${initial_cap_usd:,.2f} USD (Rp {initial_cap_idr:,.0f})",
+        "Posisi Saldo Saat Ini:",
+        f"${cur_bal_usd:,.2f} USD (Rp {cur_bal_idr:,.0f}) [{cur_bal_sol:.6f} SOL]",
+        "Kurs Acuan (USD/IDR):",
+        f"Rp {usd_idr:,.0f}",
+    ])
+    writer.writerow([
+        "Total Transaksi Tercatat:",
+        f"{total_trades_cnt} Transaksi",
+        "Transaksi Menang (WIN):",
+        f"{win_cnt} Transaksi",
+        "Transaksi Rugi (LOSS):",
+        f"{loss_cnt} Transaksi",
+        "Win Rate:",
+        f"{win_rate_val:.1f}%",
+    ])
+    net_prefix = "+" if net_res_usd > 0 else ("-" if net_res_usd < 0 else "")
+    net_str_usd = f"{net_prefix}${abs(net_res_usd):,.2f} USD"
+    net_str_idr = f"{net_prefix}Rp {abs(net_res_idr):,.0f}"
+    writer.writerow([
+        "Total Keuntungan (Gross):",
+        f"+${tot_prof_usd:,.2f} USD (+Rp {tot_prof_idr:,.0f})",
+        "Total Kerugian (Loss):",
+        f"-${tot_loss_usd:,.2f} USD (-Rp {tot_loss_idr:,.0f})",
+        "Hasil Bersih (Net PnL):",
+        f"{net_str_usd} ({net_str_idr})",
+        "Total Biaya (Gas+DEX Fee):",
+        f"${total_fee_usd:,.2f} USD (Rp {total_fee_idr:,.0f})",
+    ])
+    writer.writerow([])  # Empty spacer line separating summary from table data
+
+    # =========================================================================
+    # 2. STANDARDIZED DATA TABLE HEADERS (KOLOM DATA TRANSAKSI LENGKAP & JELAS)
+    # =========================================================================
+    writer.writerow([
+        "No.",
+        "ID Record",
+        "Waktu Buka / Entry (WIB)",
+        "Waktu Tutup / Exit (WIB)",
+        "Koin / Token (Pair)",
+        "Platform DEX",
+        "Aksi (Side)",
+        "Status Transaksi",
+        "Hasil PnL",
+        "Jumlah Token (Qty)",
+        "Harga Eksekusi (USD)",
+        "Harga Eksekusi (IDR)",
+        "Total Nilai (USD)",
+        "Total Nilai (IDR)",
+        "Keuntungan / Kerugian (USD)",
+        "Keuntungan / Kerugian (IDR)",
+        "ROI (%)",
+        "Biaya Gas Solana (USD)",
+        "Biaya Gas Solana (IDR)",
+        "Biaya DEX Fee (USD)",
+        "Biaya DEX Fee (IDR)",
+        "Total Biaya Fee (USD)",
+        "Total Biaya Fee (IDR)",
+        "Toleransi Slippage (%)",
+        "Jaringan (Blockchain)",
+        "Alamat Dompet Trader",
+        "Link Solscan Explorer",
+        "Tx Signature / Hash",
+        "Catatan Analisis Bot",
     ])
 
-    for t in all_live_trades:
+    # =========================================================================
+    # 3. DATA ROWS WITH FORMATTED CELLS & CLEAN TEXT
+    # =========================================================================
+    for idx, t in enumerate(all_mode_trades, start=1):
         pnl_val = float(t.pnl or 0.0)
         qty = float(t.quantity or 0.0)
         px = float(t.price or 0.0)
@@ -537,40 +671,114 @@ def export_journal_csv(db: Session, mode: str = "LIVE") -> str:
         dex_fee = float(t.dex_fee_usd or 0.0)
         gas_fee = float(t.gas_fee_usd or 0.0)
         tot_fee = dex_fee + gas_fee
+        side_lower = str(t.side or "sell").lower()
+        is_open = (t.status == "open")
 
-        if t.status == "open":
-            res_label = "OPEN"
-        elif pnl_val > 0:
-            res_label = "WIN"
-        elif pnl_val < 0:
-            res_label = "LOSS"
+        # Status & Outcome labeling
+        if is_open:
+            status_label = "OPEN (Berjalan)"
+            res_label = "POSISI TERBUKA"
         else:
-            res_label = "BE"
+            status_label = "CLOSED (Selesai)"
+            if side_lower == "buy":
+                res_label = "ENTRY BUY"
+            elif pnl_val > 0:
+                res_label = "MENANG (WIN)"
+            elif pnl_val < 0:
+                res_label = "RUGI (LOSS)"
+            else:
+                res_label = "BEP (MODAL KEMBALI)"
+
+        # Side labeling
+        side_label = "BELI (BUY)" if side_lower == "buy" else "JUAL (SELL)"
+
+        # Price formatting
+        if px < 0.000001:
+            px_usd_str = f"${px:.10f}".rstrip("0").rstrip(".")
+        elif px < 0.0001:
+            px_usd_str = f"${px:.8f}"
+        elif px < 1.0:
+            px_usd_str = f"${px:.6f}"
+        else:
+            px_usd_str = f"${px:,.4f}"
+        px_idr_val = px * usd_idr
+        px_idr_str = f"Rp {px_idr_val:,.2f}" if px_idr_val < 100 else f"Rp {round(px_idr_val):,.0f}"
+
+        # Quantity formatting
+        if qty >= 1000:
+            qty_str = f"{qty:,.2f}"
+        elif qty >= 1:
+            qty_str = f"{qty:.4f}"
+        else:
+            qty_str = f"{qty:.8f}"
+
+        # Total notional formatting
+        tot_usd_str = f"${tot:,.4f}"
+        tot_idr_str = f"Rp {round(tot * usd_idr):,.0f}"
+
+        # PnL & ROI formatting
+        if is_open or (side_lower == "buy" and pnl_val == 0.0):
+            pnl_usd_str = "$0.0000"
+            pnl_idr_str = "Rp 0"
+            roi_str = "0.00%"
+        else:
+            sign = "+" if pnl_val > 0 else ("-" if pnl_val < 0 else "")
+            pnl_usd_str = f"{sign}${abs(pnl_val):,.4f}"
+            pnl_idr_str = f"{sign}Rp {round(abs(pnl_val * usd_idr)):,.0f}"
+            roi_pct = (pnl_val / tot * 100.0) if tot > 0 else 0.0
+            roi_str = f"{roi_pct:+.2f}%"
+
+        # Fees formatting
+        gas_usd_str = f"${gas_fee:.4f}"
+        gas_idr_str = f"Rp {round(gas_fee * usd_idr):,.0f}"
+        dex_usd_str = f"${dex_fee:.4f}"
+        dex_idr_str = f"Rp {round(dex_fee * usd_idr):,.0f}"
+        tot_fee_usd_str = f"${tot_fee:.4f}"
+        tot_fee_idr_str = f"Rp {round(tot_fee * usd_idr):,.0f}"
+
+        # Venue detection
+        venue = _detect_venue_platform(t.symbol, t.notes or "")
+
+        # Solscan URL
+        tx_hash = (t.tx_hash or "").strip()
+        if tx_hash and len(tx_hash) >= 32 and not tx_hash.startswith("tx_") and not tx_hash.startswith("test_"):
+            solscan_url = f"https://solscan.io/tx/{tx_hash}"
+        else:
+            solscan_url = "-"
+
+        # Clean notes
+        clean_note = _clean_journal_notes(t.notes)
 
         writer.writerow([
+            idx,
             t.id,
-            t.opened_at.strftime("%Y-%m-%d %H:%M:%S") if t.opened_at else "",
-            t.closed_at.strftime("%Y-%m-%d %H:%M:%S") if t.closed_at else "",
+            _format_wib_datetime(t.opened_at),
+            _format_wib_datetime(t.closed_at) if not is_open else "-",
             t.symbol,
-            t.chain or "Solana",
-            active_sol_address if (t.chain or "Solana") == "Solana" else "",
-            (t.side or "sell").upper(),
-            qty,
-            f"{px:.8f}".rstrip("0").rstrip(".") if px < 1 else f"{px:.4f}",
-            round(px * usd_idr, 2),
-            round(tot, 4),
-            round(tot * usd_idr, 0),
-            round(gas_fee, 4),
-            round(dex_fee, 4),
-            round(tot_fee, 4),
-            round(tot_fee * usd_idr, 0),
-            round(float(t.slippage_pct or 0.0), 2),
-            round(pnl_val, 4),
-            round(pnl_val * usd_idr, 0),
+            venue,
+            side_label,
+            status_label,
             res_label,
-            t.status,
-            t.tx_hash or "",
-            t.notes or "Bot live execution",
+            qty_str,
+            px_usd_str,
+            px_idr_str,
+            tot_usd_str,
+            tot_idr_str,
+            pnl_usd_str,
+            pnl_idr_str,
+            roi_str,
+            gas_usd_str,
+            gas_idr_str,
+            dex_usd_str,
+            dex_idr_str,
+            tot_fee_usd_str,
+            tot_fee_idr_str,
+            f"{float(t.slippage_pct or 0.0):.2f}%",
+            t.chain or "Solana Mainnet",
+            active_sol_address,
+            solscan_url,
+            tx_hash or "-",
+            clean_note,
         ])
 
     return output.getvalue()
