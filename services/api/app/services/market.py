@@ -277,6 +277,55 @@ def is_charity_token(symbol_or_base: str = "", name: str = "", description: str 
     return bool(_CHARITY_REGEX.search(full_text))
 
 
+# ── STRICT COIN & TOKEN MINT VERIFICATION ──────────────────────────
+MAJOR_BASE_CURRENCIES = {
+    "SOL", "WSOL", "USDC", "USDT", "USD", "DAI", "ETH", "WETH", "BTC", "WBTC"
+}
+MAJOR_MINT_ADDRESSES = {
+    "So11111111111111111111111111111111111111112",  # WSOL
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # USDC
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  # USDT
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",  # SPL Token Program
+    "11111111111111111111111111111111",              # System Program
+}
+
+
+def is_genuine_coin(t: dict) -> bool:
+    """
+    Validasi ketat: Pastikan data yang di-scan adalah koin / token mint murni (bukan pair address, stablecoin, atau pool kosong).
+    """
+    if not isinstance(t, dict):
+        return False
+
+    ca = str(t.get("contract") or "").strip()
+    sym = str(t.get("symbol") or "").strip().upper()
+    base_sym = str(t.get("base_symbol") or sym.split("/")[0]).strip().upper()
+    name = str(t.get("name") or "").strip()
+
+    # Kontrak mint address harus ada dan minimal 32 karakter
+    if len(ca) < 32:
+        return False
+
+    # Tolak jika kontrak adalah native SOL atau stablecoin
+    if ca in MAJOR_MINT_ADDRESSES:
+        return False
+
+    # Tolak jika simbol adalah quote native murni (SOL/USDC/USDT)
+    if base_sym in MAJOR_BASE_CURRENCIES:
+        return False
+
+    # Nama tidak boleh dummy / kosong
+    if not name or name.lower() in ("unknown", "null", "undefined", "none"):
+        return False
+
+    # Harga harus bernilai positif
+    price = float(t.get("price") or 0.0)
+    if price <= 0:
+        return False
+
+    return True
+
+
 def get_fx_rate() -> dict:
     """Fetch real-time USD/IDR rate from open.er-api.com with 5-minute cache."""
     now = time.time()
@@ -349,14 +398,33 @@ def _register_token_cache(tok: dict, now: float | None = None) -> None:
             _CONTRACT_REGISTRY[base_key] = tok["contract"]
 
 
-def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener Live") -> dict:
+def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener Live") -> dict | None:
     base = pair.get("baseToken") or {}
     quote = pair.get("quoteToken") or {}
     base_sym = str(base.get("symbol") or "MEME").strip()
     quote_sym = str(quote.get("symbol") or "SOL").strip()
-    symbol = f"{base_sym}/{quote_sym}"
     base_addr = str(base.get("address") or "").strip()
+    quote_addr = str(quote.get("address") or "").strip()
 
+    # Flip if inverted pair (e.g. quoteToken is the actual meme coin and baseToken is SOL/USDC)
+    if (base_sym.upper() in MAJOR_BASE_CURRENCIES or base_addr in MAJOR_MINT_ADDRESSES) and (
+        quote_sym.upper() not in MAJOR_BASE_CURRENCIES and quote_addr not in MAJOR_MINT_ADDRESSES
+    ):
+        base, quote = quote, base
+        base_sym, quote_sym = quote_sym, base_sym
+        base_addr, quote_addr = quote_addr, base_addr
+
+    # If both tokens are major assets (e.g. SOL/USDC, USDC/USDT) -> Discard, not a meme coin
+    if (base_sym.upper() in MAJOR_BASE_CURRENCIES or base_addr in MAJOR_MINT_ADDRESSES) and (
+        quote_sym.upper() in MAJOR_BASE_CURRENCIES or quote_addr in MAJOR_MINT_ADDRESSES
+    ):
+        return None
+
+    # Base address must be a valid token mint (>= 32 characters on Solana)
+    if len(base_addr) < 32 or base_addr in MAJOR_MINT_ADDRESSES or base_sym.upper() in MAJOR_BASE_CURRENCIES:
+        return None
+
+    symbol = f"{base_sym}/{quote_sym}"
     dex_id = str(pair.get("dexId") or "raydium")
     chain_id = str(pair.get("chainId") or "solana")
     is_bonding_dex = "pump" in dex_id.lower() or "moonshot" in dex_id.lower() or base_addr.endswith("pump")
@@ -1008,6 +1076,9 @@ def get_live_pulse_feed() -> dict:
     migrated: list[dict] = []
 
     for t in all_tokens:
+        # Pastikan yang diproses adalah KOIN / TOKEN MINT yang valid
+        if not is_genuine_coin(t):
+            continue
         # Strictly reject charity / donation / mayhem coins
         if t.get("is_charity") or is_charity_token(t.get("symbol") or t.get("base_symbol"), t.get("name")):
             continue

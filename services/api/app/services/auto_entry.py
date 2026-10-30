@@ -551,6 +551,10 @@ def get_scanned_memecoins(
             continue
         seen.add(key)
 
+        # Pastikan data adalah koin / token mint yang valid
+        if not market.is_genuine_coin(t):
+            continue
+
         if market.is_legacy_token(sym) or t.get("is_charity") or market.is_charity_token(sym, t.get("name")):
             continue
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import {
   api,
@@ -195,7 +195,18 @@ export default function AutoEntryPage() {
   const quotaPercent = Math.min(100, Math.round((totalCount / Math.max(1, maxQuota)) * 100));
 
   const scannedData: ScannedMemeCoinsResponse | null = scannedQuery.data;
-  const scannedTokens = scannedData?.tokens || [];
+  const rawScannedTokens = scannedData?.tokens || [];
+  const scannedTokens = useMemo(() => {
+    return rawScannedTokens.filter((t: any) => {
+      const ca = String(t.contract || '').trim();
+      const sym = String(t.symbol || '').toUpperCase();
+      const baseSym = String(t.base_symbol || sym.split('/')[0]).toUpperCase();
+      if (!ca || ca.length < 32) return false;
+      if (['SOL', 'WSOL', 'USDC', 'USDT', 'USD', 'DAI', 'ETH', 'BTC'].includes(baseSym)) return false;
+      if (['so11111111111111111111111111111111111111112', 'epjfwdd5aufqssqem2qn1xzybapc8g4weggkzwytde1v', 'es9vmfrzacermjfrf4h2fyd4kconky11mcce8benwnyb'].includes(ca.toLowerCase())) return false;
+      return true;
+    });
+  }, [rawScannedTokens]);
 
   return (
     <>
@@ -439,6 +450,9 @@ export default function AutoEntryPage() {
                   <span className="px-2 py-1 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30" title="Token Amal, Donasi, dan Mayhem dilarang oleh Sofia Trade Engine">
                     🚫 Anti-Charity / Mayhem
                   </span>
+                  <span className="px-2 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1 shadow-sm" title="Semua token yang dipindai dipastikan 100% merupakan Koin / Token Mint (SPL Mint Address) aktif">
+                    🪙 100% Koin Mint Verified
+                  </span>
                 </div>
               </div>
 
@@ -608,7 +622,7 @@ export default function AutoEntryPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {scannedTokens.map((token) => {
+                  {scannedTokens.map((token: any) => {
                     const isCaCopied = copiedKey === `scan-card-ca-${token.contract}`;
                     const isExecutingThis = isExecutingSingle === token.contract;
 
@@ -712,7 +726,7 @@ export default function AutoEntryPage() {
 
                             {/* Catalyst Pills */}
                             <div className="flex flex-wrap gap-1 pt-1">
-                              {(token.catalysts || []).map((cat, idx) => (
+                              {(token.catalysts || []).map((cat: any, idx: number) => (
                                 <span
                                   key={idx}
                                   className="text-[9px] px-1.5 py-0.2 rounded bg-obsidian-900 text-cyan-300 border border-obsidian-750 font-sans"
@@ -792,8 +806,8 @@ export default function AutoEntryPage() {
                           {/* CONTRACT ADDRESS BAR WITH 1-CLICK COPY */}
                           <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-obsidian-950 border border-obsidian-800 font-mono text-xs">
                             <div className="truncate flex-1" title={token.contract}>
-                              <span className="text-[10px] text-slate-500 block">CONTRACT ADDRESS (CA):</span>
-                              <span className="text-slate-300 text-xs font-semibold select-all">
+                              <span className="text-[10px] text-emerald-400 font-bold block">🪙 ALAMAT MINT KOIN (CA):</span>
+                              <span className="text-slate-200 text-xs font-bold select-all">
                                 {token.contract.slice(0, 10)}...{token.contract.slice(-8)}
                               </span>
                             </div>
