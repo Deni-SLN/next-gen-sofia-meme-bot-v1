@@ -360,20 +360,20 @@ export default function JournalPage() {
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-black tracking-tight text-purple-300 font-mono">
-                {formatUsd(d?.current_balance_usd || (d?.initial_capital_usd ?? 0) + (d?.net_result_usd ?? 0))}
+                {formatUsd(d?.current_balance_usd ?? 8.52)}
               </span>
               <span className="text-xs text-purple-300/80 font-mono">
-                ≈ {formatIdr(d?.current_balance_idr || ((d?.current_balance_usd || 10.84) * (d?.usd_idr || 16500)))}
+                ≈ {formatIdr(d?.current_balance_idr || ((d?.current_balance_usd ?? 8.52) * (d?.usd_idr || 16500)))}
               </span>
             </div>
             <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5">
               {selectedMode === 'WALLET' ? (
                 <span className="font-mono" title="Saldo koin SOL yang tersedia di dompet on-chain saat ini">
-                  Sisa Saldo: <strong className="text-cyan-300 font-bold">{d?.current_balance_sol || '0.0897'} SOL</strong>
+                  Sisa Saldo: <strong className="text-cyan-300 font-bold">{d?.current_balance_sol ? `${d.current_balance_sol} SOL` : '0.058759 SOL'}</strong>
                 </span>
               ) : (
                 <span className="font-mono">
-                  Sisa Kas: <strong className="text-cyan-300 font-bold">{formatUsd(d?.current_balance_usd || d?.initial_capital_usd)}</strong>
+                  Sisa Kas: <strong className="text-cyan-300 font-bold">{formatUsd(d?.current_balance_usd ?? 8.52)}</strong>
                 </span>
               )}
               <span className="text-purple-300 font-bold flex items-center gap-1 font-mono">
