@@ -61,12 +61,30 @@ def sync_wallet_journal(body: SyncWalletRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/export-excel")
-@router.get("/export-csv")
 def export_journal_excel(
     mode: str = Query("LIVE", description="PAPER | LIVE | WALLET"),
     db: Session = Depends(get_db),
 ):
-    """Export trading journal transactions for the selected mode (PAPER | LIVE | WALLET) into an Excel-ready CSV file."""
+    """Export trading journal transactions for the selected mode into an authentic Microsoft Excel (.xlsx) file."""
+    excel_bytes = journal.export_journal_excel_bytes(db, mode=mode)
+    now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"Jurnal_Trading_{mode.upper()}_Neonbase_{now_str}.xlsx"
+    return Response(
+        content=excel_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+@router.get("/export-csv")
+def export_journal_csv(
+    mode: str = Query("LIVE", description="PAPER | LIVE | WALLET"),
+    db: Session = Depends(get_db),
+):
+    """Export trading journal transactions for the selected mode into an Excel-ready CSV file."""
     csv_content = journal.export_journal_csv(db, mode=mode)
     now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"Jurnal_Trading_{mode.upper()}_Neonbase_{now_str}.csv"

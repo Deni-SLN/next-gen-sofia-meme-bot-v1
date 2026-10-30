@@ -89,7 +89,7 @@ export default function JournalPage() {
       setActionMsg('');
       setActionErr('');
       await api.downloadJournalExcel(selectedMode);
-      setActionMsg(`📥 Berhasil mengunduh arsip jurnal trading mode ${selectedMode} (format Excel / CSV).`);
+      setActionMsg(`📥 Berhasil mengunduh file Microsoft Excel (.xlsx) resmi mode ${selectedMode}. Format tabel rapi mulai dari sel A1.`);
     } catch (err: any) {
       setActionErr(err?.message || 'Gagal mengunduh file Excel Jurnal Trading.');
     } finally {
@@ -224,10 +224,10 @@ export default function JournalPage() {
             onClick={handleDownloadExcel}
             disabled={downloading}
             className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-[11px] shadow-glow-emerald transition flex items-center gap-1.5"
-            title={`Download seluruh arsip jurnal trading mode ${selectedMode} dalam format Excel/CSV`}
+            title={`Download seluruh arsip jurnal trading mode ${selectedMode} dalam format Microsoft Excel (.xlsx)`}
           >
             <LucideIcon name="file-spreadsheet" className="w-3.5 h-3.5" />
-            <span>{downloading ? 'Mengunduh Excel...' : `📥 Excel (${selectedMode})`}</span>
+            <span>{downloading ? 'Mengunduh .XLSX...' : `📥 Excel .XLSX (${selectedMode})`}</span>
           </button>
 
           <button
@@ -528,7 +528,7 @@ export default function JournalPage() {
             disabled={downloading}
             className="text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 hover:underline text-[11px] disabled:opacity-50"
           >
-            <span>📥 Download Excel (Semua {d?.total_trades ?? 0} Transaksi)</span>
+            <span>📥 Download Excel .XLSX (Semua {d?.total_trades ?? 0} Transaksi)</span>
             <span>→</span>
           </button>
         </div>

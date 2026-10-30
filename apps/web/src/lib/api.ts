@@ -541,7 +541,7 @@ export const api = {
     const a = document.createElement('a');
     a.href = url;
     const nowStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    a.download = `Jurnal_Trading_${mode.toUpperCase()}_Neonbase_${nowStr}.csv`;
+    a.download = `Jurnal_Trading_${mode.toUpperCase()}_Neonbase_${nowStr}.xlsx`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);

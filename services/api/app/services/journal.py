@@ -5,6 +5,9 @@ import os
 import hashlib
 from datetime import datetime, timezone, timedelta
 import httpx
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 import math
@@ -554,6 +557,375 @@ def _clean_journal_notes(raw: str | None) -> str:
     while "  " in cleaned:
         cleaned = cleaned.replace("  ", " ")
     return cleaned
+
+
+def export_journal_excel_bytes(db: Session, mode: str = "LIVE") -> bytes:
+    """
+    Generate an authentic Microsoft Excel (.xlsx) workbook.
+    Sheet 1: 'Jurnal {MODE}' - Exact table starting from Row 1:
+             A1: No., B1: ID Record, C1: Waktu Buka / Entry (WIB), etc.
+             Includes auto-filter, frozen header row, professional color-coded PnL,
+             and active Solscan hyperlinks.
+    Sheet 2: 'Ringkasan Kinerja' - Executive KPI cards, balance, and win rate.
+    """
+    fx = market.get_fx_rate()
+    usd_idr = fx["usd_idr"]
+    mode_clean = (mode or "LIVE").upper().strip()
+    if mode_clean not in ("PAPER", "LIVE", "WALLET"):
+        mode_clean = "LIVE"
+
+    summary = get_journal_summary(db, mode=mode_clean, limit=10000)
+    initial_cap_usd = float(summary.get("initial_capital_usd") or 0.0)
+    initial_cap_idr = float(summary.get("initial_capital_idr") or 0.0)
+    cur_bal_usd = float(summary.get("current_balance_usd") or 0.0)
+    cur_bal_idr = float(summary.get("current_balance_idr") or 0.0)
+    cur_bal_sol = float(summary.get("current_balance_sol") or 0.0)
+    total_trades_cnt = int(summary.get("total_trades") or 0)
+    win_cnt = int(summary.get("winning_trades") or 0)
+    loss_cnt = int(summary.get("losing_trades") or 0)
+    open_cnt = int(summary.get("open_trades") or 0)
+    win_rate_val = float(summary.get("win_rate") or 0.0)
+    tot_prof_usd = float(summary.get("total_profit_usd") or 0.0)
+    tot_prof_idr = float(summary.get("total_profit_idr") or 0.0)
+    tot_loss_usd = float(summary.get("total_loss_usd") or 0.0)
+    tot_loss_idr = float(summary.get("total_loss_idr") or 0.0)
+    net_res_usd = float(summary.get("net_result_usd") or 0.0)
+    net_res_idr = float(summary.get("net_result_idr") or 0.0)
+    active_sol_address = summary.get("wallet_address") or DEFAULT_USER_SOLANA_WALLET
+
+    from app.services import wallets as wallet_svc
+    primary_sol_wallet = wallet_svc.get_or_ensure_primary_solana_wallet(db)
+    actual_sol_balance = float(primary_sol_wallet.balance or cur_bal_sol) if primary_sol_wallet else cur_bal_sol
+
+    # Query trades ordered latest first
+    query = select(Trade).where(Trade.mode == mode_clean).order_by(
+        Trade.closed_at.desc().nullslast(),
+        Trade.opened_at.desc().nullslast(),
+        Trade.id.desc(),
+    )
+    all_mode_trades = list(db.execute(query).scalars().all())
+
+    total_gas_usd = sum(float(t.gas_fee_usd or 0.0) for t in all_mode_trades)
+    total_dex_usd = sum(float(t.dex_fee_usd or 0.0) for t in all_mode_trades)
+    total_fee_usd = total_gas_usd + total_dex_usd
+    total_fee_idr = round(total_fee_usd * usd_idr, 0)
+
+    now_wib_str = (datetime.now(timezone.utc) + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S WIB")
+
+    wb = openpyxl.Workbook()
+
+    # =========================================================================
+    # SHEET 1: JURNAL TRANSAKSI (Mulai dari A1)
+    # =========================================================================
+    ws = wb.active
+    ws.title = f"Jurnal {mode_clean}"
+    ws.views.sheetView[0].showGridLines = True
+
+    headers = [
+        "No.",
+        "ID Record",
+        "Waktu Buka / Entry (WIB)",
+        "Waktu Tutup / Exit (WIB)",
+        "Koin / Token (Pair)",
+        "Platform DEX",
+        "Aksi (Side)",
+        "Status Transaksi",
+        "Hasil PnL",
+        "Jumlah Token (Qty)",
+        "Harga Eksekusi (USD)",
+        "Harga Eksekusi (IDR)",
+        "Total Nilai (USD)",
+        "Total Nilai (IDR)",
+        "Keuntungan / Kerugian (USD)",
+        "Keuntungan / Kerugian (IDR)",
+        "ROI (%)",
+        "Biaya Gas Solana (USD)",
+        "Biaya Gas Solana (IDR)",
+        "Biaya DEX Fee (USD)",
+        "Biaya DEX Fee (IDR)",
+        "Total Biaya Fee (USD)",
+        "Total Biaya Fee (IDR)",
+        "Toleransi Slippage (%)",
+        "Jaringan (Blockchain)",
+        "Alamat Dompet Trader",
+        "Link Solscan Explorer",
+        "Tx Signature / Hash",
+        "Catatan Analisis Bot",
+    ]
+
+    ws.append(headers)
+    ws.row_dimensions[1].height = 28
+
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    border_thin = Border(
+        left=Side(style="thin", color="CBD5E1"),
+        right=Side(style="thin", color="CBD5E1"),
+        top=Side(style="thin", color="CBD5E1"),
+        bottom=Side(style="thin", color="CBD5E1"),
+    )
+
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = border_thin
+
+    ws.freeze_panes = "A2"
+
+    font_regular = Font(name="Calibri", size=10)
+    font_bold = Font(name="Calibri", size=10, bold=True)
+    font_link = Font(name="Calibri", size=10, color="2563EB", underline="single")
+    font_profit = Font(name="Calibri", size=10, bold=True, color="166534")
+    font_loss = Font(name="Calibri", size=10, bold=True, color="991B1B")
+
+    fill_profit = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+    fill_loss = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+    fill_zebra = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+    align_right = Alignment(horizontal="right", vertical="center")
+
+    for idx, t in enumerate(all_mode_trades, start=1):
+        row_num = idx + 1
+        ws.row_dimensions[row_num].height = 20
+
+        pnl_val = float(t.pnl or 0.0)
+        qty = float(t.quantity or 0.0)
+        px = float(t.price or 0.0)
+        tot = float(t.total or (qty * px))
+        dex_fee = float(t.dex_fee_usd or 0.0)
+        gas_fee = float(t.gas_fee_usd or 0.0)
+        tot_fee = dex_fee + gas_fee
+        side_lower = str(t.side or "sell").lower()
+        is_open = (t.status == "open")
+
+        if is_open:
+            status_label = "OPEN (Berjalan)"
+            res_label = "POSISI TERBUKA"
+        else:
+            status_label = "CLOSED (Selesai)"
+            if side_lower == "buy":
+                res_label = "ENTRY BUY"
+            elif pnl_val > 0:
+                res_label = "MENANG (WIN)"
+            elif pnl_val < 0:
+                res_label = "RUGI (LOSS)"
+            else:
+                res_label = "BEP (MODAL KEMBALI)"
+
+        side_label = "BELI (BUY)" if side_lower == "buy" else "JUAL (SELL)"
+
+        dt_open_str = _format_wib_datetime(t.opened_at)
+        dt_close_str = _format_wib_datetime(t.closed_at) if not is_open else "-"
+
+        venue = _detect_venue_platform(t.symbol, t.notes or "")
+        clean_note = _clean_journal_notes(t.notes)
+        tx_hash = (t.tx_hash or "").strip()
+
+        roi_decimal = (pnl_val / tot) if (tot > 0 and not is_open and side_lower != "buy") else 0.0
+        slip_decimal = float(t.slippage_pct or 0.0) / 100.0
+
+        row_values = [
+            idx,
+            t.id,
+            dt_open_str,
+            dt_close_str,
+            t.symbol,
+            venue,
+            side_label,
+            status_label,
+            res_label,
+            qty,
+            px,
+            round(px * usd_idr, 2),
+            tot,
+            round(tot * usd_idr),
+            pnl_val,
+            round(pnl_val * usd_idr),
+            roi_decimal,
+            gas_fee,
+            round(gas_fee * usd_idr),
+            dex_fee,
+            round(dex_fee * usd_idr),
+            tot_fee,
+            round(tot_fee * usd_idr),
+            slip_decimal,
+            t.chain or "Solana",
+            active_sol_address,
+            f"https://solscan.io/tx/{tx_hash}" if (tx_hash and len(tx_hash) >= 32 and not tx_hash.startswith("tx_")) else "-",
+            tx_hash or "-",
+            clean_note,
+        ]
+
+        ws.append(row_values)
+
+        is_even = (idx % 2 == 0)
+        row_fill = fill_zebra if is_even else None
+
+        for col_i in range(1, len(row_values) + 1):
+            c = ws.cell(row=row_num, column=col_i)
+            c.border = border_thin
+            c.font = font_regular
+            if row_fill:
+                c.fill = row_fill
+
+            if col_i in (1, 2):
+                c.alignment = align_center
+                c.number_format = "#,##0"
+            elif col_i in (3, 4, 6, 7, 8, 9, 25):
+                c.alignment = align_center
+            elif col_i == 5:
+                c.alignment = align_center
+                c.font = font_bold
+            elif col_i == 10:
+                c.alignment = align_right
+                c.number_format = "#,##0.00" if qty >= 1 else "0.0000"
+            elif col_i == 11:
+                c.alignment = align_right
+                if px < 0.0001:
+                    c.number_format = "$0.00000000"
+                elif px < 1:
+                    c.number_format = "$0.000000"
+                else:
+                    c.number_format = "$#,##0.0000"
+            elif col_i == 12:
+                c.alignment = align_right
+                c.number_format = "Rp #,##0.00" if (px * usd_idr) < 100 else "Rp #,##0"
+            elif col_i == 13:
+                c.alignment = align_right
+                c.number_format = "$#,##0.0000"
+            elif col_i == 14:
+                c.alignment = align_right
+                c.number_format = "Rp #,##0"
+            elif col_i in (15, 16):
+                c.alignment = align_right
+                if col_i == 15:
+                    c.number_format = "+$#,##0.0000;-$#,##0.0000;$0.0000"
+                else:
+                    c.number_format = "+Rp #,##0;-Rp #,##0;Rp 0"
+                if pnl_val > 0.00005:
+                    c.fill = fill_profit
+                    c.font = font_profit
+                elif pnl_val < -0.00005:
+                    c.fill = fill_loss
+                    c.font = font_loss
+            elif col_i == 17:
+                c.alignment = align_right
+                c.number_format = "+0.00%;-0.00%;0.00%"
+                if roi_decimal > 0.0001:
+                    c.font = font_profit
+                elif roi_decimal < -0.0001:
+                    c.font = font_loss
+            elif col_i in (18, 20, 22):
+                c.alignment = align_right
+                c.number_format = "$0.0000"
+            elif col_i in (19, 21, 23):
+                c.alignment = align_right
+                c.number_format = "Rp #,##0"
+            elif col_i == 24:
+                c.alignment = align_right
+                c.number_format = "0.00%"
+            elif col_i in (26, 28):
+                c.alignment = align_left
+            elif col_i == 27:
+                c.alignment = align_center
+                if str(c.value).startswith("http"):
+                    c.hyperlink = str(c.value)
+                    c.value = "Buka Solscan"
+                    c.font = font_link
+            elif col_i == 29:
+                c.alignment = align_left
+
+    ws.auto_filter.ref = ws.dimensions
+
+    for col in ws.columns:
+        col_letter = get_column_letter(col[0].column)
+        max_len = 0
+        for cell in col:
+            val_str = str(cell.value or "")
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        if col[0].column in (1, 2):
+            ws.column_dimensions[col_letter].width = 10
+        elif col[0].column in (3, 4):
+            ws.column_dimensions[col_letter].width = 24
+        elif col[0].column in (27,):
+            ws.column_dimensions[col_letter].width = 15
+        elif col[0].column in (28,):
+            ws.column_dimensions[col_letter].width = 32
+        elif col[0].column in (29,):
+            ws.column_dimensions[col_letter].width = 45
+        else:
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
+
+    # =========================================================================
+    # SHEET 2: RINGKASAN EKSEKUTIF KINERJA & MODAL
+    # =========================================================================
+    ws_sum = wb.create_sheet(title="Ringkasan Kinerja")
+    ws_sum.views.sheetView[0].showGridLines = True
+    ws_sum.column_dimensions["A"].width = 30
+    ws_sum.column_dimensions["B"].width = 38
+    ws_sum.column_dimensions["C"].width = 25
+
+    ws_sum.merge_cells("A1:C1")
+    title_cell = ws_sum.cell(row=1, column=1)
+    title_cell.value = "LAPORAN RESMI KINERJA & SALDO - NEXTGEN SOFIA MEME BOT"
+    title_cell.font = Font(name="Calibri", size=14, bold=True, color="FFFFFF")
+    title_cell.fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws_sum.row_dimensions[1].height = 36
+
+    summary_rows = [
+        ("Filter Mode Trading", mode_clean, ""),
+        ("Alamat Dompet Solana", active_sol_address, "Mainnet On-Chain"),
+        ("Waktu Cetak Laporan (WIB)", now_wib_str, "Waktu Indonesia Barat"),
+        ("Kurs Acuan USD / IDR", f"Rp {usd_idr:,.0f}", "Bank Indonesia / Coingecko"),
+        ("Modal Awal Terkalkulasi", f"${initial_cap_usd:,.2f} USD", f"Rp {initial_cap_idr:,.0f}"),
+        ("Posisi Saldo Saat Ini", f"${cur_bal_usd:,.2f} USD", f"Rp {cur_bal_idr:,.0f} ({cur_bal_sol:.6f} SOL)"),
+        ("Saldo On-Chain Kas Real Time", f"{actual_sol_balance:.6f} SOL", f"${round(actual_sol_balance * live_engine.get_sol_price_usd(), 2)} USD"),
+        ("Total Transaksi Terverifikasi", f"{total_trades_cnt} Transaksi", "Mode " + mode_clean),
+        ("Transaksi Menang (WIN)", f"{win_cnt} Transaksi", "Profit"),
+        ("Transaksi Rugi (LOSS)", f"{loss_cnt} Transaksi", "Cut Loss"),
+        ("Win Rate Keseluruhan", f"{win_rate_val:.1f}%", f"{win_cnt} Menang / {win_cnt + loss_cnt} Selesai"),
+        ("Total Keuntungan (Gross Profit)", f"+${tot_prof_usd:,.2f} USD", f"+Rp {tot_prof_idr:,.0f}"),
+        ("Total Kerugian (Gross Loss)", f"-${tot_loss_usd:,.2f} USD", f"-Rp {tot_loss_idr:,.0f}"),
+        ("Hasil Bersih Realized PnL", f"{'+' if net_res_usd > 0 else ''}${net_res_usd:,.2f} USD", f"{'+' if net_res_idr > 0 else ''}Rp {net_res_idr:,.0f}"),
+        ("Total Biaya Gas & DEX Fee", f"${total_fee_usd:,.2f} USD", f"Rp {total_fee_idr:,.0f}"),
+    ]
+
+    for s_idx, (lbl, val1, val2) in enumerate(summary_rows, start=3):
+        ws_sum.row_dimensions[s_idx].height = 22
+        cA = ws_sum.cell(row=s_idx, column=1, value=lbl)
+        cB = ws_sum.cell(row=s_idx, column=2, value=val1)
+        cC = ws_sum.cell(row=s_idx, column=3, value=val2)
+
+        cA.font = font_bold
+        cA.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+        cA.border = border_thin
+        cA.alignment = Alignment(horizontal="left", vertical="center")
+
+        cB.font = font_bold if "Hasil Bersih" in lbl or "Posisi Saldo" in lbl or "Win Rate" in lbl else font_regular
+        cB.border = border_thin
+        cB.alignment = Alignment(horizontal="left", vertical="center")
+
+        if "Hasil Bersih" in lbl:
+            cB.fill = fill_profit if net_res_usd > 0 else fill_loss
+            cB.font = font_profit if net_res_usd > 0 else font_loss
+        elif "Posisi Saldo" in lbl:
+            cB.fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+
+        cC.font = Font(name="Calibri", size=9, color="64748B", italic=True)
+        cC.border = border_thin
+        cC.alignment = Alignment(horizontal="left", vertical="center")
+
+    stream = io.BytesIO()
+    wb.save(stream)
+    return stream.getvalue()
 
 
 def export_journal_csv(db: Session, mode: str = "LIVE") -> str:
