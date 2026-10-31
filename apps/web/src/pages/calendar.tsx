@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { api, useApiQuery, formatIdr, formatUsd, getTradingMode } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
+import { CalendarPnLChart } from '@/components/CalendarPnLChart';
 import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
 const DEFAULT_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
@@ -379,6 +380,16 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
+
+        {/* Card Grafik Performa PnL Bulanan (Kumulatif & Bar Harian) */}
+        <CalendarPnLChart
+          days={days}
+          usdIdr={usdIdr}
+          monthLabel={calData?.month_label || `${currentMonth}/${currentYear}`}
+          selectedMode={selectedMode}
+          selectedDayDate={selectedDayDate}
+          onSelectDate={(date) => setSelectedDayDate(date)}
+        />
 
         {(() => {
           const calendarGridBlock = (
