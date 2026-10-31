@@ -77,6 +77,7 @@ export function CalendarPnLChart({
         index: idx,
         date: d.date,
         dayNumber: d.day_number,
+        weekdayName: d.weekday_name || '',
         isToday: d.is_today,
         dayPnlUsd: pnlUsd,
         dayPnlIdr: pnlIdr,
@@ -94,7 +95,7 @@ export function CalendarPnLChart({
     });
   }, [days, rate]);
 
-  // Overall performance stats for the chart header
+  // Overall performance stats for the chart header & footer
   const chartStats = useMemo(() => {
     if (timelineData.length === 0) {
       return {
@@ -105,8 +106,11 @@ export function CalendarPnLChart({
         maxDrawdownUsd: 0,
         maxDrawdownIdr: 0,
         activeDays: 0,
+        totalTrades: 0,
+        winTrades: 0,
         avgDailyPnlUsd: 0,
         avgDailyPnlIdr: 0,
+        winRatePct: 0,
       };
     }
 
@@ -118,6 +122,8 @@ export function CalendarPnLChart({
     let maxDrawdownUsd = 0;
     let activeDays = 0;
     let sumActiveDailyPnl = 0;
+    let totalTrades = 0;
+    let winTrades = 0;
 
     timelineData.forEach((pt) => {
       if (pt.cumPnlUsd > peakPnlUsd) peakPnlUsd = pt.cumPnlUsd;
@@ -127,10 +133,13 @@ export function CalendarPnLChart({
       if (pt.tradesCount > 0) {
         activeDays++;
         sumActiveDailyPnl += pt.dayPnlUsd;
+        totalTrades += pt.tradesCount;
+        winTrades += pt.winTrades;
       }
     });
 
     const avgDailyPnlUsd = activeDays > 0 ? sumActiveDailyPnl / activeDays : 0;
+    const winRatePct = totalTrades > 0 ? (winTrades / totalTrades) * 100 : 0;
 
     return {
       totalPnlUsd,
@@ -140,25 +149,37 @@ export function CalendarPnLChart({
       maxDrawdownUsd,
       maxDrawdownIdr: maxDrawdownUsd * rate,
       activeDays,
+      totalTrades,
+      winTrades,
       avgDailyPnlUsd,
       avgDailyPnlIdr: avgDailyPnlUsd * rate,
+      winRatePct,
     };
   }, [timelineData, rate]);
 
-  // SVG Geometry Dimensions
+  // SVG Geometry Constants
   const SVG_WIDTH = 1000;
-  const SVG_HEIGHT = 200;
-  const PADDING_TOP = 28;
-  const PADDING_BOTTOM = 32;
+  const SVG_HEIGHT = 220;
+  const PADDING_TOP = 24;
+  const PADDING_BOTTOM = 34;
+  const PADDING_LEFT = 24;
+  const PADDING_RIGHT = 68; // Space for right Y-axis values
+  const PLOT_WIDTH = SVG_WIDTH - PADDING_LEFT - PADDING_RIGHT;
   const PLOT_HEIGHT = SVG_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
 
-  // Build Cumulative Spline Geometry
+  // Build Cumulative Spline Geometry (Clean Linear/Stripe style)
   const cumulativeGeometry = useMemo(() => {
     if (timelineData.length === 0) return null;
 
     const values = timelineData.map((d) => d.cumPnlUsd);
-    const minVal = Math.min(0, ...values);
-    const maxVal = Math.max(0, ...values);
+    let minVal = Math.min(0, ...values);
+    let maxVal = Math.max(0, ...values);
+
+    // Give 10% breathing room top and bottom
+    const span = maxVal - minVal;
+    const padding = span > 0 ? span * 0.12 : 1;
+    minVal -= padding;
+    maxVal += padding;
     const range = Math.max(0.01, maxVal - minVal);
 
     const getY = (val: number) => {
@@ -169,12 +190,12 @@ export function CalendarPnLChart({
     const zeroY = getY(0);
 
     const points = timelineData.map((d, i) => {
-      const x = (i / Math.max(1, timelineData.length - 1)) * (SVG_WIDTH - 40) + 20;
+      const x = PADDING_LEFT + (i / Math.max(1, timelineData.length - 1)) * PLOT_WIDTH;
       const y = getY(d.cumPnlUsd);
       return { x, y, data: d };
     });
 
-    // Spline curve path
+    // Spline curve path with smooth Bézier control points
     let linePath = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
     for (let i = 0; i < points.length - 1; i++) {
       const p0 = points[i];
@@ -188,17 +209,26 @@ export function CalendarPnLChart({
 
     const lastX = points[points.length - 1].x;
     const firstX = points[0].x;
-    const areaPath = `${linePath} L ${lastX.toFixed(1)} ${SVG_HEIGHT - PADDING_BOTTOM} L ${firstX.toFixed(1)} ${SVG_HEIGHT - PADDING_BOTTOM} Z`;
+    const baselineY = SVG_HEIGHT - PADDING_BOTTOM;
+    const areaPath = `${linePath} L ${lastX.toFixed(1)} ${baselineY} L ${firstX.toFixed(1)} ${baselineY} Z`;
+
+    // Reference levels for Y-axis
+    const levels = [
+      { val: maxVal - padding, y: getY(maxVal - padding) },
+      { val: 0, y: zeroY },
+      { val: minVal + padding, y: getY(minVal + padding) },
+    ];
 
     return {
       points,
       linePath,
       areaPath,
       zeroY,
+      levels,
       minVal,
       maxVal,
     };
-  }, [timelineData, PLOT_HEIGHT, PADDING_TOP, PADDING_BOTTOM, SVG_HEIGHT]);
+  }, [timelineData, PLOT_WIDTH, PLOT_HEIGHT, PADDING_TOP, PADDING_BOTTOM, PADDING_LEFT, SVG_HEIGHT]);
 
   // Build Daily Bar Geometry
   const dailyBarGeometry = useMemo(() => {
@@ -207,15 +237,15 @@ export function CalendarPnLChart({
     const values = timelineData.map((d) => d.dayPnlUsd);
     const minVal = Math.min(0, ...values);
     const maxVal = Math.max(0, ...values);
-    const absMax = Math.max(0.01, Math.abs(minVal), Math.abs(maxVal));
+    const absMax = Math.max(0.01, Math.abs(minVal), Math.abs(maxVal)) * 1.15;
 
     const zeroY = PADDING_TOP + PLOT_HEIGHT / 2;
-    const barWidth = Math.max(6, Math.min(22, (SVG_WIDTH - 60) / timelineData.length - 4));
+    const barWidth = Math.max(6, Math.min(20, (PLOT_WIDTH / timelineData.length) * 0.65));
 
     const bars = timelineData.map((d, i) => {
-      const x = (i / Math.max(1, timelineData.length - 1)) * (SVG_WIDTH - 60) + 30;
+      const x = PADDING_LEFT + (i / Math.max(1, timelineData.length - 1)) * PLOT_WIDTH;
       const heightFrac = Math.abs(d.dayPnlUsd) / absMax;
-      const barHeight = Math.max(d.dayPnlUsd !== 0 ? 3 : 1, heightFrac * (PLOT_HEIGHT / 2 - 4));
+      const barHeight = Math.max(d.dayPnlUsd !== 0 ? 3 : 1, heightFrac * (PLOT_HEIGHT / 2 - 6));
 
       const isPositive = d.dayPnlUsd >= 0;
       const y = isPositive ? zeroY - barHeight : zeroY;
@@ -230,14 +260,21 @@ export function CalendarPnLChart({
       };
     });
 
+    const levels = [
+      { val: absMax * 0.8, y: zeroY - (PLOT_HEIGHT / 2 - 8) * 0.8 },
+      { val: 0, y: zeroY },
+      { val: -absMax * 0.8, y: zeroY + (PLOT_HEIGHT / 2 - 8) * 0.8 },
+    ];
+
     return {
       bars,
       zeroY,
       absMax,
+      levels,
     };
-  }, [timelineData, PLOT_HEIGHT, PADDING_TOP]);
+  }, [timelineData, PLOT_WIDTH, PLOT_HEIGHT, PADDING_TOP, PADDING_LEFT]);
 
-  // Mouse handler for hover inspection
+  // Mouse move handler for crosshair inspection
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!chartRef.current || timelineData.length === 0) return;
@@ -258,98 +295,91 @@ export function CalendarPnLChart({
   const isNetPositive = chartStats.totalPnlUsd >= 0;
 
   return (
-    <div className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-4 shadow-lg space-y-3">
-      {/* Header: Title, Quick KPI, View Switchers, and Collapse Button */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-obsidian-800">
-        <div className="flex items-center gap-2.5">
-          <div
-            className={`flex items-center justify-center w-8 h-8 rounded-lg border ${
-              isNetPositive
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
-            }`}
-          >
-            <LucideIcon name={chartType === 'cumulative' ? 'trending-up' : 'bar-chart-2'} className="w-4 h-4" />
+    <div className="bg-[#0e121b] border border-slate-800/80 rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-md space-y-4">
+      {/* Top Header: Clean Typographic Metric & Segmented Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/60">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono tracking-wider text-slate-400 uppercase font-medium">
+              Performa PnL {monthLabel}
+            </span>
+            <span
+              className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase ${
+                selectedMode === 'LIVE'
+                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                  : selectedMode === 'WALLET'
+                  ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              }`}
+            >
+              {selectedMode}
+            </span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
-                <span>Grafik Performa PnL</span>
-                <span className="text-cyan-400 font-mono text-xs font-semibold">({monthLabel})</span>
-              </h2>
+
+          {/* Large Hero Metric */}
+          <div className="flex items-baseline gap-2.5 mt-1">
+            <span
+              className={`text-2xl sm:text-3xl font-extrabold font-mono tracking-tight tabular-nums ${
+                isNetPositive ? 'text-emerald-400' : 'text-rose-400'
+              }`}
+            >
+              {isNetPositive ? '+' : ''}
+              {formatUsd(chartStats.totalPnlUsd)}
+            </span>
+            <span className="text-xs sm:text-sm text-slate-400 font-mono">
+              ≈ {isNetPositive ? '+' : ''}
+              {formatIdr(chartStats.totalPnlIdr)}
+            </span>
+            {chartStats.totalTrades > 0 && (
               <span
-                className={`text-[9px] font-mono px-1.5 py-0.5 rounded border font-bold uppercase ${
-                  selectedMode === 'LIVE'
-                    ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                    : selectedMode === 'WALLET'
-                    ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
-                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md ${
+                  isNetPositive
+                    ? 'bg-emerald-500/15 text-emerald-300'
+                    : 'bg-rose-500/15 text-rose-300'
                 }`}
               >
-                {selectedMode}
+                {chartStats.winRatePct.toFixed(1)}% WR
               </span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-sans">
-              Visualisasi tren kumulatif &amp; PnL bersih harian kalender trading.
-            </p>
+            )}
           </div>
         </div>
 
-        {/* Action Controls & KPI Pills */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Quick Stats: Peak & Max Drawdown */}
-          <div className="hidden lg:flex items-center gap-2 text-[11px] font-mono bg-obsidian-950 px-2.5 py-1 rounded-lg border border-obsidian-800">
-            <span className="text-slate-400">
-              Puncak:{' '}
-              <strong className="text-emerald-400">
-                +{formatUsd(chartStats.peakPnlUsd)} ({formatIdr(chartStats.peakPnlIdr)})
-              </strong>
-            </span>
-            <span className="text-slate-700">|</span>
-            <span className="text-slate-400">
-              Max DD:{' '}
-              <strong className={chartStats.maxDrawdownUsd > 0 ? 'text-rose-400' : 'text-slate-400'}>
-                -{formatUsd(chartStats.maxDrawdownUsd)}
-              </strong>
-            </span>
-          </div>
-
-          {/* Toggle Type: Cumulative Curve vs Daily Bars */}
-          <div className="flex items-center bg-obsidian-950 p-0.5 rounded-lg border border-obsidian-800 text-xs font-mono">
+        {/* Right Controls: Minimalist Linear-Style Segmented Pill Toggle & Collapse */}
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <div className="flex items-center bg-[#141824] p-1 rounded-xl border border-slate-800 text-xs font-mono">
             <button
               type="button"
               onClick={() => setChartType('cumulative')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-150 font-medium ${
                 chartType === 'cumulative'
-                  ? 'bg-emerald-500 text-obsidian-950 font-bold shadow-glow-emerald'
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="Grafik Garis Pertumbuhan Kumulatif PnL"
+              title="Kurva Pertumbuhan Akumulasi PnL"
             >
               <LucideIcon name="trending-up" className="w-3.5 h-3.5" />
-              <span>Kumulatif</span>
+              <span>Kurva Kumulatif</span>
             </button>
             <button
               type="button"
               onClick={() => setChartType('daily')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-150 font-medium ${
                 chartType === 'daily'
-                  ? 'bg-cyan-500 text-obsidian-950 font-bold shadow-glow-cyan'
+                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-md shadow-cyan-500/20'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="Grafik Batang Net PnL Per Hari (Hijau Profit / Merah Rugi)"
+              title="Grafik Batang Net PnL Harian"
             >
               <LucideIcon name="bar-chart-2" className="w-3.5 h-3.5" />
               <span>Batang Harian</span>
             </button>
           </div>
 
-          {/* Collapse/Expand Button */}
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-lg bg-obsidian-950 hover:bg-obsidian-800 text-slate-400 hover:text-slate-200 border border-obsidian-800 transition"
-            title={isCollapsed ? 'Perluas Grafik' : 'Perkecil Grafik'}
+            className="p-2 rounded-xl bg-[#141824] hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition"
+            title={isCollapsed ? 'Tampilkan Grafik' : 'Sembunyikan Grafik'}
           >
             <LucideIcon name={isCollapsed ? 'chevron-down' : 'chevron-up'} className="w-4 h-4" />
           </button>
@@ -358,94 +388,16 @@ export function CalendarPnLChart({
 
       {!isCollapsed && (
         <>
-          {/* Active Inspection HUD Banner (Floating or Hovered Day) */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-obsidian-950 border border-obsidian-800 text-xs font-mono">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
-                {activeHoverData
-                  ? `Titik Inspeksi: Tgl ${activeHoverData.dayNumber} (${activeHoverData.date})`
-                  : selectedDayDate
-                  ? `Tanggal Terpilih: ${selectedDayDate}`
-                  : `Ringkasan Akhir ${monthLabel}`}
-              </span>
-              {activeHoverData?.isToday && (
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold">
-                  HARI INI
-                </span>
-              )}
-            </div>
-
-            {/* Metric Displays for Hovered or Selected Day */}
-            {activeHoverData ? (
-              <div className="flex flex-wrap items-center gap-3 text-[11px]">
-                <span className="text-slate-400">
-                  PnL Hari Ini:{' '}
-                  <strong
-                    className={
-                      activeHoverData.dayPnlUsd > 0
-                        ? 'text-emerald-400'
-                        : activeHoverData.dayPnlUsd < 0
-                        ? 'text-rose-400'
-                        : 'text-slate-300'
-                    }
-                  >
-                    {activeHoverData.dayPnlUsd >= 0 ? '+' : ''}
-                    {formatUsd(activeHoverData.dayPnlUsd)} ({activeHoverData.dayPnlIdr >= 0 ? '+' : ''}
-                    {formatIdr(activeHoverData.dayPnlIdr)})
-                  </strong>
-                </span>
-                <span className="text-slate-700">|</span>
-                <span className="text-slate-400">
-                  Kumulatif s/d Tgl ini:{' '}
-                  <strong
-                    className={
-                      activeHoverData.cumPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                    }
-                  >
-                    {activeHoverData.cumPnlUsd >= 0 ? '+' : ''}
-                    {formatUsd(activeHoverData.cumPnlUsd)}
-                  </strong>
-                </span>
-                <span className="text-slate-700">|</span>
-                <span className="text-slate-400">
-                  Aktivitas:{' '}
-                  <strong className="text-slate-200">
-                    {activeHoverData.tradesCount} Trade ({activeHoverData.winTrades}W/{activeHoverData.lossTrades}L) • WR {activeHoverData.winRate}%
-                  </strong>
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-3 text-[11px]">
-                <span className="text-slate-400">
-                  Total PnL Bulan Ini:{' '}
-                  <strong className={isNetPositive ? 'text-emerald-400' : 'text-rose-400'}>
-                    {isNetPositive ? '+' : ''}
-                    {formatUsd(chartStats.totalPnlUsd)} ({isNetPositive ? '+' : ''}
-                    {formatIdr(chartStats.totalPnlIdr)})
-                  </strong>
-                </span>
-                <span className="text-slate-700">|</span>
-                <span className="text-slate-400">
-                  Hari Aktif Trade: <strong className="text-cyan-300">{chartStats.activeDays} Hari</strong>
-                </span>
-                <span className="text-slate-700">|</span>
-                <span className="text-slate-400">
-                  Rata-rata/Hari: <strong className="text-slate-200">{formatUsd(chartStats.avgDailyPnlUsd)}</strong>
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* SVG Interactive Canvas */}
+          {/* Chart Canvas Area */}
           <div
             ref={chartRef}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
-            className="relative w-full h-48 bg-obsidian-950/80 rounded-xl border border-obsidian-800 overflow-hidden cursor-crosshair select-none"
+            className="relative w-full h-56 bg-[#090c13] rounded-xl border border-slate-800/80 overflow-hidden cursor-crosshair select-none"
           >
             {timelineData.length === 0 ? (
               <div className="w-full h-full flex items-center justify-center text-xs text-slate-500 font-mono">
-                Belum ada data transaksi untuk bulan ini.
+                Belum ada data transaksi yang tercatat pada bulan ini.
               </div>
             ) : (
               <svg
@@ -454,96 +406,115 @@ export function CalendarPnLChart({
                 className="w-full h-full"
               >
                 <defs>
-                  {/* Linear Gradient for Cumulative Area */}
-                  <linearGradient id="calPnlEmeraldGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
-                    <stop offset="65%" stopColor="#10b981" stopOpacity="0.08" />
+                  {/* Subtle, Linear-grade Area Gradients */}
+                  <linearGradient id="pnlEmeraldArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
+                    <stop offset="60%" stopColor="#10b981" stopOpacity="0.04" />
                     <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                   </linearGradient>
 
-                  <linearGradient id="calPnlRoseGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.35" />
-                    <stop offset="65%" stopColor="#f43f5e" stopOpacity="0.08" />
+                  <linearGradient id="pnlRoseArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.22" />
+                    <stop offset="60%" stopColor="#f43f5e" stopOpacity="0.04" />
                     <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
                   </linearGradient>
 
-                  {/* Bar Gradients */}
-                  <linearGradient id="barGreenGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.9" />
-                    <stop offset="100%" stopColor="#059669" stopOpacity="0.4" />
+                  {/* Clean Bar Gradients */}
+                  <linearGradient id="cleanBarGreen" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.95" />
+                    <stop offset="100%" stopColor="#059669" stopOpacity="0.6" />
                   </linearGradient>
 
-                  <linearGradient id="barRedGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#e11d48" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.9" />
+                  <linearGradient id="cleanBarRed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#e11d48" stopOpacity="0.6" />
+                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.95" />
                   </linearGradient>
                 </defs>
 
-                {/* Horizontal Gridlines */}
-                <line
-                  x1="0"
-                  y1={PADDING_TOP}
-                  x2={SVG_WIDTH}
-                  y2={PADDING_TOP}
-                  stroke="#334155"
-                  strokeWidth="0.8"
-                  strokeDasharray="4 4"
-                  opacity="0.25"
-                />
-                <line
-                  x1="0"
-                  y1={SVG_HEIGHT / 2}
-                  x2={SVG_WIDTH}
-                  y2={SVG_HEIGHT / 2}
-                  stroke="#334155"
-                  strokeWidth="0.8"
-                  strokeDasharray="4 4"
-                  opacity="0.25"
-                />
-                <line
-                  x1="0"
-                  y1={SVG_HEIGHT - PADDING_BOTTOM}
-                  x2={SVG_WIDTH}
-                  y2={SVG_HEIGHT - PADDING_BOTTOM}
-                  stroke="#334155"
-                  strokeWidth="0.8"
-                  strokeDasharray="4 4"
-                  opacity="0.25"
-                />
+                {/* Faint Horizontal Reference Gridlines */}
+                {chartType === 'cumulative' && cumulativeGeometry && (
+                  <>
+                    {cumulativeGeometry.levels.map((lvl, idx) => (
+                      <g key={`lvl-${idx}`}>
+                        <line
+                          x1={PADDING_LEFT}
+                          y1={lvl.y}
+                          x2={SVG_WIDTH - PADDING_RIGHT}
+                          y2={lvl.y}
+                          stroke="#1e293b"
+                          strokeWidth="1"
+                          strokeDasharray={lvl.val === 0 ? '4 4' : '2 4'}
+                          opacity={lvl.val === 0 ? 0.8 : 0.4}
+                        />
+                        <text
+                          x={SVG_WIDTH - PADDING_RIGHT + 8}
+                          y={lvl.y + 3.5}
+                          fill={lvl.val === 0 ? '#64748b' : '#475569'}
+                          fontSize="9.5"
+                          fontFamily="monospace"
+                        >
+                          {lvl.val >= 0 ? '+' : ''}
+                          {formatUsd(lvl.val)}
+                        </text>
+                      </g>
+                    ))}
+                  </>
+                )}
+
+                {chartType === 'daily' && dailyBarGeometry && (
+                  <>
+                    {dailyBarGeometry.levels.map((lvl, idx) => (
+                      <g key={`lvl-bar-${idx}`}>
+                        <line
+                          x1={PADDING_LEFT}
+                          y1={lvl.y}
+                          x2={SVG_WIDTH - PADDING_RIGHT}
+                          y2={lvl.y}
+                          stroke="#1e293b"
+                          strokeWidth="1"
+                          strokeDasharray={lvl.val === 0 ? '4 4' : '2 4'}
+                          opacity={lvl.val === 0 ? 0.8 : 0.4}
+                        />
+                        <text
+                          x={SVG_WIDTH - PADDING_RIGHT + 8}
+                          y={lvl.y + 3.5}
+                          fill={lvl.val === 0 ? '#64748b' : '#475569'}
+                          fontSize="9.5"
+                          fontFamily="monospace"
+                        >
+                          {lvl.val >= 0 ? '+' : ''}
+                          {formatUsd(lvl.val)}
+                        </text>
+                      </g>
+                    ))}
+                  </>
+                )}
 
                 {/* MODE 1: CUMULATIVE CURVE */}
                 {chartType === 'cumulative' && cumulativeGeometry && (
                   <>
-                    {/* Zero Level Baseline */}
-                    <line
-                      x1="0"
-                      y1={cumulativeGeometry.zeroY}
-                      x2={SVG_WIDTH}
-                      y2={cumulativeGeometry.zeroY}
-                      stroke="#64748b"
-                      strokeWidth="1.2"
-                      strokeDasharray="3 3"
-                      opacity="0.4"
-                    />
-
-                    {/* Gradient Area Fill */}
+                    {/* Area fill */}
                     <path
                       d={cumulativeGeometry.areaPath}
-                      fill={isNetPositive ? 'url(#calPnlEmeraldGrad)' : 'url(#calPnlRoseGrad)'}
+                      fill={isNetPositive ? 'url(#pnlEmeraldArea)' : 'url(#pnlRoseArea)'}
                     />
 
-                    {/* Glowing Spline Stroke Line */}
+                    {/* Smooth glowing stroke */}
                     <path
                       d={cumulativeGeometry.linePath}
                       fill="none"
                       stroke={isNetPositive ? '#10b981' : '#f43f5e'}
-                      strokeWidth="2.8"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                      style={{
+                        filter: `drop-shadow(0 4px 10px ${
+                          isNetPositive ? 'rgba(16,185,129,0.3)' : 'rgba(244,63,94,0.3)'
+                        })`,
+                      }}
                     />
 
-                    {/* Data Points on Days With Trades or Selected Day */}
+                    {/* Nodes on days with trades */}
                     {cumulativeGeometry.points.map((pt, i) => {
                       const hasTrades = pt.data.tradesCount > 0;
                       const isSelected = selectedDayDate === pt.data.date;
@@ -557,12 +528,12 @@ export function CalendarPnLChart({
                           onClick={() => onSelectDate(pt.data.date)}
                           className="cursor-pointer"
                         >
-                          {/* Outer pulse for selected or hovered */}
+                          {/* Pulsing ring for selected / hovered */}
                           {(isSelected || isHovered) && (
                             <circle
                               cx={pt.x}
                               cy={pt.y}
-                              r={isSelected ? 9 : 7}
+                              r={isSelected ? 8.5 : 6.5}
                               fill="none"
                               stroke={isSelected ? '#38bdf8' : isNetPositive ? '#10b981' : '#f43f5e'}
                               strokeWidth="1.5"
@@ -570,11 +541,11 @@ export function CalendarPnLChart({
                             />
                           )}
 
-                          {/* Main node dot */}
+                          {/* Node circle */}
                           <circle
                             cx={pt.x}
                             cy={pt.y}
-                            r={isSelected ? 6 : hasTrades ? 4.5 : 3}
+                            r={isSelected ? 5.5 : hasTrades ? 4 : 2.5}
                             fill={
                               isSelected
                                 ? '#38bdf8'
@@ -582,9 +553,9 @@ export function CalendarPnLChart({
                                 ? '#10b981'
                                 : pt.data.dayPnlUsd < 0
                                 ? '#f43f5e'
-                                : '#94a3b8'
+                                : '#64748b'
                             }
-                            stroke="#0b0f17"
+                            stroke="#090c13"
                             strokeWidth="2"
                           />
                         </g>
@@ -596,54 +567,64 @@ export function CalendarPnLChart({
                 {/* MODE 2: DAILY NET PNL BARS */}
                 {chartType === 'daily' && dailyBarGeometry && (
                   <>
-                    {/* Zero Level Baseline */}
+                    {/* Zero baseline */}
                     <line
-                      x1="0"
+                      x1={PADDING_LEFT}
                       y1={dailyBarGeometry.zeroY}
-                      x2={SVG_WIDTH}
+                      x2={SVG_WIDTH - PADDING_RIGHT}
                       y2={dailyBarGeometry.zeroY}
-                      stroke="#94a3b8"
+                      stroke="#475569"
                       strokeWidth="1.2"
-                      opacity="0.5"
+                      opacity="0.6"
                     />
 
-                    {/* Day Net PnL Bars */}
+                    {/* Bars */}
                     {dailyBarGeometry.bars.map((bar, i) => {
                       const isSelected = selectedDayDate === bar.data.date;
                       const isHovered = hoveredIdx === i;
+                      const hasTrades = bar.data.tradesCount > 0;
 
                       return (
                         <g
                           key={bar.data.date}
                           onClick={() => onSelectDate(bar.data.date)}
-                          className="cursor-pointer group"
+                          className="cursor-pointer"
                         >
-                          <rect
-                            x={bar.x - bar.width / 2}
-                            y={bar.y}
-                            width={bar.width}
-                            height={bar.height}
-                            rx="2"
-                            fill={bar.isPositive ? 'url(#barGreenGrad)' : 'url(#barRedGrad)'}
-                            stroke={
-                              isSelected
-                                ? '#38bdf8'
-                                : isHovered
-                                ? '#f8fafc'
-                                : bar.isPositive
-                                ? '#10b981'
-                                : '#f43f5e'
-                            }
-                            strokeWidth={isSelected ? '2' : isHovered ? '1.5' : '0.5'}
-                            className="transition-all duration-150"
-                          />
+                          {hasTrades ? (
+                            <rect
+                              x={bar.x - bar.width / 2}
+                              y={bar.y}
+                              width={bar.width}
+                              height={bar.height}
+                              rx="3"
+                              fill={bar.isPositive ? 'url(#cleanBarGreen)' : 'url(#cleanBarRed)'}
+                              stroke={
+                                isSelected
+                                  ? '#38bdf8'
+                                  : isHovered
+                                  ? '#f8fafc'
+                                  : bar.isPositive
+                                  ? '#10b981'
+                                  : '#f43f5e'
+                              }
+                              strokeWidth={isSelected ? '2' : isHovered ? '1.5' : '0.5'}
+                              className="transition-all duration-150"
+                            />
+                          ) : (
+                            <circle
+                              cx={bar.x}
+                              cy={dailyBarGeometry.zeroY}
+                              r={1.5}
+                              fill="#334155"
+                            />
+                          )}
                         </g>
                       );
                     })}
                   </>
                 )}
 
-                {/* Vertical Cursor Crosshair on Hover */}
+                {/* Interactive Crosshair Tracking Line */}
                 {hoveredIdx !== null && (
                   <line
                     x1={
@@ -659,15 +640,14 @@ export function CalendarPnLChart({
                     }
                     y2={SVG_HEIGHT - PADDING_BOTTOM}
                     stroke="#38bdf8"
-                    strokeWidth="1.2"
-                    strokeDasharray="2 2"
-                    opacity="0.8"
+                    strokeWidth="1"
+                    strokeDasharray="3 3"
+                    opacity="0.75"
                   />
                 )}
 
-                {/* X-Axis Date Labels along bottom */}
+                {/* X-Axis Date Numbers Along Bottom */}
                 {timelineData.map((d, i) => {
-                  // Show label every 3 to 5 days, or on first, last, today
                   const isFirst = i === 0;
                   const isLast = i === timelineData.length - 1;
                   const isStep = d.dayNumber % 5 === 0 || d.dayNumber === 1;
@@ -681,12 +661,12 @@ export function CalendarPnLChart({
 
                   return (
                     <text
-                      key={`lbl-${d.date}`}
+                      key={`axis-lbl-${d.date}`}
                       x={xPos}
-                      y={SVG_HEIGHT - 10}
+                      y={SVG_HEIGHT - 12}
                       textAnchor="middle"
                       fill={d.isToday ? '#38bdf8' : '#64748b'}
-                      fontSize="9"
+                      fontSize="9.5"
                       fontFamily="monospace"
                       fontWeight={d.isToday ? 'bold' : 'normal'}
                     >
@@ -697,56 +677,129 @@ export function CalendarPnLChart({
               </svg>
             )}
 
-            {/* Quick Interactive Tooltip Card on Hover */}
+            {/* Floating Inspection Tooltip HUD (Stripe/Linear style) */}
             {activeHoverData && (
-              <div
-                className="pointer-events-none absolute bottom-3 right-3 bg-obsidian-950/95 border border-cyan-500/40 rounded-lg p-2.5 shadow-2xl backdrop-blur-md text-xs font-mono z-20 space-y-1"
-              >
-                <div className="flex items-center justify-between gap-3 text-[11px] pb-1 border-b border-obsidian-800">
+              <div className="pointer-events-none absolute top-3 right-3 sm:right-5 bg-[#0e121b]/95 border border-slate-700/80 rounded-xl p-3 shadow-2xl backdrop-blur-md text-xs font-mono z-20 space-y-1.5 min-w-[220px]">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-800">
                   <span className="font-bold text-slate-200">
-                    {activeHoverData.date} ({activeHoverData.dayNumber})
+                    {activeHoverData.weekdayName}, {activeHoverData.dayNumber} {monthLabel}
                   </span>
-                  <span className="text-cyan-400 font-extrabold">
-                    {activeHoverData.tradesCount} Trade
-                  </span>
+                  {activeHoverData.isToday && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold">
+                      HARI INI
+                    </span>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px]">
+
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
                   <span className="text-slate-400">Net Hari Ini:</span>
                   <span
-                    className={`text-right font-bold ${
-                      activeHoverData.dayPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    className={`text-right font-bold tabular-nums ${
+                      activeHoverData.dayPnlUsd > 0
+                        ? 'text-emerald-400'
+                        : activeHoverData.dayPnlUsd < 0
+                        ? 'text-rose-400'
+                        : 'text-slate-400'
                     }`}
                   >
                     {activeHoverData.dayPnlUsd >= 0 ? '+' : ''}
                     {formatUsd(activeHoverData.dayPnlUsd)}
                   </span>
+
                   <span className="text-slate-400">Kumulatif:</span>
                   <span
-                    className={`text-right font-bold ${
+                    className={`text-right font-bold tabular-nums ${
                       activeHoverData.cumPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'
                     }`}
                   >
                     {activeHoverData.cumPnlUsd >= 0 ? '+' : ''}
                     {formatUsd(activeHoverData.cumPnlUsd)}
                   </span>
-                  <span className="text-slate-400">Win Rate:</span>
-                  <span className="text-right text-slate-300 font-semibold">
-                    {activeHoverData.winRate}% ({activeHoverData.winTrades}W/{activeHoverData.lossTrades}L)
+
+                  <span className="text-slate-400">Transaksi:</span>
+                  <span className="text-right text-slate-300">
+                    {activeHoverData.tradesCount} Trade{' '}
+                    {activeHoverData.tradesCount > 0 &&
+                      `(${activeHoverData.winTrades}W/${activeHoverData.lossTrades}L)`}
                   </span>
+
                   {activeHoverData.feesIdr > 0 && (
                     <>
                       <span className="text-slate-400">Biaya Gas:</span>
-                      <span className="text-right text-amber-300">
+                      <span className="text-right text-amber-300 tabular-nums">
                         {formatIdr(activeHoverData.feesIdr)}
                       </span>
                     </>
                   )}
                 </div>
-                <div className="text-[9px] text-cyan-300/80 pt-0.5 border-t border-obsidian-800/60 text-center">
-                  💡 Klik titik ini untuk membuka rincian trade
+
+                <div className="text-[9px] text-cyan-400/90 pt-1 border-t border-slate-800/80 text-center flex items-center justify-center gap-1">
+                  <span>Klik untuk melihat tabel transaksi</span>
+                  <span>↗</span>
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Minimal 4-Metric Footer Bar (Stripe / TradeZella Style) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs font-mono">
+            <div className="bg-[#141824] border border-slate-800/80 rounded-xl p-2.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+                Puncak Profit (Peak)
+              </span>
+              <span className="text-sm font-bold text-emerald-400 mt-0.5 block tabular-nums">
+                +{formatUsd(chartStats.peakPnlUsd)}
+              </span>
+              <span className="text-[10px] text-slate-400 block truncate">
+                ≈ +{formatIdr(chartStats.peakPnlIdr)}
+              </span>
+            </div>
+
+            <div className="bg-[#141824] border border-slate-800/80 rounded-xl p-2.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+                Max Drawdown
+              </span>
+              <span
+                className={`text-sm font-bold mt-0.5 block tabular-nums ${
+                  chartStats.maxDrawdownUsd > 0 ? 'text-rose-400' : 'text-slate-400'
+                }`}
+              >
+                -{formatUsd(chartStats.maxDrawdownUsd)}
+              </span>
+              <span className="text-[10px] text-slate-400 block truncate">
+                ≈ -{formatIdr(chartStats.maxDrawdownIdr)}
+              </span>
+            </div>
+
+            <div className="bg-[#141824] border border-slate-800/80 rounded-xl p-2.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+                Rata-Rata / Hari Aktif
+              </span>
+              <span
+                className={`text-sm font-bold mt-0.5 block tabular-nums ${
+                  chartStats.avgDailyPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+              >
+                {chartStats.avgDailyPnlUsd >= 0 ? '+' : ''}
+                {formatUsd(chartStats.avgDailyPnlUsd)}
+              </span>
+              <span className="text-[10px] text-slate-400 block truncate">
+                ≈ {chartStats.avgDailyPnlUsd >= 0 ? '+' : ''}
+                {formatIdr(chartStats.avgDailyPnlIdr)}
+              </span>
+            </div>
+
+            <div className="bg-[#141824] border border-slate-800/80 rounded-xl p-2.5">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+                Hari Aktif Trading
+              </span>
+              <span className="text-sm font-bold text-cyan-400 mt-0.5 block tabular-nums">
+                {chartStats.activeDays} Hari
+              </span>
+              <span className="text-[10px] text-slate-400 block truncate">
+                {chartStats.totalTrades} Total Closed Trades
+              </span>
+            </div>
           </div>
         </>
       )}
