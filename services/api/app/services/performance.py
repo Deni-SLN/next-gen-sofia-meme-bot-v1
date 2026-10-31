@@ -349,7 +349,12 @@ def get_daily_calendar(
 
     active_days_count = winning_days + losing_days + break_even_days
     day_win_rate = (winning_days / active_days_count * 100.0) if active_days_count > 0 else None
-    trade_win_rate = (total_winning_trades / month_trade_count * 100.0) if month_trade_count > 0 else None
+    total_wl_trades = total_winning_trades + total_losing_trades
+    trade_win_rate = (
+        (total_winning_trades / total_wl_trades * 100.0)
+        if total_wl_trades > 0
+        else ((total_winning_trades / month_trade_count * 100.0) if month_trade_count > 0 else None)
+    )
 
     month_names_id = [
         "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",

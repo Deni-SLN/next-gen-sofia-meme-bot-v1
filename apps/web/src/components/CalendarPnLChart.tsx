@@ -142,6 +142,7 @@ export function CalendarPnLChart({
     let activeDays = 0;
     let totalTrades = 0;
     let winTrades = 0;
+    let lossTrades = 0;
 
     timelineData.forEach((d) => {
       if (d.cumPnlUsd > peakPnlUsd) peakPnlUsd = d.cumPnlUsd;
@@ -151,11 +152,13 @@ export function CalendarPnLChart({
         activeDays += 1;
         totalTrades += d.tradesCount;
         winTrades += d.winTrades;
+        lossTrades += d.lossTrades;
       }
     });
 
     const avgDailyPnlUsd = activeDays > 0 ? totalPnlUsd / activeDays : 0;
-    const winRatePct = totalTrades > 0 ? (winTrades / totalTrades) * 100 : 0;
+    const wlTotal = winTrades + lossTrades;
+    const winRatePct = wlTotal > 0 ? (winTrades / wlTotal) * 100 : totalTrades > 0 ? (winTrades / totalTrades) * 100 : 0;
 
     return {
       totalPnlUsd,
