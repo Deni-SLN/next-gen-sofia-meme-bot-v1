@@ -72,9 +72,14 @@ export function CalendarPnLChart({
     let peakUsd = 0;
     let maxDrawdownUsd = 0;
 
-    return days.map((d, idx) => {
-      const pnlUsd = Number(d.total_pnl_usd || 0);
-      const pnlIdr = Number(d.total_pnl_idr || pnlUsd * rate);
+    // Do not plot future dates in the current month: stop the curve at today
+    const todayIdx = days.findIndex((d) => d.is_today);
+    const visibleDays = todayIdx >= 0 ? days.slice(0, todayIdx + 1) : days;
+
+    return visibleDays.map((d, idx) => {
+      // Realized (closed-trade) PnL only — floating PnL is never mixed into performance curves
+      const pnlUsd = Number(d.realized_pnl_usd ?? d.total_pnl_usd ?? 0);
+      const pnlIdr = Number(d.realized_pnl_idr ?? pnlUsd * rate);
 
       runningCumUsd += pnlUsd;
       runningCumIdr += pnlIdr;
@@ -251,6 +256,10 @@ export function CalendarPnLChart({
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
+      if (timelineData.length === 1) {
+        // Single data point: extend horizontally so the area fill stays a clean band
+        ctx.lineTo(right, Y(timelineData[0].cumPnlUsd));
+      }
       ctx.lineTo(right, bottom);
       ctx.lineTo(left, bottom);
       ctx.closePath();
@@ -582,9 +591,10 @@ export function CalendarPnLChart({
             ref={containerRef}
             className="relative w-full h-64 bg-[#080a0c] rounded-xl border border-slate-800/80 overflow-hidden cursor-crosshair select-none"
           >
-            {timelineData.length === 0 ? (
-              <div className="w-full h-full flex items-center justify-center text-xs text-slate-500 font-mono">
-                Belum ada data transaksi yang tercatat pada bulan ini.
+            {timelineData.length === 0 || chartStats.activeDays === 0 ? (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-xs text-slate-500 font-mono">
+                <span>Belum ada trade closed yang tercatat pada bulan ini.</span>
+                <span className="text-[10px] text-slate-600">Grafik akan muncul otomatis setelah posisi pertama ditutup.</span>
               </div>
             ) : (
               <canvas

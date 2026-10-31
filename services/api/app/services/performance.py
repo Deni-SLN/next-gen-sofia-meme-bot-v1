@@ -295,28 +295,30 @@ def get_daily_calendar(
         total_winning_trades += w_trades
         total_losing_trades += l_trades
 
-        if len(day_trades) > 0 or (d_str == today_str and floating_included):
-            if display_pnl > 0.0001:
+        # Rule 1 (Zero Dummy Data): win/loss days, best/worst day & winrate are computed strictly
+        # from CLOSED trades. Floating (unrealized) PnL is only shown on today's cell, never counted.
+        if len(day_trades) > 0:
+            if day_pnl > 0.0001:
                 winning_days += 1
-            elif display_pnl < -0.0001:
+            elif day_pnl < -0.0001:
                 losing_days += 1
             else:
                 break_even_days += 1
 
-            if best_day is None or display_pnl > best_day["pnl_usd"]:
+            if best_day is None or day_pnl > best_day["pnl_usd"]:
                 best_day = {
                     "date": d_str,
                     "day_number": day_num,
-                    "pnl_usd": round(display_pnl, 4),
-                    "pnl_idr": round(display_pnl * usd_idr, 0),
+                    "pnl_usd": round(day_pnl, 4),
+                    "pnl_idr": round(day_pnl * usd_idr, 0),
                     "trades": len(day_trades),
                 }
-            if worst_day is None or display_pnl < worst_day["pnl_usd"]:
+            if worst_day is None or day_pnl < worst_day["pnl_usd"]:
                 worst_day = {
                     "date": d_str,
                     "day_number": day_num,
-                    "pnl_usd": round(display_pnl, 4),
-                    "pnl_idr": round(display_pnl * usd_idr, 0),
+                    "pnl_usd": round(day_pnl, 4),
+                    "pnl_idr": round(day_pnl * usd_idr, 0),
                     "trades": len(day_trades),
                 }
 
@@ -346,8 +348,8 @@ def get_daily_calendar(
         })
 
     active_days_count = winning_days + losing_days + break_even_days
-    day_win_rate = (winning_days / active_days_count * 100.0) if active_days_count > 0 else 0.0
-    trade_win_rate = (total_winning_trades / month_trade_count * 100.0) if month_trade_count > 0 else 0.0
+    day_win_rate = (winning_days / active_days_count * 100.0) if active_days_count > 0 else None
+    trade_win_rate = (total_winning_trades / month_trade_count * 100.0) if month_trade_count > 0 else None
 
     month_names_id = [
         "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -375,12 +377,12 @@ def get_daily_calendar(
             "total_trades": month_trade_count,
             "total_winning_trades": total_winning_trades,
             "total_losing_trades": total_losing_trades,
-            "trade_win_rate_pct": round(trade_win_rate, 2),
+            "trade_win_rate_pct": round(trade_win_rate, 2) if trade_win_rate is not None else None,
             "winning_days": winning_days,
             "losing_days": losing_days,
             "break_even_days": break_even_days,
             "active_days": active_days_count,
-            "day_win_rate_pct": round(day_win_rate, 2),
+            "day_win_rate_pct": round(day_win_rate, 2) if day_win_rate is not None else None,
             "best_day": best_day,
             "worst_day": worst_day,
         },

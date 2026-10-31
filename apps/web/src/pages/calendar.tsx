@@ -333,9 +333,9 @@ export default function CalendarPage() {
               <LucideIcon name="badge-percent" className="w-3.5 h-3.5 text-cyan-400" />
             </div>
             <div className="text-xl font-mono font-extrabold text-cyan-400 mt-1.5">
-              {summary?.day_win_rate_pct || 0}%{' '}
+              {summary?.day_win_rate_pct != null ? `${summary.day_win_rate_pct}%` : '—'}{' '}
               <span className="text-xs font-normal text-slate-400">
-                ({summary?.trade_win_rate_pct || 0}% trade)
+                {summary?.trade_win_rate_pct != null ? `(${summary.trade_win_rate_pct}% trade)` : '(Belum ada trade)'}
               </span>
             </div>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5">
@@ -369,11 +369,11 @@ export default function CalendarPage() {
               <span>Hari Terbaik (Best Day)</span>
               <LucideIcon name="zap" className="w-3.5 h-3.5 text-emerald-400" />
             </div>
-            <div className="text-xl font-mono font-extrabold text-emerald-400 mt-1.5">
-              {summary?.best_day ? `+${formatUsd(summary.best_day.pnl_usd)}` : '$0.00'}
+            <div className={`text-xl font-mono font-extrabold mt-1.5 ${(summary?.best_day?.pnl_usd ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {summary?.best_day ? `${summary.best_day.pnl_usd >= 0 ? '+' : ''}${formatUsd(summary.best_day.pnl_usd)}` : '—'}
             </div>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-              {summary?.best_day ? `+${formatIdr(summary.best_day.pnl_idr)}` : 'Rp 0'}
+              {summary?.best_day ? `${summary.best_day.pnl_idr >= 0 ? '+' : ''}${formatIdr(summary.best_day.pnl_idr)}` : ''}
             </div>
             <div className="text-[10px] text-slate-400 font-mono mt-1 truncate">
               {summary?.best_day ? `Tgl ${summary.best_day.date} (${summary.best_day.trades} trades)` : 'Belum ada trade'}

@@ -247,34 +247,51 @@ if (typeof window !== 'undefined') {
   });
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
+  const { timeoutMs, ...fetchOptions } = options;
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...((options.headers as Record<string, string>) || {}),
+    ...((fetchOptions.headers as Record<string, string>) || {}),
   };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  const isGet = !fetchOptions.method || fetchOptions.method.toUpperCase() === 'GET';
   const ctrl = new AbortController();
   if (isGet) {
     _activeReadControllers.add(ctrl);
   }
+  let timedOut = false;
   const timeoutId = setTimeout(() => {
+    timedOut = true;
     try {
       ctrl.abort();
     } catch {
       // ignore
     }
-  }, isGet ? 9000 : 20000);
+  }, timeoutMs ?? (isGet ? 9000 : 20000));
 
   try {
-    const res = await fetch(`${BASE}${path}`, {
-      ...options,
-      headers,
-      signal: options.signal || ctrl.signal,
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        ...fetchOptions,
+        headers,
+        signal: fetchOptions.signal || ctrl.signal,
+      });
+    } catch (fetchErr: any) {
+      // Timeout aborts must surface as a visible error (navigation aborts stay silent as AbortError)
+      if (timedOut) {
+        throw {
+          status: 408,
+          name: 'TimeoutError',
+          message: 'Server membutuhkan waktu terlalu lama untuk merespons (timeout). Silakan coba lagi.',
+          code: 'REQUEST_TIMEOUT',
+        };
+      }
+      throw fetchErr;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw {
@@ -472,7 +489,8 @@ export const api = {
   // Meme Coin Live Market Endpoints
   getFx: () => request<{ usd_idr: number; source: string; updated_at: string }>('/memecoins/fx'),
   getPulse: () => request<any>('/memecoins/pulse'),
-  rugCheck: (q: string) => request<any>(`/memecoins/rugcheck?q=${encodeURIComponent(q)}`),
+  // Deep on-chain audit (DexScreener + RugCheck report + cluster graph) can take 10–20s
+  rugCheck: (q: string) => request<any>(`/memecoins/rugcheck?q=${encodeURIComponent(q)}`, { timeoutMs: 35000 }),
   snipeToken: (data: {
     symbol: string;
     contract?: string;
@@ -514,12 +532,13 @@ export const api = {
     if (mode) params.append('mode', mode);
     if (walletAddress) params.append('wallet_address', walletAddress);
     const qs = params.toString();
-    return request<any>(`/journal${qs ? `?${qs}` : ''}`);
+    return request<any>(`/journal${qs ? `?${qs}` : ''}`, { timeoutMs: 25000 });
   },
   syncWalletJournal: (walletAddress: string) =>
     request<any>('/journal/sync-wallet', {
       method: 'POST',
       body: JSON.stringify({ wallet_address: walletAddress }),
+      timeoutMs: 45000,
     }),
   recordJournalTrade: (data: any) =>
     request<any>('/journal/trades', { method: 'POST', body: JSON.stringify(data) }),
