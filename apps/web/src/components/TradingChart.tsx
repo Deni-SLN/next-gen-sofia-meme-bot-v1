@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { LucideIcon } from '@/components/LucideIcon';
+import { CryptoLineChart } from './CryptoLineChart';
 
 export interface CandleData {
   date?: string;
@@ -85,6 +86,7 @@ export function TradingChart({
 }: TradingChartProps) {
   const [activeMode, setActiveMode] = useState<'ALL' | 'SNR' | 'SMC' | 'EMA200' | 'ICHIMOKU' | 'FIBONACCI'>(initialFocus);
   const [localTimeframe, setLocalTimeframe] = useState<string>(timeframe.toLowerCase());
+  const [chartStyle, setChartStyle] = useState<'candles' | 'line'>('candles');
 
   useEffect(() => {
     if (initialFocus) {
@@ -595,13 +597,45 @@ export function TradingChart({
             </span>
           </div>
 
-          {/* Interactive Timeframe Selector Bar */}
+          {/* Interactive Chart Style & Timeframe Selector Bar */}
           <div
             className={`inline-flex items-center gap-1 p-1 rounded-xl border ${
               isLight ? 'bg-slate-100 border-slate-200' : 'bg-obsidian-950/90 border-obsidian-800'
             }`}
           >
-            <span className="text-[10px] font-mono font-bold text-slate-400 px-1.5 hidden sm:inline">TF:</span>
+            {/* Style Selector: Candles vs Line Chart */}
+            <div className="flex items-center gap-0.5 border-r border-obsidian-800/80 pr-1 mr-0.5">
+              <button
+                type="button"
+                onClick={() => setChartStyle('candles')}
+                title="Tampilan Candlestick Tradisional"
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-mono font-bold transition-all ${
+                  chartStyle === 'candles'
+                    ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                    : isLight
+                    ? 'text-slate-600 hover:text-slate-900'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Candles
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartStyle('line')}
+                title="Tampilan Gaya Line Chart Modern (Matrix Dotted Grid)"
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-mono font-bold transition-all ${
+                  chartStyle === 'line'
+                    ? 'bg-[#45ae68] text-white shadow-sm'
+                    : isLight
+                    ? 'text-slate-600 hover:text-slate-900'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Line Chart
+              </button>
+            </div>
+
+            <span className="text-[10px] font-mono font-bold text-slate-400 px-1 hidden sm:inline">TF:</span>
             {timeframes.map((tf) => {
               const isSelected = localTimeframe === tf.id.toLowerCase();
               const shortLabel = tf.short || tf.id.toUpperCase();
@@ -748,8 +782,21 @@ export function TradingChart({
         </div>
       </div>
 
-      {/* SVG Candlestick & Overlays Canvas */}
-      <div className="relative w-full overflow-hidden select-none rounded-xl border border-obsidian-800/60 bg-[#070b12]">
+      {/* SVG Candlestick & Overlays Canvas OR Crypto Line Chart Canvas */}
+      {chartStyle === 'line' ? (
+        <CryptoLineChart
+          data={validCandles.map((c) => ({
+            price: c.close,
+            time: c.date || (typeof c.time === 'string' ? c.time : String(c.time || '')),
+            label: typeof c.date === 'string' ? (c.date.includes('-') ? c.date.split('-').slice(1).join('/') : c.date) : undefined,
+            dateStr: c.date,
+          }))}
+          height={height}
+          currency={currency}
+          currentPrice={validCandles[validCandles.length - 1]?.close}
+        />
+      ) : (
+        <div className="relative w-full overflow-hidden select-none rounded-xl border border-obsidian-800/60 bg-[#070b12]">
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full h-auto cursor-crosshair block"
@@ -1270,6 +1317,7 @@ export function TradingChart({
           )}
         </svg>
       </div>
+      )}
 
       {/* DYNAMIC FOCUSED INDICATOR EXPLANATION PANEL */}
       {activeMode === 'SNR' && snrData && (

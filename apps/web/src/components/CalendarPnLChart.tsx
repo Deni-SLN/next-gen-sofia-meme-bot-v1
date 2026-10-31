@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { formatIdr, formatUsd } from '@/lib/api';
 import { LucideIcon } from '@/components/LucideIcon';
 
@@ -36,6 +36,18 @@ interface CalendarPnLChartProps {
   onSelectDate: (date: string) => void;
 }
 
+const GREEN = '#80efad';
+const RED = '#ff646e';
+const GREEN_BG = '#45ae68';
+const RED_BG = '#e11d48';
+
+const CHART_CONFIG = {
+  paddingLeft: 20,
+  paddingRight: 88,
+  paddingTop: 24,
+  paddingBottom: 42,
+};
+
 export function CalendarPnLChart({
   days = [],
   usdIdr = 17960,
@@ -45,9 +57,11 @@ export function CalendarPnLChart({
   onSelectDate,
 }: CalendarPnLChartProps) {
   const [chartType, setChartType] = useState<'cumulative' | 'daily'>('cumulative');
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
-  const chartRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+  const [activeHoverIdx, setActiveHoverIdx] = useState<number | null>(null);
 
   const rate = usdIdr || 17960;
 
@@ -95,7 +109,7 @@ export function CalendarPnLChart({
     });
   }, [days, rate]);
 
-  // Overall performance stats for the chart header & footer
+  // Overall performance stats
   const chartStats = useMemo(() => {
     if (timelineData.length === 0) {
       return {
@@ -115,30 +129,27 @@ export function CalendarPnLChart({
     }
 
     const last = timelineData[timelineData.length - 1];
-    const totalPnlUsd = last?.cumPnlUsd || 0;
-    const totalPnlIdr = last?.cumPnlIdr || 0;
+    const totalPnlUsd = last.cumPnlUsd;
+    const totalPnlIdr = last.cumPnlIdr;
 
     let peakPnlUsd = 0;
     let maxDrawdownUsd = 0;
     let activeDays = 0;
-    let sumActiveDailyPnl = 0;
     let totalTrades = 0;
     let winTrades = 0;
 
-    timelineData.forEach((pt) => {
-      if (pt.cumPnlUsd > peakPnlUsd) peakPnlUsd = pt.cumPnlUsd;
-      const dd = peakPnlUsd - pt.cumPnlUsd;
+    timelineData.forEach((d) => {
+      if (d.cumPnlUsd > peakPnlUsd) peakPnlUsd = d.cumPnlUsd;
+      const dd = peakPnlUsd - d.cumPnlUsd;
       if (dd > maxDrawdownUsd) maxDrawdownUsd = dd;
-
-      if (pt.tradesCount > 0) {
-        activeDays++;
-        sumActiveDailyPnl += pt.dayPnlUsd;
-        totalTrades += pt.tradesCount;
-        winTrades += pt.winTrades;
+      if (d.tradesCount > 0) {
+        activeDays += 1;
+        totalTrades += d.tradesCount;
+        winTrades += d.winTrades;
       }
     });
 
-    const avgDailyPnlUsd = activeDays > 0 ? sumActiveDailyPnl / activeDays : 0;
+    const avgDailyPnlUsd = activeDays > 0 ? totalPnlUsd / activeDays : 0;
     const winRatePct = totalTrades > 0 ? (winTrades / totalTrades) * 100 : 0;
 
     return {
@@ -157,146 +168,324 @@ export function CalendarPnLChart({
     };
   }, [timelineData, rate]);
 
-  // SVG Geometry Constants
-  const SVG_WIDTH = 1000;
-  const SVG_HEIGHT = 220;
-  const PADDING_TOP = 24;
-  const PADDING_BOTTOM = 34;
-  const PADDING_LEFT = 24;
-  const PADDING_RIGHT = 68; // Space for right Y-axis values
-  const PLOT_WIDTH = SVG_WIDTH - PADDING_LEFT - PADDING_RIGHT;
-  const PLOT_HEIGHT = SVG_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
+  // Canvas drawing function matching the user's Crypto Line Chart style
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || timelineData.length === 0) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-  // Build Cumulative Spline Geometry (Clean Linear/Stripe style)
-  const cumulativeGeometry = useMemo(() => {
-    if (timelineData.length === 0) return null;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (!width || !height) return;
 
-    const values = timelineData.map((d) => d.cumPnlUsd);
-    let minVal = Math.min(0, ...values);
-    let maxVal = Math.max(0, ...values);
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Give 10% breathing room top and bottom
-    const span = maxVal - minVal;
-    const padding = span > 0 ? span * 0.12 : 1;
-    minVal -= padding;
-    maxVal += padding;
-    const range = Math.max(0.01, maxVal - minVal);
+    ctx.clearRect(0, 0, width, height);
 
-    const getY = (val: number) => {
-      const normalized = (val - minVal) / range;
-      return PADDING_TOP + PLOT_HEIGHT * (1 - normalized);
-    };
+    const left = CHART_CONFIG.paddingLeft;
+    const right = width - CHART_CONFIG.paddingRight;
+    const top = CHART_CONFIG.paddingTop;
+    const bottom = height - CHART_CONFIG.paddingBottom;
 
-    const zeroY = getY(0);
+    if (right <= left || bottom <= top) return;
 
-    const points = timelineData.map((d, i) => {
-      const x = PADDING_LEFT + (i / Math.max(1, timelineData.length - 1)) * PLOT_WIDTH;
-      const y = getY(d.cumPnlUsd);
-      return { x, y, data: d };
-    });
-
-    // Spline curve path with smooth Bézier control points
-    let linePath = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i];
-      const p1 = points[i + 1];
-      const cx1 = p0.x + (p1.x - p0.x) * 0.45;
-      const cy1 = p0.y;
-      const cx2 = p0.x + (p1.x - p0.x) * 0.55;
-      const cy2 = p1.y;
-      linePath += ` C ${cx1.toFixed(1)} ${cy1.toFixed(1)}, ${cx2.toFixed(1)} ${cy2.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+    // 1. Background Dotted Grid (Matrix of #20262d dots, step 13px, radius 0.8)
+    ctx.fillStyle = '#20262d';
+    for (let x = left; x < right; x += 13) {
+      for (let y = top; y < bottom; y += 13) {
+        ctx.beginPath();
+        ctx.arc(x, y, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    const lastX = points[points.length - 1].x;
-    const firstX = points[0].x;
-    const baselineY = SVG_HEIGHT - PADDING_BOTTOM;
-    const areaPath = `${linePath} L ${lastX.toFixed(1)} ${baselineY} L ${firstX.toFixed(1)} ${baselineY} Z`;
+    if (chartType === 'cumulative') {
+      const values = timelineData.map((d) => d.cumPnlUsd);
+      const minVal = Math.min(...values);
+      const maxVal = Math.max(...values);
+      const span = Math.max(0.1, maxVal - minVal);
+      const min = minVal - span * 0.12;
+      const max = maxVal + span * 0.12;
 
-    // Reference levels for Y-axis
-    const levels = [
-      { val: maxVal - padding, y: getY(maxVal - padding) },
-      { val: 0, y: zeroY },
-      { val: minVal + padding, y: getY(minVal + padding) },
-    ];
+      const X = (i: number) => left + (i / Math.max(1, timelineData.length - 1)) * (right - left);
+      const Y = (val: number) => bottom - ((val - min) / Math.max(0.01, max - min)) * (bottom - top);
 
-    return {
-      points,
-      linePath,
-      areaPath,
-      zeroY,
-      levels,
-      minVal,
-      maxVal,
-    };
-  }, [timelineData, PLOT_WIDTH, PLOT_HEIGHT, PADDING_TOP, PADDING_BOTTOM, PADDING_LEFT, SVG_HEIGHT]);
+      // Horizontal reference levels
+      ctx.font = '12px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#777f88';
 
-  // Build Daily Bar Geometry
-  const dailyBarGeometry = useMemo(() => {
-    if (timelineData.length === 0) return null;
+      for (let i = 0; i <= 4; i++) {
+        const p = max - ((max - min) * i) / 4;
+        const y = Y(p);
 
-    const values = timelineData.map((d) => d.dayPnlUsd);
-    const minVal = Math.min(0, ...values);
-    const maxVal = Math.max(0, ...values);
-    const absMax = Math.max(0.01, Math.abs(minVal), Math.abs(maxVal)) * 1.15;
+        ctx.strokeStyle = '#22282e';
+        ctx.lineWidth = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
 
-    const zeroY = PADDING_TOP + PLOT_HEIGHT / 2;
-    const barWidth = Math.max(6, Math.min(20, (PLOT_WIDTH / timelineData.length) * 0.65));
+        ctx.fillText(formatUsd(p), right + 10, y + 4);
+      }
 
-    const bars = timelineData.map((d, i) => {
-      const x = PADDING_LEFT + (i / Math.max(1, timelineData.length - 1)) * PLOT_WIDTH;
-      const heightFrac = Math.abs(d.dayPnlUsd) / absMax;
-      const barHeight = Math.max(d.dayPnlUsd !== 0 ? 3 : 1, heightFrac * (PLOT_HEIGHT / 2 - 6));
+      // Area gradient
+      const isOverallBull = timelineData[timelineData.length - 1].cumPnlUsd >= 0;
+      const gradient = ctx.createLinearGradient(0, top, 0, bottom);
+      if (isOverallBull) {
+        gradient.addColorStop(0, 'rgba(67, 230, 160, 0.22)');
+        gradient.addColorStop(1, 'rgba(67, 230, 160, 0)');
+      } else {
+        gradient.addColorStop(0, 'rgba(255, 100, 110, 0.22)');
+        gradient.addColorStop(1, 'rgba(255, 100, 110, 0)');
+      }
 
-      const isPositive = d.dayPnlUsd >= 0;
-      const y = isPositive ? zeroY - barHeight : zeroY;
+      ctx.beginPath();
+      timelineData.forEach((d, i) => {
+        const x = X(i);
+        const y = Y(d.cumPnlUsd);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.lineTo(right, bottom);
+      ctx.lineTo(left, bottom);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
 
-      return {
-        x,
-        y,
-        width: barWidth,
-        height: barHeight,
-        isPositive,
-        data: d,
-      };
-    });
+      // Glowing two-tone line segments (Green on uptick, Red on downtick)
+      for (let i = 1; i < timelineData.length; i++) {
+        const prev = timelineData[i - 1].cumPnlUsd;
+        const curr = timelineData[i].cumPnlUsd;
 
-    const levels = [
-      { val: absMax * 0.8, y: zeroY - (PLOT_HEIGHT / 2 - 8) * 0.8 },
-      { val: 0, y: zeroY },
-      { val: -absMax * 0.8, y: zeroY + (PLOT_HEIGHT / 2 - 8) * 0.8 },
-    ];
+        ctx.beginPath();
+        ctx.moveTo(X(i - 1), Y(prev));
+        ctx.lineTo(X(i), Y(curr));
 
-    return {
-      bars,
-      zeroY,
-      absMax,
-      levels,
-    };
-  }, [timelineData, PLOT_WIDTH, PLOT_HEIGHT, PADDING_TOP, PADDING_LEFT]);
+        const color = curr >= prev ? GREEN : RED;
 
-  // Mouse move handler for crosshair inspection
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!chartRef.current || timelineData.length === 0) return;
-      const rect = chartRef.current.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const ratio = Math.max(0, Math.min(1, clickX / rect.width));
-      const targetIdx = Math.round(ratio * (timelineData.length - 1));
-      setHoveredIdx(targetIdx);
-    },
-    [timelineData.length]
-  );
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
 
-  const handleMouseLeave = useCallback(() => {
-    setHoveredIdx(null);
-  }, []);
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 7;
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
 
-  const activeHoverData = hoveredIdx !== null ? timelineData[hoveredIdx] : null;
+      // Current Price / Latest PnL Horizontal Dashed Line
+      const last = timelineData[timelineData.length - 1];
+      const lastY = Y(last.cumPnlUsd);
+      const isLastBull = last.cumPnlUsd >= 0;
+      const activeColor = isLastBull ? GREEN : RED;
+      const activeBadgeBg = isLastBull ? GREEN_BG : RED_BG;
+
+      ctx.beginPath();
+      ctx.setLineDash([5, 5]);
+      ctx.moveTo(left, lastY);
+      ctx.lineTo(right, lastY);
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Current Price Marker Circle on Right Edge
+      ctx.beginPath();
+      ctx.arc(right, lastY, 4, 0, Math.PI * 2);
+      ctx.fillStyle = activeColor;
+      ctx.fill();
+
+      // Current Price Rounded Badge Pill
+      const badgeW = 78;
+      const badgeH = 28;
+      const badgeX = right + 6;
+      const badgeY = lastY - badgeH / 2;
+      const radius = 14;
+
+      ctx.fillStyle = activeBadgeBg;
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, radius);
+      } else {
+        ctx.rect(badgeX, badgeY, badgeW, badgeH);
+      }
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(formatUsd(last.cumPnlUsd), badgeX + badgeW / 2, lastY + 4);
+
+      // Selected Day Highlight Ring
+      if (selectedDayDate) {
+        const selIdx = timelineData.findIndex((d) => d.date === selectedDayDate);
+        if (selIdx >= 0) {
+          const selX = X(selIdx);
+          const selY = Y(timelineData[selIdx].cumPnlUsd);
+
+          ctx.beginPath();
+          ctx.arc(selX, selY, 7, 0, Math.PI * 2);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(selX, selY, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fill();
+        }
+      }
+
+      // Crosshair & Tooltip Anchor
+      if (pointer && pointer.x >= left && pointer.x <= right) {
+        const idx = Math.round(((pointer.x - left) / (right - left)) * (timelineData.length - 1));
+        const pt = timelineData[idx];
+        if (pt) {
+          const px = X(idx);
+          const py = Y(pt.cumPnlUsd);
+
+          ctx.strokeStyle = '#a0aab4';
+          ctx.setLineDash([3, 4]);
+
+          ctx.beginPath();
+          ctx.moveTo(px, top);
+          ctx.lineTo(px, bottom);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(left, py);
+          ctx.lineTo(right, py);
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+
+          ctx.beginPath();
+          ctx.arc(px, py, 5, 0, Math.PI * 2);
+          ctx.fillStyle = pt.cumPnlUsd >= (timelineData[idx - 1]?.cumPnlUsd ?? pt.cumPnlUsd) ? GREEN : RED;
+          ctx.fill();
+          ctx.strokeStyle = '#080a0c';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+    } else {
+      // Daily Bar View
+      const values = timelineData.map((d) => d.dayPnlUsd);
+      const minVal = Math.min(0, ...values);
+      const maxVal = Math.max(0, ...values);
+      const absMax = Math.max(0.1, Math.abs(minVal), Math.abs(maxVal)) * 1.15;
+
+      const zeroY = top + (bottom - top) / 2;
+      const barWidth = Math.max(6, Math.min(22, ((right - left) / timelineData.length) * 0.65));
+
+      // Zero Baseline
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(left, zeroY);
+      ctx.lineTo(right, zeroY);
+      ctx.stroke();
+
+      // Right Levels
+      ctx.font = '12px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#777f88';
+      ctx.fillText(formatUsd(absMax * 0.8), right + 10, zeroY - (bottom - top) * 0.4 + 4);
+      ctx.fillText('$0.00', right + 10, zeroY + 4);
+      ctx.fillText(formatUsd(-absMax * 0.8), right + 10, zeroY + (bottom - top) * 0.4 + 4);
+
+      // Bars
+      timelineData.forEach((d, i) => {
+        const x = left + (i / Math.max(1, timelineData.length - 1)) * (right - left);
+        const frac = Math.abs(d.dayPnlUsd) / absMax;
+        const bH = Math.max(d.dayPnlUsd !== 0 ? 3 : 1, frac * ((bottom - top) / 2 - 8));
+        const isPos = d.dayPnlUsd >= 0;
+        const y = isPos ? zeroY - bH : zeroY;
+
+        ctx.fillStyle = isPos ? GREEN : RED;
+        ctx.beginPath();
+        if (typeof (ctx as any).roundRect === 'function') {
+          (ctx as any).roundRect(x - barWidth / 2, y, barWidth, bH, 2);
+        } else {
+          ctx.rect(x - barWidth / 2, y, barWidth, bH);
+        }
+        ctx.fill();
+
+        if (d.date === selectedDayDate) {
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+    }
+
+    // Time Axis Labels (Bottom)
+    ctx.fillStyle = '#777f88';
+    ctx.font = '12px Arial, sans-serif';
+    ctx.textAlign = 'center';
+
+    const numLabels = Math.min(6, timelineData.length);
+    for (let k = 0; k < numLabels; k++) {
+      const idx = Math.round((k / (numLabels - 1)) * (timelineData.length - 1));
+      const pt = timelineData[idx];
+      if (pt) {
+        const x = left + (idx / Math.max(1, timelineData.length - 1)) * (right - left);
+        ctx.fillText(String(pt.dayNumber), x, height - 12);
+      }
+    }
+  }, [timelineData, chartType, selectedDayDate, pointer]);
+
+  useEffect(() => {
+    draw();
+  }, [draw]);
+
+  useEffect(() => {
+    const handleResize = () => draw();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [draw]);
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas || timelineData.length === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setPointer({ x, y });
+
+    const left = CHART_CONFIG.paddingLeft;
+    const right = rect.width - CHART_CONFIG.paddingRight;
+    if (x >= left && x <= right) {
+      const idx = Math.round(((x - left) / (right - left)) * (timelineData.length - 1));
+      setActiveHoverIdx(idx);
+    } else {
+      setActiveHoverIdx(null);
+    }
+  };
+
+  const handlePointerLeave = () => {
+    setPointer(null);
+    setActiveHoverIdx(null);
+  };
+
+  const handleCanvasClick = () => {
+    if (activeHoverIdx !== null && timelineData[activeHoverIdx]) {
+      onSelectDate(timelineData[activeHoverIdx].date);
+    }
+  };
+
+  const activeHoverData = activeHoverIdx !== null ? timelineData[activeHoverIdx] : null;
   const isNetPositive = chartStats.totalPnlUsd >= 0;
 
   return (
-    <div className="bg-[#0e121b] border border-slate-800/80 rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-md space-y-4">
-      {/* Top Header: Clean Typographic Metric & Segmented Controls */}
+    <div className="bg-[#080a0c] border border-slate-800/80 rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-md space-y-4">
+      {/* Top Header: Clean Metric & Segmented Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/60">
         <div>
           <div className="flex items-center gap-2">
@@ -320,7 +509,7 @@ export function CalendarPnLChart({
           <div className="flex items-baseline gap-2.5 mt-1">
             <span
               className={`text-2xl sm:text-3xl font-extrabold font-mono tracking-tight tabular-nums ${
-                isNetPositive ? 'text-emerald-400' : 'text-rose-400'
+                isNetPositive ? 'text-[#80efad]' : 'text-[#ff646e]'
               }`}
             >
               {isNetPositive ? '+' : ''}
@@ -344,28 +533,28 @@ export function CalendarPnLChart({
           </div>
         </div>
 
-        {/* Right Controls: Minimalist Linear-Style Segmented Pill Toggle & Collapse */}
+        {/* Right Controls: Segmented Button & Collapse */}
         <div className="flex items-center gap-2 self-start sm:self-center">
-          <div className="flex items-center bg-[#141824] p-1 rounded-xl border border-slate-800 text-xs font-mono">
+          <div className="flex items-center bg-[#171d23] p-1 rounded-xl border border-[#303a43] text-xs font-mono">
             <button
               type="button"
               onClick={() => setChartType('cumulative')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-150 font-medium ${
                 chartType === 'cumulative'
-                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+                  ? 'bg-[#45ae68] text-white font-bold shadow-md shadow-emerald-500/20'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="Kurva Pertumbuhan Akumulasi PnL"
+              title="Kurva Pertumbuhan Akumulasi PnL (Gaya Neon)"
             >
               <LucideIcon name="trending-up" className="w-3.5 h-3.5" />
-              <span>Kurva Kumulatif</span>
+              <span>Gaya Line Chart</span>
             </button>
             <button
               type="button"
               onClick={() => setChartType('daily')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-150 font-medium ${
                 chartType === 'daily'
-                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-md shadow-cyan-500/20'
+                  ? 'bg-cyan-600 text-white font-bold shadow-md shadow-cyan-500/20'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
               title="Grafik Batang Net PnL Harian"
@@ -378,7 +567,7 @@ export function CalendarPnLChart({
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 rounded-xl bg-[#141824] hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition"
+            className="p-2 rounded-xl bg-[#171d23] hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-[#303a43] transition"
             title={isCollapsed ? 'Tampilkan Grafik' : 'Sembunyikan Grafik'}
           >
             <LucideIcon name={isCollapsed ? 'chevron-down' : 'chevron-up'} className="w-4 h-4" />
@@ -390,298 +579,37 @@ export function CalendarPnLChart({
         <>
           {/* Chart Canvas Area */}
           <div
-            ref={chartRef}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            className="relative w-full h-56 bg-[#090c13] rounded-xl border border-slate-800/80 overflow-hidden cursor-crosshair select-none"
+            ref={containerRef}
+            className="relative w-full h-64 bg-[#080a0c] rounded-xl border border-slate-800/80 overflow-hidden cursor-crosshair select-none"
           >
             {timelineData.length === 0 ? (
               <div className="w-full h-full flex items-center justify-center text-xs text-slate-500 font-mono">
                 Belum ada data transaksi yang tercatat pada bulan ini.
               </div>
             ) : (
-              <svg
-                viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-                preserveAspectRatio="none"
-                className="w-full h-full"
-              >
-                <defs>
-                  {/* Subtle, Linear-grade Area Gradients */}
-                  <linearGradient id="pnlEmeraldArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
-                    <stop offset="60%" stopColor="#10b981" stopOpacity="0.04" />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                  </linearGradient>
-
-                  <linearGradient id="pnlRoseArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.22" />
-                    <stop offset="60%" stopColor="#f43f5e" stopOpacity="0.04" />
-                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
-                  </linearGradient>
-
-                  {/* Clean Bar Gradients */}
-                  <linearGradient id="cleanBarGreen" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.95" />
-                    <stop offset="100%" stopColor="#059669" stopOpacity="0.6" />
-                  </linearGradient>
-
-                  <linearGradient id="cleanBarRed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#e11d48" stopOpacity="0.6" />
-                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.95" />
-                  </linearGradient>
-                </defs>
-
-                {/* Faint Horizontal Reference Gridlines */}
-                {chartType === 'cumulative' && cumulativeGeometry && (
-                  <>
-                    {cumulativeGeometry.levels.map((lvl, idx) => (
-                      <g key={`lvl-${idx}`}>
-                        <line
-                          x1={PADDING_LEFT}
-                          y1={lvl.y}
-                          x2={SVG_WIDTH - PADDING_RIGHT}
-                          y2={lvl.y}
-                          stroke="#1e293b"
-                          strokeWidth="1"
-                          strokeDasharray={lvl.val === 0 ? '4 4' : '2 4'}
-                          opacity={lvl.val === 0 ? 0.8 : 0.4}
-                        />
-                        <text
-                          x={SVG_WIDTH - PADDING_RIGHT + 8}
-                          y={lvl.y + 3.5}
-                          fill={lvl.val === 0 ? '#64748b' : '#475569'}
-                          fontSize="9.5"
-                          fontFamily="monospace"
-                        >
-                          {lvl.val >= 0 ? '+' : ''}
-                          {formatUsd(lvl.val)}
-                        </text>
-                      </g>
-                    ))}
-                  </>
-                )}
-
-                {chartType === 'daily' && dailyBarGeometry && (
-                  <>
-                    {dailyBarGeometry.levels.map((lvl, idx) => (
-                      <g key={`lvl-bar-${idx}`}>
-                        <line
-                          x1={PADDING_LEFT}
-                          y1={lvl.y}
-                          x2={SVG_WIDTH - PADDING_RIGHT}
-                          y2={lvl.y}
-                          stroke="#1e293b"
-                          strokeWidth="1"
-                          strokeDasharray={lvl.val === 0 ? '4 4' : '2 4'}
-                          opacity={lvl.val === 0 ? 0.8 : 0.4}
-                        />
-                        <text
-                          x={SVG_WIDTH - PADDING_RIGHT + 8}
-                          y={lvl.y + 3.5}
-                          fill={lvl.val === 0 ? '#64748b' : '#475569'}
-                          fontSize="9.5"
-                          fontFamily="monospace"
-                        >
-                          {lvl.val >= 0 ? '+' : ''}
-                          {formatUsd(lvl.val)}
-                        </text>
-                      </g>
-                    ))}
-                  </>
-                )}
-
-                {/* MODE 1: CUMULATIVE CURVE */}
-                {chartType === 'cumulative' && cumulativeGeometry && (
-                  <>
-                    {/* Area fill */}
-                    <path
-                      d={cumulativeGeometry.areaPath}
-                      fill={isNetPositive ? 'url(#pnlEmeraldArea)' : 'url(#pnlRoseArea)'}
-                    />
-
-                    {/* Smooth glowing stroke */}
-                    <path
-                      d={cumulativeGeometry.linePath}
-                      fill="none"
-                      stroke={isNetPositive ? '#10b981' : '#f43f5e'}
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{
-                        filter: `drop-shadow(0 4px 10px ${
-                          isNetPositive ? 'rgba(16,185,129,0.3)' : 'rgba(244,63,94,0.3)'
-                        })`,
-                      }}
-                    />
-
-                    {/* Nodes on days with trades */}
-                    {cumulativeGeometry.points.map((pt, i) => {
-                      const hasTrades = pt.data.tradesCount > 0;
-                      const isSelected = selectedDayDate === pt.data.date;
-                      const isHovered = hoveredIdx === i;
-
-                      if (!hasTrades && !isSelected && !isHovered && !pt.data.isToday) return null;
-
-                      return (
-                        <g
-                          key={pt.data.date}
-                          onClick={() => onSelectDate(pt.data.date)}
-                          className="cursor-pointer"
-                        >
-                          {/* Pulsing ring for selected / hovered */}
-                          {(isSelected || isHovered) && (
-                            <circle
-                              cx={pt.x}
-                              cy={pt.y}
-                              r={isSelected ? 8.5 : 6.5}
-                              fill="none"
-                              stroke={isSelected ? '#38bdf8' : isNetPositive ? '#10b981' : '#f43f5e'}
-                              strokeWidth="1.5"
-                              className="animate-ping opacity-60"
-                            />
-                          )}
-
-                          {/* Node circle */}
-                          <circle
-                            cx={pt.x}
-                            cy={pt.y}
-                            r={isSelected ? 5.5 : hasTrades ? 4 : 2.5}
-                            fill={
-                              isSelected
-                                ? '#38bdf8'
-                                : pt.data.dayPnlUsd > 0
-                                ? '#10b981'
-                                : pt.data.dayPnlUsd < 0
-                                ? '#f43f5e'
-                                : '#64748b'
-                            }
-                            stroke="#090c13"
-                            strokeWidth="2"
-                          />
-                        </g>
-                      );
-                    })}
-                  </>
-                )}
-
-                {/* MODE 2: DAILY NET PNL BARS */}
-                {chartType === 'daily' && dailyBarGeometry && (
-                  <>
-                    {/* Zero baseline */}
-                    <line
-                      x1={PADDING_LEFT}
-                      y1={dailyBarGeometry.zeroY}
-                      x2={SVG_WIDTH - PADDING_RIGHT}
-                      y2={dailyBarGeometry.zeroY}
-                      stroke="#475569"
-                      strokeWidth="1.2"
-                      opacity="0.6"
-                    />
-
-                    {/* Bars */}
-                    {dailyBarGeometry.bars.map((bar, i) => {
-                      const isSelected = selectedDayDate === bar.data.date;
-                      const isHovered = hoveredIdx === i;
-                      const hasTrades = bar.data.tradesCount > 0;
-
-                      return (
-                        <g
-                          key={bar.data.date}
-                          onClick={() => onSelectDate(bar.data.date)}
-                          className="cursor-pointer"
-                        >
-                          {hasTrades ? (
-                            <rect
-                              x={bar.x - bar.width / 2}
-                              y={bar.y}
-                              width={bar.width}
-                              height={bar.height}
-                              rx="3"
-                              fill={bar.isPositive ? 'url(#cleanBarGreen)' : 'url(#cleanBarRed)'}
-                              stroke={
-                                isSelected
-                                  ? '#38bdf8'
-                                  : isHovered
-                                  ? '#f8fafc'
-                                  : bar.isPositive
-                                  ? '#10b981'
-                                  : '#f43f5e'
-                              }
-                              strokeWidth={isSelected ? '2' : isHovered ? '1.5' : '0.5'}
-                              className="transition-all duration-150"
-                            />
-                          ) : (
-                            <circle
-                              cx={bar.x}
-                              cy={dailyBarGeometry.zeroY}
-                              r={1.5}
-                              fill="#334155"
-                            />
-                          )}
-                        </g>
-                      );
-                    })}
-                  </>
-                )}
-
-                {/* Interactive Crosshair Tracking Line */}
-                {hoveredIdx !== null && (
-                  <line
-                    x1={
-                      chartType === 'cumulative'
-                        ? cumulativeGeometry?.points[hoveredIdx]?.x ?? 0
-                        : dailyBarGeometry?.bars[hoveredIdx]?.x ?? 0
-                    }
-                    y1={PADDING_TOP}
-                    x2={
-                      chartType === 'cumulative'
-                        ? cumulativeGeometry?.points[hoveredIdx]?.x ?? 0
-                        : dailyBarGeometry?.bars[hoveredIdx]?.x ?? 0
-                    }
-                    y2={SVG_HEIGHT - PADDING_BOTTOM}
-                    stroke="#38bdf8"
-                    strokeWidth="1"
-                    strokeDasharray="3 3"
-                    opacity="0.75"
-                  />
-                )}
-
-                {/* X-Axis Date Numbers Along Bottom */}
-                {timelineData.map((d, i) => {
-                  const isFirst = i === 0;
-                  const isLast = i === timelineData.length - 1;
-                  const isStep = d.dayNumber % 5 === 0 || d.dayNumber === 1;
-
-                  if (!isFirst && !isLast && !isStep && !d.isToday) return null;
-
-                  const xPos =
-                    chartType === 'cumulative'
-                      ? cumulativeGeometry?.points[i]?.x ?? 0
-                      : dailyBarGeometry?.bars[i]?.x ?? 0;
-
-                  return (
-                    <text
-                      key={`axis-lbl-${d.date}`}
-                      x={xPos}
-                      y={SVG_HEIGHT - 12}
-                      textAnchor="middle"
-                      fill={d.isToday ? '#38bdf8' : '#64748b'}
-                      fontSize="9.5"
-                      fontFamily="monospace"
-                      fontWeight={d.isToday ? 'bold' : 'normal'}
-                    >
-                      {d.dayNumber}
-                    </text>
-                  );
-                })}
-              </svg>
+              <canvas
+                ref={canvasRef}
+                onPointerMove={handlePointerMove}
+                onPointerLeave={handlePointerLeave}
+                onClick={handleCanvasClick}
+                className="w-full h-full block touch-pan-y"
+              />
             )}
 
-            {/* Floating Inspection Tooltip HUD (Stripe/Linear style) */}
+            {/* Floating Tooltip matching user CSS */}
             {activeHoverData && (
-              <div className="pointer-events-none absolute top-3 right-3 sm:right-5 bg-[#0e121b]/95 border border-slate-700/80 rounded-xl p-3 shadow-2xl backdrop-blur-md text-xs font-mono z-20 space-y-1.5 min-w-[220px]">
-                <div className="flex items-center justify-between pb-1 border-b border-slate-800">
-                  <span className="font-bold text-slate-200">
+              <div
+                style={{
+                  left: Math.min(
+                    (pointer?.x ?? 50) + 12,
+                    (containerRef.current?.clientWidth || 300) - 220
+                  ),
+                  top: Math.max(10, (pointer?.y ?? 50) - 55),
+                }}
+                className="pointer-events-none absolute bg-[#171d23] border border-[#303a43] rounded-md px-3 py-2 text-xs text-slate-100 shadow-2xl z-20 font-mono transition-all duration-75 space-y-1"
+              >
+                <div className="flex items-center justify-between pb-1 border-b border-[#303a43] gap-2">
+                  <span className="font-bold text-white">
                     {activeHoverData.weekdayName}, {activeHoverData.dayNumber} {monthLabel}
                   </span>
                   {activeHoverData.isToday && (
@@ -691,63 +619,31 @@ export function CalendarPnLChart({
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                  <span className="text-slate-400">Net Hari Ini:</span>
-                  <span
-                    className={`text-right font-bold tabular-nums ${
-                      activeHoverData.dayPnlUsd > 0
-                        ? 'text-emerald-400'
-                        : activeHoverData.dayPnlUsd < 0
-                        ? 'text-rose-400'
-                        : 'text-slate-400'
-                    }`}
-                  >
-                    {activeHoverData.dayPnlUsd >= 0 ? '+' : ''}
-                    {formatUsd(activeHoverData.dayPnlUsd)}
-                  </span>
-
-                  <span className="text-slate-400">Kumulatif:</span>
-                  <span
-                    className={`text-right font-bold tabular-nums ${
-                      activeHoverData.cumPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                    }`}
-                  >
-                    {activeHoverData.cumPnlUsd >= 0 ? '+' : ''}
-                    {formatUsd(activeHoverData.cumPnlUsd)}
-                  </span>
-
-                  <span className="text-slate-400">Transaksi:</span>
-                  <span className="text-right text-slate-300">
-                    {activeHoverData.tradesCount} Trade{' '}
-                    {activeHoverData.tradesCount > 0 &&
-                      `(${activeHoverData.winTrades}W/${activeHoverData.lossTrades}L)`}
-                  </span>
-
-                  {activeHoverData.feesIdr > 0 && (
-                    <>
-                      <span className="text-slate-400">Biaya Gas:</span>
-                      <span className="text-right text-amber-300 tabular-nums">
-                        {formatIdr(activeHoverData.feesIdr)}
-                      </span>
-                    </>
-                  )}
+                <div>
+                  Kumulatif: <strong className={activeHoverData.cumPnlUsd >= 0 ? 'text-[#80efad]' : 'text-[#ff646e]'}>{activeHoverData.cumPnlUsd >= 0 ? '+' : ''}{formatUsd(activeHoverData.cumPnlUsd)}</strong>
                 </div>
-
-                <div className="text-[9px] text-cyan-400/90 pt-1 border-t border-slate-800/80 text-center flex items-center justify-center gap-1">
-                  <span>Klik untuk melihat tabel transaksi</span>
-                  <span>↗</span>
+                <div>
+                  Hari Ini: <span className={activeHoverData.dayPnlUsd >= 0 ? 'text-[#80efad]' : 'text-[#ff646e]'}>{activeHoverData.dayPnlUsd >= 0 ? '+' : ''}{formatUsd(activeHoverData.dayPnlUsd)}</span>
+                </div>
+                {activeHoverData.tradesCount > 0 && (
+                  <div className="text-[10px] text-slate-400">
+                    {activeHoverData.tradesCount} Trade ({activeHoverData.winTrades}W/{activeHoverData.lossTrades}L)
+                  </div>
+                )}
+                <div className="text-[9px] text-cyan-400/90 pt-0.5 border-t border-[#303a43] text-center">
+                  Klik untuk pilih tanggal ↗
                 </div>
               </div>
             )}
           </div>
 
-          {/* Minimal 4-Metric Footer Bar (Stripe / TradeZella Style) */}
+          {/* Minimal 4-Metric Footer Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs font-mono">
-            <div className="bg-[#141824] border border-slate-800/80 rounded-xl p-2.5">
+            <div className="bg-[#171d23] border border-[#303a43] rounded-xl p-2.5">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
                 Puncak Profit (Peak)
               </span>
-              <span className="text-sm font-bold text-emerald-400 mt-0.5 block tabular-nums">
+              <span className="text-sm font-bold text-[#80efad] mt-0.5 block tabular-nums">
                 +{formatUsd(chartStats.peakPnlUsd)}
               </span>
               <span className="text-[10px] text-slate-400 block truncate">
@@ -755,13 +651,13 @@ export function CalendarPnLChart({
               </span>
             </div>
 
-            <div className="bg-[#141824] border border-slate-800/80 rounded-xl p-2.5">
+            <div className="bg-[#171d23] border border-[#303a43] rounded-xl p-2.5">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
                 Max Drawdown
               </span>
               <span
                 className={`text-sm font-bold mt-0.5 block tabular-nums ${
-                  chartStats.maxDrawdownUsd > 0 ? 'text-rose-400' : 'text-slate-400'
+                  chartStats.maxDrawdownUsd > 0 ? 'text-[#ff646e]' : 'text-slate-400'
                 }`}
               >
                 -{formatUsd(chartStats.maxDrawdownUsd)}
@@ -771,13 +667,13 @@ export function CalendarPnLChart({
               </span>
             </div>
 
-            <div className="bg-[#141824] border border-slate-800/80 rounded-xl p-2.5">
+            <div className="bg-[#171d23] border border-[#303a43] rounded-xl p-2.5">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
                 Rata-Rata / Hari Aktif
               </span>
               <span
                 className={`text-sm font-bold mt-0.5 block tabular-nums ${
-                  chartStats.avgDailyPnlUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  chartStats.avgDailyPnlUsd >= 0 ? 'text-[#80efad]' : 'text-[#ff646e]'
                 }`}
               >
                 {chartStats.avgDailyPnlUsd >= 0 ? '+' : ''}
@@ -789,7 +685,7 @@ export function CalendarPnLChart({
               </span>
             </div>
 
-            <div className="bg-[#141824] border border-slate-800/80 rounded-xl p-2.5">
+            <div className="bg-[#171d23] border border-[#303a43] rounded-xl p-2.5">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
                 Hari Aktif Trading
               </span>
