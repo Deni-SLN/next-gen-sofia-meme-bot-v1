@@ -354,26 +354,46 @@ export default function JournalPage() {
                 <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
                 <span>POSISI SALDO SAAT INI</span>
               </span>
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                {selectedMode === 'WALLET' ? 'REAL-TIME ON-CHAIN' : 'KAS SIAP ENTRY'}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleSyncOnchainWallet}
+                  disabled={syncingWallet}
+                  className="text-[9px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 transition flex items-center gap-1 disabled:opacity-50"
+                  title="Sinkronkan saldo on-chain langsung via Solana RPC"
+                >
+                  <LucideIcon name="refresh-cw" className={`w-2.5 h-2.5 ${syncingWallet ? 'animate-spin' : ''}`} />
+                  <span>{syncingWallet ? 'Sinkron...' : 'Sinkronkan'}</span>
+                </button>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                  {selectedMode === 'WALLET' ? 'REAL-TIME ON-CHAIN' : 'KAS SIAP ENTRY'}
+                </span>
+              </div>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-black tracking-tight text-purple-300 font-mono">
-                {formatUsd(d?.current_balance_usd ?? 8.52)}
+                {d?.current_balance_usd != null ? formatUsd(d.current_balance_usd) : '—'}
               </span>
               <span className="text-xs text-purple-300/80 font-mono">
-                ≈ {formatIdr(d?.current_balance_idr || ((d?.current_balance_usd ?? 8.52) * (d?.usd_idr || 16500)))}
+                {d?.current_balance_idr != null ? `≈ ${formatIdr(d.current_balance_idr)}` : ''}
               </span>
             </div>
             <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between border-t border-obsidian-800 pt-1.5">
               {selectedMode === 'WALLET' ? (
-                <span className="font-mono" title="Saldo koin SOL yang tersedia di dompet on-chain saat ini">
-                  Sisa Saldo: <strong className="text-cyan-300 font-bold">{d?.current_balance_sol ? `${d.current_balance_sol} SOL` : '0.058759 SOL'}</strong>
+                <span className="font-mono flex items-center gap-1.5" title="Saldo koin SOL & SPL Token yang tersedia di dompet on-chain saat ini">
+                  <span>Kas:</span>
+                  <strong className="text-cyan-300 font-bold">
+                    {d?.current_balance_sol != null ? `${d.current_balance_sol} SOL` : '—'}
+                  </strong>
+                  {Boolean(d?.current_balance_usdc && d.current_balance_usdc > 0) && (
+                    <span className="text-emerald-400 font-bold">
+                      + ${d.current_balance_usdc} USDC
+                    </span>
+                  )}
                 </span>
               ) : (
                 <span className="font-mono">
-                  Sisa Kas: <strong className="text-cyan-300 font-bold">{formatUsd(d?.current_balance_usd ?? 8.52)}</strong>
+                  Sisa Kas: <strong className="text-cyan-300 font-bold">{d?.current_balance_usd != null ? formatUsd(d.current_balance_usd) : '—'}</strong>
                 </span>
               )}
               <span className="text-purple-300 font-bold flex items-center gap-1 font-mono">

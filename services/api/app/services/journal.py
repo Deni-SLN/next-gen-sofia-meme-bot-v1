@@ -11,6 +11,8 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 import math
+import urllib.request
+from app.core.config import settings
 from app.db.models import Trade, Wallet
 from app.services import market, live_engine, portfolio
 
@@ -148,8 +150,9 @@ def sync_solana_wallet_onchain_trades(db: Session, wallet_address: str) -> dict:
         "params": [addr, {"limit": 50}],
     }
     rpcs = [
+        getattr(settings, "solana_shield_rpc_url", None) or "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A",
+        settings.solana_rpc_url or "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9",
         "https://solana-rpc.publicnode.com",
-        "https://api.mainnet-beta.solana.com",
     ]
     with httpx.Client(timeout=5.0) as client:
         for ep in rpcs:
@@ -277,6 +280,90 @@ def sync_solana_wallet_onchain_trades(db: Session, wallet_address: str) -> dict:
     }
 
 
+def get_wallet_live_onchain_equity(address: str) -> dict:
+    """
+    Query real Solana Mainnet RPC (FluxRPC pool) to resolve exact live on-chain equity:
+    - Native SOL balance
+    - SPL Token balances (USDC, USDT, etc.)
+    - Live USD and IDR valuation (Zero Dummy Data)
+    """
+    addr = (address or "").strip()
+    sol_price = max(1.0, live_engine.get_sol_price_usd())
+    if not addr or len(addr) < 32:
+        return {
+            "sol_balance": 0.0,
+            "usdc_balance": 0.0,
+            "total_cash_usd": 0.0,
+            "sol_price_usd": sol_price,
+            "rpc_connected": False,
+        }
+
+    sol_balance = 0.0
+    usdc_balance = 0.0
+    rpc_connected = False
+
+    rpc_pool = [
+        getattr(settings, "solana_shield_rpc_url", None) or "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A",
+        settings.solana_rpc_url or "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9",
+        "https://solana-rpc.publicnode.com",
+    ]
+
+    with httpx.Client(timeout=4.0) as client:
+        # 1. Native SOL getBalance
+        for ep in rpc_pool:
+            try:
+                resp = client.post(ep, json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getBalance",
+                    "params": [addr],
+                })
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if "result" in data and "value" in data["result"]:
+                        sol_balance = round(int(data["result"]["value"]) / 1e9, 6)
+                        rpc_connected = True
+                        break
+            except Exception:
+                continue
+
+        # 2. SPL Token accounts (getTokenAccountsByOwner)
+        for ep in rpc_pool:
+            try:
+                resp = client.post(ep, json={
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "getTokenAccountsByOwner",
+                    "params": [
+                        addr,
+                        {"programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
+                        {"encoding": "jsonParsed"},
+                    ],
+                })
+                if resp.status_code == 200:
+                    data = resp.json()
+                    accounts = data.get("result", {}).get("value", [])
+                    for acc in accounts:
+                        info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+                        mint = info.get("mint")
+                        amount_info = info.get("tokenAmount", {})
+                        ui_amount = float(amount_info.get("uiAmount") or 0.0)
+                        if mint in ("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"):
+                            usdc_balance += ui_amount
+                    break
+            except Exception:
+                continue
+
+    total_cash_usd = round((sol_balance * sol_price) + usdc_balance, 2)
+    return {
+        "sol_balance": sol_balance,
+        "usdc_balance": round(usdc_balance, 2),
+        "total_cash_usd": total_cash_usd,
+        "sol_price_usd": sol_price,
+        "rpc_connected": rpc_connected,
+    }
+
+
 def get_journal_summary(
     db: Session,
     token_filter: str | None = None,
@@ -302,7 +389,8 @@ def get_journal_summary(
 
     current_balance_usd = 0.0
     current_balance_idr = 0.0
-    current_balance_sol = 0.088783
+    current_balance_sol = 0.0
+    current_balance_usdc = 0.0
     total_deposit_sol = 0.138918
 
     # Calculate Initial Capital / Base Modal separately per mode (PAPER vs LIVE vs WALLET)
@@ -314,14 +402,15 @@ def get_journal_summary(
         current_balance_idr = round(current_balance_usd * usd_idr, 0)
         current_balance_sol = round(current_balance_usd / max(1.0, live_engine.get_sol_price_usd()), 4)
     elif mode_clean == "WALLET":
-        # Total deposit on-chain was 0.138918 SOL ($20.14 USD)
         sol_px = live_engine.get_sol_price_usd()
         initial_capital_usd = round(total_deposit_sol * sol_px, 2)
         initial_capital_idr = round(initial_capital_usd * usd_idr, 0)
-        # Current position confirmed by user as exactly $8.52 USD
-        current_balance_usd = 8.52
+        # Query real-time on-chain balance via FluxRPC (Zero Dummy Data)
+        onchain_equity = get_wallet_live_onchain_equity(active_sol_address)
+        current_balance_sol = onchain_equity["sol_balance"]
+        current_balance_usdc = onchain_equity["usdc_balance"]
+        current_balance_usd = onchain_equity["total_cash_usd"]
         current_balance_idr = round(current_balance_usd * usd_idr, 0)
-        current_balance_sol = round(current_balance_usd / max(1.0, sol_px), 6)
         try:
             if primary_sol_wallet:
                 primary_sol_wallet.balance = current_balance_sol
@@ -331,7 +420,7 @@ def get_journal_summary(
             pass
     else:
         # LIVE Bot mode
-        live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=True)
+        live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=False)
         initial_capital_usd = float(live_eq.get("live_total_equity_usd") or 0.0)
         if initial_capital_usd <= 0:
             trading_wallets = list(
@@ -357,10 +446,8 @@ def get_journal_summary(
 
     # Auto-sync on-chain Solana wallet trades when mode == WALLET and not yet fully populated
     if mode_clean == "WALLET":
-        total_pnl_check = sum(float(t.pnl or 0.0) for t in all_mode_trades)
         needs_sync = (
             len(all_mode_trades) < 50
-            or abs(total_pnl_check - (-6.12)) > 0.5
             or any(t.symbol == "SOL/SPL" and float(t.pnl or 0.0) == 0.0 for t in all_mode_trades)
         )
         if needs_sync:
@@ -496,6 +583,7 @@ def get_journal_summary(
         "current_balance_usd": current_balance_usd,
         "current_balance_idr": current_balance_idr,
         "current_balance_sol": current_balance_sol,
+        "current_balance_usdc": current_balance_usdc,
         "total_deposit_sol": total_deposit_sol,
         "total_profit_usd": total_profit_usd,
         "total_profit_idr": total_profit_idr,
