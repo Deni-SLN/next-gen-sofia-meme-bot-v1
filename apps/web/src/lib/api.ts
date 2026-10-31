@@ -680,6 +680,20 @@ export const api = {
   getTelegramSignals: () => request<any>('/telegram/signals'),
   sendTestTelegramAlert: (data: { token: string; chat_id: string; message?: string }) =>
     request<any>('/telegram/test-alert', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Macroeconomic & Quantitative Factor Intelligence (Fincept Terminal Proxmox CT 106)
+  getMacroIndicators: (refresh: boolean = false) =>
+    request<any>(`/macro/indicators${refresh ? '?refresh=true' : ''}`),
+  getMacroMarketData: (symbol: string, period: string = '5d', interval: string = '1d') => {
+    const params = new URLSearchParams({ symbol, period, interval });
+    return request<any>(`/macro/market-data?${params.toString()}`);
+  },
+  runFactorBacktest: (data: { symbol: string; factor_expr: string; period?: string }) =>
+    request<any>('/macro/backtest', { method: 'POST', body: JSON.stringify(data) }),
+  searchMacroSymbols: (query: string, limit: number = 10) => {
+    const params = new URLSearchParams({ query, limit: String(limit) });
+    return request<any>(`/macro/search?${params.toString()}`);
+  },
 };
 
 

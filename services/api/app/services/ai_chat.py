@@ -433,7 +433,48 @@ APPLICATION_TOOLS_SPEC = [
             },
         },
     },
-
+    {
+        "type": "function",
+        "function": {
+            "name": "get_macroeconomic_indicators",
+            "description": "Mengambil data makroekonomi institusional terkini dari Fincept Terminal Proxmox CT 106: Indeks Volatilitas CBOE VIX (^VIX), US 10-Year Treasury Yield (^TNX), US 2-Year Treasury Yield (^IRX), Spread Kurva Imbal Hasil (Yield Curve Inversion), Indeks Dolar AS DXY, dan Minyak Mentah WTI.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "refresh": {
+                        "type": "boolean",
+                        "description": "Paksa refresh data dari server Fincept (default false).",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "backtest_quantitative_factor",
+            "description": "Menjalankan kalkulasi backtest faktor kuantitatif matematis terhadap data historis bar via Fincept Terminal CT 106. Mengembalikan IC (Information Coefficient), IC_IR (Information Ratio), Sharpe ratio, win rate, dan max drawdown.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Simbol ticker multi-asset (contoh: 'BTC-USD', 'AAPL', 'NVDA', 'BBCA.JK').",
+                    },
+                    "factor_expr": {
+                        "type": "string",
+                        "description": "Ekspresi faktor matematis Python/Pandas (contoh: 'close.rolling(20).mean() / close - 1.0', 'close.pct_change(5)').",
+                    },
+                    "period": {
+                        "type": "string",
+                        "enum": ["1mo", "3mo", "6mo", "1y", "2y"],
+                        "description": "Periode lookback histori data (default '1y').",
+                    },
+                },
+                "required": ["symbol", "factor_expr"],
+            },
+        },
+    },
 ]
 
 
@@ -770,6 +811,33 @@ def execute_application_tool(name: str, arguments: Dict[str, Any], db: Optional[
                 "contract": ca,
                 "recommended_bots": links,
                 "summary": f"Ditemukan {len(links)} bot Telegram publik terverifikasi untuk analisa & pelacakan {sym}.",
+            }
+
+        elif name == "get_macroeconomic_indicators":
+            from app.services import fincept_client
+            refresh = bool(arguments.get("refresh", False))
+            macro = fincept_client.get_macro_indicators(force_refresh=refresh)
+            return {
+                "tool": "get_macroeconomic_indicators",
+                "status": "success",
+                "source": "Fincept Terminal (Proxmox CT 106)",
+                "data": macro,
+            }
+
+        elif name == "backtest_quantitative_factor":
+            from app.services import fincept_client
+            sym = str(arguments.get("symbol") or "BTC-USD").strip().upper()
+            expr = str(arguments.get("factor_expr") or "close.rolling(20).mean() / close - 1.0").strip()
+            period = str(arguments.get("period") or "1y").strip()
+            bt = fincept_client.run_factor_backtest(sym, expr, period)
+            return {
+                "tool": "backtest_quantitative_factor",
+                "status": "success",
+                "source": "Fincept Terminal (Proxmox CT 106)",
+                "symbol": sym,
+                "factor_expr": expr,
+                "period": period,
+                "result": bt,
             }
 
         else:
@@ -1177,7 +1245,23 @@ def run_chat_completion(
         executed_tool_results.append(res)
         auto_tool_context += f"\n\n[DATA TOOL SOFIA: lookup_market_encyclopedia('{kw}')]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
 
-    # 9. Stock Recommendation / Watchlist Idea Fallback
+    # 9. Macroeconomic Intelligence (Fincept Terminal CT 106)
+    elif any(k in lower_user for k in ("vix", "makro", "makroekonomi", "yield curve", "treasury", "10y", "2y", "dxy", "indeks dolar", "minyak mentah", "crude oil", "inflasi us")):
+        res = execute_application_tool("get_macroeconomic_indicators", {}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "get_macroeconomic_indicators", "arguments": {}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: get_macroeconomic_indicators() (Fincept CT 106)]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 10. Quantitative Factor Backtest Engine (Fincept Terminal CT 106)
+    elif any(k in lower_user for k in ("backtest", "kuantitatif", "sharpe", "information coefficient", "ic ir", "faktor kuantitatif")):
+        tok_m = re.search(r"\b([a-zA-Z0-9\-\.]{2,12})\b", last_user_msg)
+        sym_candidate = tok_m.group(1).upper() if tok_m and tok_m.group(1).lower() not in ("backtest", "uji", "faktor") else "BTC-USD"
+        res = execute_application_tool("backtest_quantitative_factor", {"symbol": sym_candidate, "factor_expr": "close.rolling(20).mean() / close - 1.0", "period": "1y"}, db)
+        executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "backtest_quantitative_factor", "arguments": {"symbol": sym_candidate}})
+        executed_tool_results.append(res)
+        auto_tool_context += f"\n\n[DATA TOOL SOFIA: backtest_quantitative_factor('{sym_candidate}') (Fincept CT 106)]\n{json.dumps(res, ensure_ascii=False, indent=2)}\n"
+
+    # 11. Stock Recommendation / Watchlist Idea Fallback
     elif any(k in lower_user for k in ("rekomendasi", "saham apa", "watchlist", "ide trading", "sinyal")):
         res = execute_application_tool("analyze_stock", {"code": "BBRI", "timeframe": "1d"}, db)
         executed_tool_calls.append({"id": f"call_{uuid.uuid4().hex[:8]}", "name": "analyze_stock", "arguments": {"code": "BBRI"}})

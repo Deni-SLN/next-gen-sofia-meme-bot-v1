@@ -114,6 +114,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [deferredPwaPrompt, setDeferredPwaPrompt] = useState<any>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [timeWIB, setTimeWIB] = useState<string>('');
+  const [macroData, setMacroData] = useState<any>(null);
 
   useEffect(() => {
     const updateTime = () => {
@@ -253,6 +254,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         .getFx()
         .then((res) => {
           if (res?.usd_idr) setUsdIdr(res.usd_idr);
+        })
+        .catch(() => {});
+      api
+        .getMacroIndicators()
+        .then((res) => {
+          if (res?.indicators) setMacroData(res);
         })
         .catch(() => {});
       api
@@ -501,6 +508,44 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span className="text-white font-medium tracking-wide">{timeWIB || '--:--:--'}</span>
               <span className="text-cyan-400 text-[10px] font-bold">WIB</span>
             </div>
+
+            {/* Fincept Macro Intelligence Pill (Proxmox CT 106) */}
+            {macroData?.indicators?.vix && (
+              <div
+                className="hidden 2xl:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-obsidian-900 border border-obsidian-700/70 text-[11px]"
+                title={`Fincept Macro Terminal (CT 106) | 10Y Yield: ${macroData.indicators.treasury_10y?.value}% | DXY: ${macroData.indicators.dxy?.value} | WTI Oil: $${macroData.indicators.oil_wti?.value} | Sentimen: ${macroData.market_regime?.vix_sentiment}`}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-slate-400 font-medium">VIX</span>
+                  <span
+                    className={`font-mono font-bold ${
+                      macroData.indicators.vix.value > 22
+                        ? 'text-rose-400'
+                        : macroData.indicators.vix.value > 17
+                        ? 'text-amber-400'
+                        : 'text-emerald-400'
+                    }`}
+                  >
+                    {macroData.indicators.vix.value}
+                  </span>
+                </div>
+                <div className="h-3 w-px bg-obsidian-700"></div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-400 font-medium">10Y</span>
+                  <span className="text-cyan-400 font-mono font-bold">
+                    {macroData.indicators.treasury_10y?.value}%
+                  </span>
+                </div>
+                <div className="h-3 w-px bg-obsidian-700"></div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-400 font-medium">DXY</span>
+                  <span className="text-slate-200 font-mono font-medium">
+                    {macroData.indicators.dxy?.value}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right: Clean Unified Controls */}
