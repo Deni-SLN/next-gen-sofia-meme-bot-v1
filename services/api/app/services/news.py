@@ -198,72 +198,101 @@ def _pick_fallback_thumbnail(category: str, title: str) -> str:
     return pool[idx]
 
 
+def _count_kw_hits(text: str, keywords: list[str]) -> int:
+    hits = 0
+    for kw in keywords:
+        if re.search(rf"\b{re.escape(kw)}\b", text):
+            hits += 1
+    return hits
+
+
+def _has_any_kw(text: str, keywords: list[str]) -> bool:
+    for kw in keywords:
+        if re.search(rf"\b{re.escape(kw)}\b", text):
+            return True
+    return False
+
+
 def _classify_article_tags(title: str, summary: str, category: str) -> dict:
     """
-    Classify article into rich Indonesian market status & topic tags:
+    Classify article into accurate Indonesian market status & topic tags using strict word boundaries
+    and headline-weighted scoring (2x weight on title, 1x on summary):
     Primary status (`sentiment`):
       - BAHAYA (🚨 Bahaya / Risiko Tinggi)
       - WASPADA (⚠️ Waspada / Tekanan Pasar)
       - PELUANG_CUAN (🚀 Peluang Cuan / Katalis Kuat)
       - POSITIF (📈 Positif / Menguat)
       - NETRAL (⚖️ Netral / Informasi Pasar)
-    Plus contextual topic tags (`tags` list).
     """
-    text = f"{title} {summary}".lower()
+    title_l = (title or "").lower()
+    summary_l = (summary or "").lower()
+    text = f"{title_l} {summary_l}"
 
     danger_words = [
-        "bahaya", "scam", "rug pull", "rugpull", "bobol", "diretas", "hack", "peretasan",
-        "penipuan", "bodong", "ilegal", "dilarang", "sanksi", "pailit", "bangkrut",
-        "anjlok parah", "krisis", "perang", "delisting", "likuidasi", "gembok", "suspen",
-        "suspensi", "darurat", "kerugian besar", "jebakan", "manipulasi", "kejahatan",
+        "scam", "rug pull", "rugpull", "bobol", "diretas", "peretasan", "hacker",
+        "penipuan", "bodong", "ilegal", "pailit", "bangkrut", "anjlok parah",
+        "krisis", "delisting", "likuidasi", "digembok", "suspensi", "disuspensi",
+        "kerugian besar", "jebakan", "manipulasi", "serangan rudal", "perang terbuka",
+        "invasi", "runtuh", "kolaps", "gagal bayar", "default",
     ]
     caution_words = [
         "waspada", "hati-hati", "turun", "anjlok", "melemah", "rugi", "koreksi",
         "bearish", "merah", "jatuh", "tertekan", "defisit", "inflasi", "dump",
         "longsor", "phk", "terjun", "volatilitas", "gejolak", "aksi jual", "outflow",
         "ketidakpastian", "tarif", "perang dagang", "utang", "beban", "rawan",
+        "sanksi", "konflik", "ketegangan", "lesu", "melambat", "merosot", "terpangkas",
     ]
     strong_bull_words = [
         "rekor", "melonjak", "meroket", "terbang", "cuan", "untung besar", "all time high",
         "ath", "reli", "breakout", "dividen jumbo", "laba melonjak", "surplus besar",
-        "akumulasi", "peluang", "prospek cerah", "bullish",
+        "prospek cerah", "bullish", "cetak rekor", "melambung tinggi", "panen cuan",
     ]
     positive_words = [
         "naik", "menguat", "positif", "tumbuh", "melambung", "hijau", "surplus",
-        "optimis", "apresiasi", "beli", "ekspansi", "inovasi", "kerjasama", "adopsi",
-        "stabil", "pulih", "bangkit", "dukung", "resmi",
+        "optimis", "apresiasi", "ekspansi", "inovasi", "kerjasama", "adopsi",
+        "stabil", "pulih", "bangkit", "inflow", "akumulasi", "untung", "laba naik",
+        "dividen", "buyback", "rebound", "menggeliat", "cerah",
     ]
 
-    danger_hits = sum(1 for w in danger_words if w in text)
-    caution_hits = sum(1 for w in caution_words if w in text)
-    strong_bull_hits = sum(1 for w in strong_bull_words if w in text)
-    positive_hits = sum(1 for w in positive_words if w in text)
+    # Headline (title) carries 2x weight compared to description summary
+    danger_score = (_count_kw_hits(title_l, danger_words) * 2) + _count_kw_hits(summary_l, danger_words)
+    caution_score = (_count_kw_hits(title_l, caution_words) * 2) + _count_kw_hits(summary_l, caution_words)
+    strong_bull_score = (_count_kw_hits(title_l, strong_bull_words) * 2) + _count_kw_hits(summary_l, strong_bull_words)
+    positive_score = (_count_kw_hits(title_l, positive_words) * 2) + _count_kw_hits(summary_l, positive_words)
+
+    neg_total_score = (danger_score * 1.8) + caution_score
+    pos_total_score = (strong_bull_score * 1.8) + positive_score
 
     tags: list[dict] = []
 
-    # 1. Determine Primary Status Tag
-    if danger_hits > 0:
+    # 1. Determine Primary Status Tag accurately based on net headline + summary weight
+    if danger_score >= 2 or (danger_score == 1 and pos_total_score == 0):
         sentiment = "BAHAYA"
         sentiment_label = "🚨 BAHAYA"
+        sentiment_score = 1.5
         tags.append({"id": "BAHAYA", "label": "🚨 Bahaya & Risiko Tinggi", "tone": "danger"})
-    elif caution_hits > (positive_hits + strong_bull_hits):
+    elif neg_total_score > pos_total_score and (caution_score > 0 or danger_score > 0):
         sentiment = "WASPADA"
         sentiment_label = "⚠️ WASPADA"
+        sentiment_score = 3.2
         tags.append({"id": "WASPADA", "label": "⚠️ Waspada Tekanan Pasar", "tone": "warning"})
-    elif strong_bull_hits > 0 and strong_bull_hits >= caution_hits:
+    elif strong_bull_score >= 2 or (strong_bull_score >= 1 and pos_total_score > neg_total_score):
         sentiment = "PELUANG_CUAN"
         sentiment_label = "🚀 PELUANG CUAN"
+        sentiment_score = 9.2
         tags.append({"id": "PELUANG_CUAN", "label": "🚀 Katalis Bullish", "tone": "emerald"})
-    elif positive_hits > caution_hits:
+    elif pos_total_score > neg_total_score and positive_score > 0:
         sentiment = "POSITIF"
         sentiment_label = "📈 POSITIF"
+        sentiment_score = 7.6
         tags.append({"id": "POSITIF", "label": "📈 Sentimen Positif", "tone": "success"})
     else:
         sentiment = "NETRAL"
         sentiment_label = "⚖️ NETRAL"
+        sentiment_score = 5.0
         tags.append({"id": "NETRAL", "label": "⚖️ Netral / Info Pasar", "tone": "neutral"})
 
-    # 2. Contextual Topic Tags (up to 3 additional tags)
+    # 2. Contextual Topic Tags (up to 3 additional tags using strict word boundaries)
     topic_rules = [
         (
             "REGULASI_PAJAK",
@@ -281,7 +310,7 @@ def _classify_article_tags(title: str, summary: str, category: str) -> dict:
             "KEAMANAN_SIBER",
             "🛡️ Keamanan & Siber",
             "danger",
-            ["siber", "keamanan", "hack", "bobol", "data", "privasi", "penipuan", "scam", "gembok", "perlindungan"],
+            ["siber", "keamanan siber", "diretas", "bobol", "peretasan", "privasi data", "penipuan", "scam", "perlindungan data"],
         ),
         (
             "DIVIDEN_EMITEN",
@@ -293,30 +322,30 @@ def _classify_article_tags(title: str, summary: str, category: str) -> dict:
             "LOGAM_MULIA",
             "🪙 Harga Emas / Safe Haven",
             "amber",
-            ["emas", "antam", "pegadaian", "logam mulia", "xau", "safe haven", "komoditas"],
+            ["emas", "antam", "pegadaian", "logam mulia", "xau", "safe haven", "bullion"],
         ),
         (
             "WHALE_INSTITUSI",
             "🐋 Aksi Institusi & Asing",
             "purple",
-            ["whale", "institusi", "asing", "investor asing", "etf", "blackrock", "dana", "akumulasi", "inflow", "outflow"],
+            ["whale", "institusi", "investor asing", "dana asing", "etf", "blackrock", "akumulasi", "inflow", "outflow"],
         ),
         (
             "INOVASI_AI",
             "🤖 AI & Inovasi Digital",
             "purple",
-            ["ai", "kecerdasan buatan", "teknologi", "chip", "semikonduktor", "digital", "startup", "aplikasi", "robot", "cloud"],
+            ["kecerdasan buatan", "teknologi ai", "generative ai", "openai", "chip", "semikonduktor", "startup digital", "komputasi awan", "robotik"],
         ),
         (
             "GEOPOLITIK_GLOBAL",
             "🌍 Geopolitik & Global",
             "warning",
-            ["global", "perang", "timur tengah", "china", "amerika", "as", "tarif", "ekspor", "impor", "dunia", "lintas negara", "militer", "rudal", "senjata", "konflik", "tni", "israel", "iran", "rusia", "ukraina", "nato", "sanksi", "geopolitik"],
+            ["geopolitik", "perang", "timur tengah", "tarif dagang", "perang dagang", "militer", "rudal", "senjata", "konflik", "israel", "iran", "rusia", "ukraina", "nato", "sanksi"],
         ),
     ]
 
     for tag_id, tag_label, tag_tone, keywords in topic_rules:
-        if any(k in text for k in keywords):
+        if _has_any_kw(text, keywords):
             tags.append({"id": tag_id, "label": tag_label, "tone": tag_tone})
         if len(tags) >= 3:
             break
@@ -341,21 +370,22 @@ def _classify_article_tags(title: str, summary: str, category: str) -> dict:
     return {
         "sentiment": sentiment,
         "sentiment_label": sentiment_label,
+        "sentiment_score": sentiment_score,
         "tags": tags,
     }
 
 
 def _detect_category_from_text(title: str, summary: str = "") -> str:
     t = f"{title} {summary}".lower()
-    if any(k in t for k in ["kripto", "crypto", "bitcoin", "btc", "solana", "ethereum", "eth", "blockchain", "token", "altcoin", "web3", "bappebti", "indodax"]):
+    if _has_any_kw(t, ["kripto", "crypto", "bitcoin", "btc", "solana", "ethereum", "eth", "blockchain", "altcoin", "web3", "bappebti", "indodax"]):
         return "crypto"
-    if any(k in t for k in ["emas", "antam", "logam mulia", "pegadaian", "xau", "bullion"]):
+    if _has_any_kw(t, ["emas", "antam", "logam mulia", "pegadaian", "xau", "bullion"]):
         return "emas"
-    if any(k in t for k in ["ihsg", "saham", "bei", "emiten", "bursa efek", "dividen", "idx", "lq45", "ipo"]):
+    if _has_any_kw(t, ["ihsg", "saham", "bei", "emiten", "bursa efek", "dividen", "idx", "lq45", "ipo"]):
         return "saham"
-    if any(k in t for k in ["geopolitik", "militer", "perang", "rudal", "konflik", "senjata", "tni", "houthi", "timur tengah", "israel", "gaza", "iran", "ukraina", "rusia", "nato", "laut cina selatan", "pertahanan", "sanksi"]):
+    if _has_any_kw(t, ["geopolitik", "militer", "perang", "rudal", "konflik", "senjata", "tni", "houthi", "timur tengah", "israel", "gaza", "iran", "ukraina", "rusia", "nato", "laut cina selatan", "pertahanan", "sanksi"]):
         return "geopolitik"
-    if any(k in t for k in ["ai", "teknologi", "kecerdasan buatan", "aplikasi", "chip", "semikonduktor", "siber", "inovasi", "digital", "startup", "gadget", "cloud", "robot"]):
+    if _has_any_kw(t, ["teknologi", "kecerdasan buatan", "chip", "semikonduktor", "siber", "inovasi digital", "startup", "gadget", "robot"]):
         return "teknologi"
     return "ekonomi"
 
