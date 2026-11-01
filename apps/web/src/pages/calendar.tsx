@@ -294,6 +294,30 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {/* Helpful banner if selected month has 0 trades but a previous active month exists */}
+      {summary?.total_trades === 0 && calData?.latest_active_month && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-cyan-950/30 border border-cyan-500/30 text-xs font-mono">
+          <div className="flex items-center gap-2 text-cyan-200">
+            <LucideIcon name="calendar" className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>
+              Bulan <strong>{calData.month_label}</strong> belum memiliki transaksi tertutup (Mode {selectedMode}). Transaksi terakhir tercatat pada <strong>{calData.latest_active_month.month_label}</strong> ({calData.latest_active_month.trades} transaksi selesai).
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentYear(calData.latest_active_month.year);
+              setCurrentMonth(calData.latest_active_month.month);
+              setSelectedDayDate(null);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-obsidian-950 font-bold text-xs flex items-center gap-1.5 transition shrink-0 shadow-sm"
+          >
+            <span>Buka {calData.latest_active_month.month_label}</span>
+            <LucideIcon name="arrow-right" className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       <QueryState
         isLoading={calendarQuery.isLoading}
         isError={calendarQuery.isError}
@@ -304,7 +328,7 @@ export default function CalendarPage() {
           {/* Card 1: Total PnL Month */}
           <div className="bg-obsidian-900/90 border border-obsidian-700 rounded-xl p-3.5">
             <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
-              <span>Total PnL Bulan Ini</span>
+              <span>Total PnL Realized</span>
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-obsidian-800 text-slate-300 font-mono">
                 {selectedMode}
               </span>
@@ -321,6 +345,11 @@ export default function CalendarPage() {
               ≈ {(summary?.total_pnl_idr || 0) >= 0 ? '+' : ''}
               {formatIdr(summary?.total_pnl_idr)}
             </div>
+            {summary?.unrealized_pnl_usd ? (
+              <div className="text-[10px] text-cyan-300 font-mono mt-0.5 truncate">
+                Floating: {summary.unrealized_pnl_usd >= 0 ? '+' : ''}{formatUsd(summary.unrealized_pnl_usd)} ({formatIdr(summary.unrealized_pnl_idr)})
+              </div>
+            ) : null}
             <div className="text-[10px] text-slate-500 mt-1">
               {summary?.winning_days || 0} Hari Hijau • {summary?.losing_days || 0} Hari Merah
             </div>
@@ -342,7 +371,8 @@ export default function CalendarPage() {
               {summary?.total_winning_trades || 0} Win / {summary?.total_losing_trades || 0} Loss
             </div>
             <div className="text-[10px] text-slate-500 mt-1">
-              Total {summary?.total_trades || 0} Closed Trades
+              Total {summary?.total_trades || 0} Posisi Selesai
+              {summary?.total_buy_orders ? ` (${summary.total_buy_orders} Beli / ${summary.total_sell_orders || summary.total_trades} Jual)` : ''}
             </div>
           </div>
 
@@ -506,7 +536,7 @@ export default function CalendarPage() {
 
                   {/* Middle: Net PnL (USD + IDR) */}
                   <div className="my-1">
-                    <div className={`text-xs font-mono font-bold ${pnlColor} truncate`}>
+                    <div className={`text-xs font-mono font-bold ${hasTrades ? pnlColor : 'text-slate-400'} truncate`}>
                       {hasProfit ? '+' : ''}
                       {formatUsd(d.total_pnl_usd)}
                     </div>
@@ -514,13 +544,18 @@ export default function CalendarPage() {
                       {hasProfit ? '+' : ''}
                       {formatIdr(d.total_pnl_idr)}
                     </div>
+                    {d.has_floating && (
+                      <div className="text-[9px] text-cyan-300 font-mono font-semibold truncate mt-0.5" title={`Floating PnL posisi aktif saat ini: ${formatUsd(d.floating_pnl_usd)}`}>
+                        Float: {d.floating_pnl_usd >= 0 ? '+' : ''}{formatUsd(d.floating_pnl_usd)}
+                      </div>
+                    )}
                   </div>
 
                   {/* Bottom: Posisi (W/L + Trades) & Gas Fee */}
                   <div className="flex flex-col gap-0.5 pt-1 border-t border-obsidian-800/60 w-full text-[9px] font-mono">
                     <div className="flex items-center justify-between w-full">
                       <span className={hasTrades ? badgeColor : 'text-slate-500'}>
-                        {d.trades_count} {d.trades_count === 1 ? 'Trade' : 'Trades'}
+                        {hasTrades ? `${d.trades_count} Selesai` : (d.buy_trades > 0 ? `${d.buy_trades} Beli (Aktif)` : '0 Trade')}
                       </span>
                       {hasTrades && (
                         <span className="text-[9px] font-bold">
@@ -530,10 +565,10 @@ export default function CalendarPage() {
                         </span>
                       )}
                     </div>
-                    {hasTrades && (
+                    {(hasTrades || d.buy_trades > 0) && (
                       <div className="flex items-center justify-between w-full text-[8px] text-slate-400">
                         <span>
-                          Posisi: {d.buy_trades ?? 0}B / {d.sell_trades ?? 0}S
+                          Order: {d.buy_trades ?? 0}B / {d.sell_trades ?? 0}S
                         </span>
                         {d.fees_usd > 0 && (
                           <span title={`Biaya Swap & Gas: ${formatIdr(d.fees_idr)}`}>
@@ -566,14 +601,14 @@ export default function CalendarPage() {
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
               <span className="text-slate-400">
-                Win Rate Hari:{' '}
+                Win Rate:{' '}
                 <strong className="text-cyan-300">
-                  {selectedDay?.win_rate_pct ?? 0}% ({selectedDay?.winning_trades ?? 0}W / {selectedDay?.losing_trades ?? 0}L)
+                  {selectedDay?.win_rate_pct != null ? `${selectedDay.win_rate_pct}%` : '—'} ({selectedDay?.winning_trades ?? 0}W / {selectedDay?.losing_trades ?? 0}L)
                 </strong>
               </span>
               <span className="text-slate-600">|</span>
               <span className="text-slate-400">
-                Net PnL Hari:{' '}
+                Realized PnL:{' '}
                 <strong
                   className={
                     (selectedDay?.total_pnl_usd || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
@@ -583,6 +618,22 @@ export default function CalendarPage() {
                   {formatUsd(selectedDay?.total_pnl_usd)} ({formatIdr(selectedDay?.total_pnl_idr)})
                 </strong>
               </span>
+              {selectedDay?.has_floating && (
+                <>
+                  <span className="text-slate-600">|</span>
+                  <span className="text-slate-400">
+                    Floating PnL:{' '}
+                    <strong
+                      className={
+                        (selectedDay?.floating_pnl_usd || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }
+                    >
+                      {(selectedDay?.floating_pnl_usd || 0) >= 0 ? '+' : ''}
+                      {formatUsd(selectedDay?.floating_pnl_usd)}
+                    </strong>
+                  </span>
+                </>
+              )}
               <span className="text-slate-600">|</span>
               <span className="text-slate-400">
                 Volume: <strong>{formatIdr(selectedDay?.volume_idr)}</strong>
@@ -695,15 +746,28 @@ export default function CalendarPage() {
                               </div>
                             </td>
                             <td className="py-2.5 px-2 text-right font-bold">
-                              <div className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
-                                {isWin ? '+' : ''}
-                                {formatUsd(t.pnl_usd)} ({t.pnl_pct > 0 ? '+' : ''}
-                                {t.pnl_pct}%)
-                              </div>
-                              <div className="text-[10px] text-slate-400 font-normal">
-                                {isWin ? '+' : ''}
-                                {formatIdr(t.pnl_idr)}
-                              </div>
+                              {t.side === 'buy' ? (
+                                <div>
+                                  <span className="text-xs font-normal text-slate-400 italic">
+                                    — (Entry Posisi)
+                                  </span>
+                                  <div className="text-[10px] text-slate-500 font-normal">
+                                    PnL dihitung saat Exit
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
+                                    {isWin ? '+' : ''}
+                                    {formatUsd(t.pnl_usd)} ({t.pnl_pct > 0 ? '+' : ''}
+                                    {t.pnl_pct}%)
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-normal">
+                                    {isWin ? '+' : ''}
+                                    {formatIdr(t.pnl_idr)}
+                                  </div>
+                                </>
+                              )}
                             </td>
                           </tr>
                         );

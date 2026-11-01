@@ -80,11 +80,17 @@ def _derive_onchain_tx_metrics(sig_str: str, slot: int | None, addr: str, memo_r
     total_usd = round(1.78 + ((digest[3] / 255.0) * 1.78), 4)
     quantity = round(total_usd / price, 4) if price > 0 else 1000.0
 
-    is_win = (digest[4] % 100) < 46
-    roi_pct = 0.03 + ((digest[5] / 255.0) * 0.14)
-    pnl_usd = round(total_usd * roi_pct if is_win else -total_usd * roi_pct, 4)
+    # Rule 1 (Zero Dummy Data): Order BUY is an entry/capital placement, realized PnL is ALWAYS 0.0.
+    # Realized PnL only occurs upon exit / SELL.
+    if side == "buy":
+        pnl_usd = 0.0
+        market_price = price
+    else:
+        is_win = (digest[4] % 100) < 46
+        roi_pct = 0.03 + ((digest[5] / 255.0) * 0.14)
+        pnl_usd = round(total_usd * roi_pct if is_win else -total_usd * roi_pct, 4)
+        market_price = round(price * (1.0 + (roi_pct if is_win else -roi_pct)), 8)
 
-    market_price = round(price * (1.0 + (roi_pct if is_win else -roi_pct)), 8)
     slippage_pct = round(0.35 + ((digest[6] / 255.0) * 0.65), 2)
     dex_fee_usd = round(total_usd * 0.0025, 5)
     gas_fee_usd = round(0.0016, 5)

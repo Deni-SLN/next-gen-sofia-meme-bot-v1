@@ -257,10 +257,15 @@ def get_daily_calendar(
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         wib_date = dt.astimezone(wib_tz).strftime("%Y-%m-%d")
-        t_pnl = float(t.pnl or 0.0)
+
+        # Rule 1 (Zero Dummy Data): Order BUY is an entry/capital deployment, realized PnL is ALWAYS 0.0.
+        # Only closed SELL orders (exits) realize PnL.
+        is_buy = str(t.side or "").lower() == "buy"
+        t_pnl = 0.0 if is_buy else float(t.pnl or 0.0)
         t_total = float(t.total or 0.0)
         t_fee = float(t.dex_fee_usd or 0.0) + float(t.gas_fee_usd or 0.0)
         t_slip = float(t.slippage_pct or 0.0)
+        pnl_pct = 0.0 if (is_buy or t_total <= 0) else round((t_pnl / t_total * 100.0), 2)
 
         entry = {
             "id": t.id,
@@ -277,7 +282,7 @@ def get_daily_calendar(
             "total_idr": round(t_total * usd_idr, 0),
             "pnl_usd": round(t_pnl, 4),
             "pnl_idr": round(t_pnl * usd_idr, 0),
-            "pnl_pct": round((t_pnl / t_total * 100.0) if t_total > 0 else 0.0, 2),
+            "pnl_pct": pnl_pct,
             "slippage_pct": round(t_slip, 2),
             "dex_fee_usd": round(float(t.dex_fee_usd or 0.0), 6),
             "gas_fee_usd": round(float(t.gas_fee_usd or 0.0), 6),
@@ -294,12 +299,15 @@ def get_daily_calendar(
     month_total_pnl_usd = 0.0
     month_total_volume_usd = 0.0
     month_total_fees_usd = 0.0
-    month_trade_count = 0
+    month_closed_positions = 0
+    month_buy_orders = 0
+    month_sell_orders = 0
     winning_days = 0
     losing_days = 0
     break_even_days = 0
     total_winning_trades = 0
     total_losing_trades = 0
+    total_breakeven_trades = 0
 
     best_day = None
     worst_day = None
@@ -307,86 +315,95 @@ def get_daily_calendar(
     today_str = cur_wib.strftime("%Y-%m-%d")
     is_current_month = (y == cur_wib.year and m == cur_wib.month)
 
-    # Check if there are open holdings today
+    # Check if there are open holdings today (unrealized floating PnL)
     today_unrealized_usd = 0.0
-    if is_current_month and mode_clean in ("PAPER", "ALL"):
-        port_ov = portfolio.get_overview(db, refresh_live_prices=False)
-        today_unrealized_usd = float(port_ov.get("unrealized_pnl", 0.0))
+    if is_current_month and mode_clean in ("PAPER", "ALL", "LIVE"):
+        try:
+            port_ov = portfolio.get_overview(db, refresh_live_prices=False, mode=mode_clean)
+            today_unrealized_usd = float(port_ov.get("unrealized_pnl", 0.0))
+        except Exception:
+            pass
 
     for day_num in range(1, num_days + 1):
         d_obj = date(y, m, day_num)
         d_str = d_obj.strftime("%Y-%m-%d")
         day_trades = trades_by_date.get(d_str, [])
-        day_pnl = sum(t["pnl_usd"] for t in day_trades)
-        day_volume = sum(t["total_usd"] for t in day_trades)
-        day_fees = sum(t["total_fee_usd"] for t in day_trades)
-        w_trades = sum(1 for t in day_trades if t["pnl_usd"] > 0)
-        l_trades = sum(1 for t in day_trades if t["pnl_usd"] < 0)
-        buy_trades = sum(1 for t in day_trades if str(t.get("side", "")).lower() == "buy")
-        sell_trades = sum(1 for t in day_trades if str(t.get("side", "")).lower() == "sell")
-        closed_wl = w_trades + l_trades
-        day_wr_pct = round((w_trades / closed_wl * 100.0), 1) if closed_wl > 0 else (
-            round((w_trades / len(day_trades) * 100.0), 1) if len(day_trades) > 0 else 0.0
-        )
 
-        # Include floating PnL on today's cell if viewing current day
-        floating_included = False
-        display_pnl = day_pnl
-        if d_str == today_str and len(day_trades) == 0 and today_unrealized_usd != 0.0:
-            display_pnl = today_unrealized_usd
-            floating_included = True
+        # Strict separation: Realized PnL & Win/Loss only from closed exit (SELL) trades
+        sell_trades_list = [t for t in day_trades if str(t.get("side", "")).lower() == "sell" or t.get("pnl_usd", 0) != 0]
+        buy_trades_list = [t for t in day_trades if str(t.get("side", "")).lower() == "buy" and t.get("pnl_usd", 0) == 0]
 
-        month_total_pnl_usd += day_pnl
+        day_realized_pnl = round(sum(t["pnl_usd"] for t in sell_trades_list), 4)
+        day_volume = round(sum(t["total_usd"] for t in day_trades), 4)
+        day_fees = round(sum(t["total_fee_usd"] for t in day_trades), 6)
+
+        w_trades = sum(1 for t in sell_trades_list if t["pnl_usd"] > 0.0001)
+        l_trades = sum(1 for t in sell_trades_list if t["pnl_usd"] < -0.0001)
+        be_trades = len(sell_trades_list) - w_trades - l_trades
+        closed_positions_count = len(sell_trades_list)
+
+        day_wr_pct = round((w_trades / closed_positions_count * 100.0), 1) if closed_positions_count > 0 else None
+
+        month_total_pnl_usd += day_realized_pnl
         month_total_volume_usd += day_volume
         month_total_fees_usd += day_fees
-        month_trade_count += len(day_trades)
+        month_closed_positions += closed_positions_count
+        month_buy_orders += len(buy_trades_list)
+        month_sell_orders += len(sell_trades_list)
         total_winning_trades += w_trades
         total_losing_trades += l_trades
+        total_breakeven_trades += be_trades
 
         # Rule 1 (Zero Dummy Data): win/loss days, best/worst day & winrate are computed strictly
-        # from CLOSED trades. Floating (unrealized) PnL is only shown on today's cell, never counted.
-        if len(day_trades) > 0:
-            if day_pnl > 0.0001:
+        # from CLOSED SELL trades. Realized PnL is never corrupted by floating mark-to-market.
+        if closed_positions_count > 0:
+            if day_realized_pnl > 0.0001:
                 winning_days += 1
-            elif day_pnl < -0.0001:
+            elif day_realized_pnl < -0.0001:
                 losing_days += 1
             else:
                 break_even_days += 1
 
-            if best_day is None or day_pnl > best_day["pnl_usd"]:
+            if best_day is None or day_realized_pnl > best_day["pnl_usd"]:
                 best_day = {
                     "date": d_str,
                     "day_number": day_num,
-                    "pnl_usd": round(day_pnl, 4),
-                    "pnl_idr": round(day_pnl * usd_idr, 0),
-                    "trades": len(day_trades),
+                    "pnl_usd": round(day_realized_pnl, 4),
+                    "pnl_idr": round(day_realized_pnl * usd_idr, 0),
+                    "trades": closed_positions_count,
                 }
-            if worst_day is None or day_pnl < worst_day["pnl_usd"]:
+            if worst_day is None or day_realized_pnl < worst_day["pnl_usd"]:
                 worst_day = {
                     "date": d_str,
                     "day_number": day_num,
-                    "pnl_usd": round(day_pnl, 4),
-                    "pnl_idr": round(day_pnl * usd_idr, 0),
-                    "trades": len(day_trades),
+                    "pnl_usd": round(day_realized_pnl, 4),
+                    "pnl_idr": round(day_realized_pnl * usd_idr, 0),
+                    "trades": closed_positions_count,
                 }
+
+        is_today = (d_str == today_str)
+        has_floating = is_today and abs(today_unrealized_usd) > 0.0001
 
         days_list.append({
             "date": d_str,
             "day_number": day_num,
             "weekday": d_obj.weekday(),  # 0=Monday, 6=Sunday
             "weekday_name": ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"][d_obj.weekday()],
-            "is_today": d_str == today_str,
-            "total_pnl_usd": round(display_pnl, 4),
-            "total_pnl_idr": round(display_pnl * usd_idr, 0),
-            "realized_pnl_usd": round(day_pnl, 4),
-            "realized_pnl_idr": round(day_pnl * usd_idr, 0),
-            "floating_pnl_usd": round(today_unrealized_usd if d_str == today_str else 0.0, 4),
-            "floating_included": floating_included,
-            "trades_count": len(day_trades),
+            "is_today": is_today,
+            "total_pnl_usd": round(day_realized_pnl, 4),
+            "total_pnl_idr": round(day_realized_pnl * usd_idr, 0),
+            "realized_pnl_usd": round(day_realized_pnl, 4),
+            "realized_pnl_idr": round(day_realized_pnl * usd_idr, 0),
+            "floating_pnl_usd": round(today_unrealized_usd if is_today else 0.0, 4),
+            "floating_pnl_idr": round(today_unrealized_usd * usd_idr if is_today else 0.0, 0),
+            "has_floating": has_floating,
+            "trades_count": closed_positions_count,
+            "total_orders_count": len(day_trades),
             "winning_trades": w_trades,
             "losing_trades": l_trades,
-            "buy_trades": buy_trades,
-            "sell_trades": sell_trades,
+            "breakeven_trades": be_trades,
+            "buy_trades": len(buy_trades_list),
+            "sell_trades": len(sell_trades_list),
             "win_rate_pct": day_wr_pct,
             "volume_usd": round(day_volume, 4),
             "volume_idr": round(day_volume * usd_idr, 0),
@@ -397,17 +414,60 @@ def get_daily_calendar(
 
     active_days_count = winning_days + losing_days + break_even_days
     day_win_rate = (winning_days / active_days_count * 100.0) if active_days_count > 0 else None
-    total_wl_trades = total_winning_trades + total_losing_trades
     trade_win_rate = (
-        (total_winning_trades / total_wl_trades * 100.0)
-        if total_wl_trades > 0
-        else ((total_winning_trades / month_trade_count * 100.0) if month_trade_count > 0 else None)
+        (total_winning_trades / month_closed_positions * 100.0)
+        if month_closed_positions > 0
+        else None
     )
 
     month_names_id = [
         "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
         "Juli", "Agustus", "September", "Oktober", "November", "Desember"
     ]
+
+    # Find latest active month if current selected month has 0 closed positions
+    latest_active_month = None
+    if month_closed_positions == 0:
+        latest_trade = (
+            db.execute(
+                select(Trade.closed_at)
+                .where(
+                    Trade.status == "closed",
+                    Trade.mode == mode_clean if mode_clean in ("PAPER", "LIVE", "WALLET") else True,
+                    Trade.side == "sell",
+                )
+                .order_by(Trade.closed_at.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+        if latest_trade:
+            if latest_trade.tzinfo is None:
+                latest_trade = latest_trade.replace(tzinfo=timezone.utc)
+            lt_wib = latest_trade.astimezone(wib_tz)
+            if lt_wib.year != y or lt_wib.month != m:
+                # Count trades in that latest month
+                lt_m_start = datetime(lt_wib.year, lt_wib.month, 1, tzinfo=wib_tz)
+                _, lt_m_days = calendar.monthrange(lt_wib.year, lt_wib.month)
+                lt_m_end = datetime(lt_wib.year, lt_wib.month, lt_m_days, 23, 59, 59, tzinfo=wib_tz)
+                lt_trades_count = db.execute(
+                    select(func.count(Trade.id)).where(
+                        Trade.status == "closed",
+                        Trade.mode == mode_clean if mode_clean in ("PAPER", "LIVE", "WALLET") else True,
+                        Trade.side == "sell",
+                        Trade.closed_at >= lt_m_start,
+                        Trade.closed_at <= lt_m_end,
+                    )
+                ).scalar() or 0
+                latest_active_month = {
+                    "year": lt_wib.year,
+                    "month": lt_wib.month,
+                    "month_label": f"{month_names_id[lt_wib.month]} {lt_wib.year}",
+                    "trades": int(lt_trades_count),
+                }
+
+    net_month_pnl_usd = month_total_pnl_usd + (today_unrealized_usd if is_current_month else 0.0)
 
     return {
         "usd_idr": usd_idr,
@@ -420,16 +480,25 @@ def get_daily_calendar(
             "chain": "Solana",
             "name": active_sol_name,
         },
+        "latest_active_month": latest_active_month,
         "summary": {
             "total_pnl_usd": round(month_total_pnl_usd, 4),
             "total_pnl_idr": round(month_total_pnl_usd * usd_idr, 0),
+            "unrealized_pnl_usd": round(today_unrealized_usd, 4) if is_current_month else 0.0,
+            "unrealized_pnl_idr": round(today_unrealized_usd * usd_idr, 0) if is_current_month else 0,
+            "net_total_pnl_usd": round(net_month_pnl_usd, 4),
+            "net_total_pnl_idr": round(net_month_pnl_usd * usd_idr, 0),
             "total_volume_usd": round(month_total_volume_usd, 4),
             "total_volume_idr": round(month_total_volume_usd * usd_idr, 0),
             "total_fees_usd": round(month_total_fees_usd, 6),
             "total_fees_idr": round(month_total_fees_usd * usd_idr, 0),
-            "total_trades": month_trade_count,
+            "total_trades": month_closed_positions,
             "total_winning_trades": total_winning_trades,
             "total_losing_trades": total_losing_trades,
+            "total_breakeven_trades": total_breakeven_trades,
+            "total_buy_orders": month_buy_orders,
+            "total_sell_orders": month_sell_orders,
+            "total_orders": month_buy_orders + month_sell_orders,
             "trade_win_rate_pct": round(trade_win_rate, 2) if trade_win_rate is not None else None,
             "winning_days": winning_days,
             "losing_days": losing_days,
