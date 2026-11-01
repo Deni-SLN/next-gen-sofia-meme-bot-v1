@@ -47,20 +47,25 @@ class PartialExitManager:
         clean_sym = symbol.strip()
         trade_mode = mode.upper()
 
-        # 1. Balance reconciliation: locate holding
-        q = select(PortfolioHolding).where(
+        # 1. Balance reconciliation: locate holding without binding persistent ORM entity to session
+        q = select(
+            PortfolioHolding.quantity,
+            PortfolioHolding.avg_entry_price,
+            PortfolioHolding.current_price,
+        ).where(
             or_(
                 PortfolioHolding.symbol == clean_sym,
                 func.upper(PortfolioHolding.symbol) == clean_sym.upper(),
             ),
             PortfolioHolding.mode == trade_mode,
         )
-        holding = db.execute(q).scalars().first()
-        if not holding or float(holding.quantity or 0.0) <= 0:
+        row = db.execute(q).first()
+        if not row or float(row[0] or 0.0) <= 0:
             raise ValueError(f"Posisi {clean_sym} ({trade_mode}) tidak ditemukan di portofolio atau saldo 0.")
 
-        initial_qty = float(holding.quantity)
-        entry_price = float(holding.avg_entry_price or 0.0)
+        initial_qty = float(row[0])
+        entry_price = float(row[1] or 0.0)
+        curr_price = float(row[2] or entry_price)
 
         # Sanitize sell percentage
         pct = max(1.0, min(100.0, float(sell_pct)))
@@ -68,9 +73,9 @@ class PartialExitManager:
         # 2. Retrieve excursion metrics (MFE / MAE)
         highest_obs, lowest_obs, trailing_stop, be_active = adaptive_profit_manager.get_position_tracking(clean_sym)
         if highest_obs <= 0:
-            highest_obs = max(entry_price, float(holding.current_price or entry_price))
+            highest_obs = max(entry_price, curr_price)
         if lowest_obs <= 0:
-            lowest_obs = min(entry_price, float(holding.current_price or entry_price))
+            lowest_obs = min(entry_price, curr_price)
 
         mfe_pct = max(0.0, ((highest_obs - entry_price) / entry_price) * 100.0) if entry_price > 0 else 0.0
         mae_pct = min(0.0, ((lowest_obs - entry_price) / entry_price) * 100.0) if entry_price > 0 else 0.0
