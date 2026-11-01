@@ -28,6 +28,11 @@ class CopyToggleRequest(BaseModel):
     max_copy_usd: float | None = None
 
 
+class DismissCaRequest(BaseModel):
+    contract: str = ""
+    symbol: str = ""
+
+
 @router.get("/fx")
 def get_fx():
     return market.get_fx_rate()
@@ -36,6 +41,21 @@ def get_fx():
 @router.get("/pulse")
 def get_pulse():
     return memecoins.get_pulse_feed()
+
+
+@router.post("/dismiss-ca")
+def dismiss_ca(body: DismissCaRequest):
+    return market.dismiss_copied_ca(body.contract, body.symbol)
+
+
+@router.post("/reset-dismissed-cas")
+def reset_dismissed_cas():
+    return market.reset_dismissed_cas()
+
+
+@router.get("/dismissed-cas")
+def list_dismissed_cas():
+    return {"dismissed": market.get_dismissed_cas()}
 
 
 @router.get("/lookup")

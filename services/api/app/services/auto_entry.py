@@ -257,9 +257,15 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
         score = int(c.get("safety_score", 0))
         if sym in entered_symbols or ca in entered_contracts:
             continue
+        if market.is_dismissed_ca(ca, sym):
+            continue
         if score < min_score:
             continue
-        if market.is_legacy_token(sym) or c.get("is_charity") or market.is_charity_token(sym, c.get("name")):
+        if (
+            market.is_legacy_token(sym)
+            or c.get("is_charity")
+            or market.is_charity_token(sym, c.get("name"), website_url=c.get("website_url", ""), contract=ca)
+        ):
             continue
         if c.get("honeypot") is True:
             continue
@@ -555,7 +561,15 @@ def get_scanned_memecoins(
         if not market.is_genuine_coin(t):
             continue
 
-        if market.is_legacy_token(sym) or t.get("is_charity") or market.is_charity_token(sym, t.get("name")):
+        # Jangan tampilkan koin yang sudah pernah di-copy CA-nya
+        if market.is_dismissed_ca(ca, sym):
+            continue
+
+        if (
+            market.is_legacy_token(sym)
+            or t.get("is_charity")
+            or market.is_charity_token(sym, t.get("name"), website_url=t.get("website_url", ""), contract=ca)
+        ):
             continue
 
         profit_meta = compute_profit_potential(t)
@@ -683,7 +697,7 @@ def execute_single_token_auto_entry(
         token_name = name or token_symbol
 
         # Strict block on charity / donation / mayhem tokens
-        if market.is_charity_token(token_symbol, token_name):
+        if market.is_charity_token(token_symbol, token_name, contract=contract):
             _append_log("BLOCKED", token_symbol, "Auto Entry ditolak: Koin amal / charity / mayhem dilarang oleh filter kebijakan Sofia Trade.", "danger")
             _save_persisted_state()
             return {

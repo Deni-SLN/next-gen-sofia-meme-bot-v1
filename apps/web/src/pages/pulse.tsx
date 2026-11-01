@@ -29,6 +29,31 @@ export default function PulsePage() {
   const [isLookingUpCa, setIsLookingUpCa] = useState<boolean>(false);
   const [copiedAddresses, setCopiedAddresses] = useState<string[]>([]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('sofia_copied_wallets');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setCopiedAddresses(parsed);
+        }
+      } catch {}
+      api.getDismissedCas()
+        .then((res) => {
+          if (res?.dismissed?.length) {
+            setCopiedAddresses((prev) => {
+              const merged = Array.from(new Set([...prev, ...res.dismissed.map((x) => String(x).toLowerCase())]));
+              try {
+                localStorage.setItem('sofia_copied_wallets', JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
   const copiedSet = useMemo(() => new Set(copiedAddresses.map((a) => a.toLowerCase())), [copiedAddresses]);
 
   const handleResetCopied = () => {
@@ -38,6 +63,9 @@ export default function PulsePage() {
         localStorage.removeItem('sofia_copied_wallets');
       } catch {}
     }
+    api.resetDismissedCas()
+      .then(() => refetchPulse())
+      .catch(() => {});
   };
 
   // 1-Klik Auto Entry $1.00 USD langsung dari kartu Pulse Radar
@@ -102,8 +130,8 @@ export default function PulsePage() {
     return () => clearInterval(timer);
   }, [autoScan, refetchPulse]);
 
-  // Handle copy text (salin alamat CA murni Base58 ke clipboard tanpa menyembunyikan kartu)
-  const handleCopyText = (text: string, key: string, _tokenData?: any) => {
+  // Handle copy text (salin alamat CA murni Base58 ke clipboard & langsung sembunyikan koin agar tidak ditampilkan lagi)
+  const handleCopyText = (text: string, key: string, tokenData?: any) => {
     const cleanCa = String(text || '').trim();
     if (!cleanCa) return;
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -111,6 +139,33 @@ export default function PulsePage() {
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2500);
     }
+
+    const toHide: string[] = [cleanCa.toLowerCase()];
+    if (tokenData?.contract) toHide.push(String(tokenData.contract).trim().toLowerCase());
+    if (tokenData?.symbol) {
+      const symL = String(tokenData.symbol).trim().toLowerCase();
+      toHide.push(symL);
+      toHide.push(symL.split('/')[0].trim());
+    }
+    if (tokenData?.creator_address) toHide.push(String(tokenData.creator_address).trim().toLowerCase());
+
+    setCopiedAddresses((prev) => {
+      const next = Array.from(new Set([...prev.map((x) => x.toLowerCase()), ...toHide.filter(Boolean)]));
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('sofia_copied_wallets', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+
+    api.dismissCopiedCa(tokenData?.contract || cleanCa, tokenData?.symbol || '').catch(() => {});
+
+    setEntryNotice({
+      type: 'ok',
+      text: `📋 CA ${tokenData?.symbol || cleanCa.slice(0, 8)} berhasil disalin ke clipboard & disembunyikan dari radar!`,
+    });
+    setTimeout(() => setEntryNotice(null), 3500);
   };
 
   // Live lookup ketika pengguna mem-paste CA atau URL Pump.fun di kotak pencarian
@@ -155,16 +210,37 @@ export default function PulsePage() {
 
   const usdIdr = pulseQuery.data?.fx?.usd_idr || 16500;
 
-  // Anti-Charity, Donasi & Mayhem token detection filter
-  const isExcludedTokenClient = (sym?: string, name?: string): boolean => {
+  // Anti-Charity, Donasi, Awareness & Mayhem token detection filter
+  const isExcludedTokenClient = (sym?: string, name?: string, websiteUrl?: string, contract?: string): boolean => {
     const s = String(sym || '').toLowerCase();
     const n = String(name || '').toLowerCase();
-    const cleanSym = s.split('/')[0].trim();
+    const w = String(websiteUrl || '').toLowerCase();
+    const c = String(contract || '').toLowerCase();
+    const cleanSym = s.split('/')[0].replace(/^\$/, '').trim();
 
-    for (const prefix of ['charity', 'donate', 'donation', 'giveback', 'savethe', 'yayasan', 'nonprofit', 'mayhem', 'donasi']) {
+    const blacklistedCas = new Set([
+      'cseycgmdcad7voh2cgtpbyq4jyh9sldsekux8g2opump',
+      '42njgy25velgphpdw3qhz6tajcrgvvjhfhyvvvfepump',
+      '42njgy25velgphpdw3qhz6tajcrgvvjhfhytvvfepump',
+      'a5dnsptfybyeugkxw4pgkehzslli1fn9td58oy8wpump',
+      'a7bhlacmqnc2lgb7bxt77sttbdbm1tyxbphb58epump',
+      'a7bhlacmqnc2lgb7bxt77sttbbdm1tyxvbphb58epump',
+      'gfrpypkdkepzmmykudjcztmskqnqmpbn39uewojppump',
+      'cpogsmcjprcvza2mfyljmpqkgjmgvzkg4rvwmdrzpump',
+      '3krqdkpgqmwwbdgjivpppqvzfsnyg5pdqvrvz1d2pump',
+    ]);
+    if (c && blacklistedCas.has(c)) return true;
+
+    for (const prefix of [
+      'charity', 'donate', 'donation', 'giveback', 'savethe', 'yayasan',
+      'nonprofit', 'mayhem', 'donasi', 'movember', 'mobros', 'cancer',
+      'autism', 'awareness', 'fundrais', 'bluepepe', 'relief', 'tipr',
+    ]) {
       if (cleanSym.includes(prefix)) return true;
     }
-    const excludedPattern = /\b(charity|charities|donate|donates|donation|donations|donating|giveback|foundation|nonprofit|non-profit|ngo|philanthropy|philanthropic|humanitarian|unicef|yayasan|donasi|sedekah|zakat|orphan|orphanage|animalrescue|disaster relief|mayhem|mayhems)\b/i;
+    if (/https?:\/\/(?:[a-z0-9-]+\.)*[a-z0-9-]+\.org(?:\/|\b)/i.test(w)) return true;
+
+    const excludedPattern = /\b(charity|charities|donate|donates|donation|donations|donating|giveback|foundation|nonprofit|non-profit|ngo|philanthropy|philanthropic|humanitarian|unicef|redcross|red cross|yayasan|donasi|sedekah|zakat|orphan|orphanage|animalrescue|disaster relief|mayhem|mayhems|movember|mobros|mo bros|noshave|cancer|pancreatic|leukemia|lymphoma|tumor|oncology|chemo|prostate|autism|alzheimer|parkinson|dementia|diabetes|stjude|st jude|makeawish|make a wish|hospice|awareness|fundraiser|fundraising|gofundme|givebutter|justgiving|bluepepe|purple coin|white coin|blue coin|pink coin|black coin|orange coin|silver coin|ribbon coin|tipr)\b/i;
     return excludedPattern.test(s) || excludedPattern.test(n);
   };
 
@@ -199,14 +275,18 @@ export default function PulsePage() {
       // Harga harus bernilai positif
       if (Number(t.price || 0) <= 0) return false;
 
-      // 1. Sembunyikan jika kontrak atau wallet creator sudah pernah disalin
+      // 1. Sembunyikan jika kontrak, simbol, atau wallet creator sudah pernah disalin
       const contractLower = ca.toLowerCase();
+      const symLower = sym.toLowerCase();
+      const baseSymLower = baseSym.toLowerCase();
       const creatorLower = String(t.creator_address || '').trim().toLowerCase();
       if (contractLower && copiedSet.has(contractLower)) return false;
+      if (symLower && copiedSet.has(symLower)) return false;
+      if (baseSymLower && copiedSet.has(baseSymLower)) return false;
       if (creatorLower && copiedSet.has(creatorLower)) return false;
 
-      // 2. Blokir ketat koin amal, donasi, dan mayhem
-      if (t.is_charity || isExcludedTokenClient(t.symbol, t.name)) return false;
+      // 2. Blokir ketat koin amal, donasi, awareness, dan mayhem
+      if (t.is_charity || isExcludedTokenClient(t.symbol, t.name, t.website_url, t.contract)) return false;
 
       // Jika pengguna sedang mencari spesifik dengan kata kunci / CA / URL Pump.fun, prioritaskan kecocokan langsung
       if (searchQuery.trim()) {

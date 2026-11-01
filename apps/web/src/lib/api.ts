@@ -502,6 +502,17 @@ export const api = {
   getFx: () => request<{ usd_idr: number; source: string; updated_at: string }>('/memecoins/fx'),
   getPulse: () => request<any>('/memecoins/pulse'),
   lookupMemeToken: (q: string) => request<any>(`/memecoins/lookup?q=${encodeURIComponent(q)}`, { timeoutMs: 15000 }),
+  dismissCopiedCa: (contract: string, symbol?: string) =>
+    request<{ dismissed_count: number }>('/memecoins/dismiss-ca', {
+      method: 'POST',
+      body: JSON.stringify({ contract, symbol: symbol || '' }),
+    }),
+  resetDismissedCas: () =>
+    request<{ dismissed_count: number }>('/memecoins/reset-dismissed-cas', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  getDismissedCas: () => request<{ dismissed: string[] }>('/memecoins/dismissed-cas'),
   // Deep on-chain audit (DexScreener + RugCheck report + cluster graph) can take 10–20s
   rugCheck: (q: string) => request<any>(`/memecoins/rugcheck?q=${encodeURIComponent(q)}`, { timeoutMs: 35000 }),
   snipeToken: (data: {

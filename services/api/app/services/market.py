@@ -5,6 +5,7 @@ import time
 import urllib.request
 import urllib.parse
 from datetime import datetime, timezone
+from pathlib import Path
 
 _FX_CACHE = {
     "usd_idr": 16500.0,
@@ -20,6 +21,95 @@ _PULSE_CACHE = {
 _PRICE_CACHE: dict[str, tuple[dict, float]] = {}
 _CONTRACT_REGISTRY: dict[str, str] = {}
 _PINNED_HOLDING_CONTRACTS: dict[str, str] = {}
+_TOKEN_DESCRIPTIONS: dict[str, str] = {}
+
+# Persistent store of copied / dismissed CAs so copied coins are NEVER shown again
+_DISMISSED_CAS_FILE = Path(__file__).resolve().parent.parent.parent / "dismissed_copied_cas.json"
+_DISMISSED_CAS: set[str] = set()
+_DISMISSED_LOADED: bool = False
+
+
+def _load_dismissed_cas() -> None:
+    global _DISMISSED_CAS, _DISMISSED_LOADED
+    if _DISMISSED_LOADED:
+        return
+    _DISMISSED_LOADED = True
+    try:
+        if _DISMISSED_CAS_FILE.exists():
+            raw = json.loads(_DISMISSED_CAS_FILE.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                _DISMISSED_CAS = {str(x).strip().lower() for x in raw if str(x).strip()}
+    except Exception:
+        _DISMISSED_CAS = set()
+
+
+def _save_dismissed_cas() -> None:
+    try:
+        _DISMISSED_CAS_FILE.write_text(
+            json.dumps(sorted(_DISMISSED_CAS), indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def dismiss_copied_ca(contract: str = "", symbol: str = "") -> dict:
+    """Permanently hide a copied CA/coin from Trenches & Pulse and Auto-Entry Scanner feeds."""
+    global _RADAR_POOL_PERSISTENT
+    _load_dismissed_cas()
+    ca_clean = str(contract or "").strip().lower()
+    sym_clean = str(symbol or "").strip().lower()
+    base_sym = sym_clean.split("/")[0].strip()
+    if ca_clean and len(ca_clean) >= 6:
+        _DISMISSED_CAS.add(ca_clean)
+    if sym_clean:
+        _DISMISSED_CAS.add(sym_clean)
+    if base_sym and len(base_sym) >= 2:
+        _DISMISSED_CAS.add(base_sym)
+    _save_dismissed_cas()
+
+    # Immediately purge from persistent radar pool and invalidate pulse cache
+    if _RADAR_POOL_PERSISTENT:
+        _RADAR_POOL_PERSISTENT = [
+            t for t in _RADAR_POOL_PERSISTENT
+            if not is_dismissed_ca(t.get("contract") or "", t.get("symbol") or t.get("base_symbol") or "")
+        ]
+    _PULSE_CACHE["data"] = None
+    _PULSE_CACHE["updated_at"] = 0.0
+    return {"dismissed_count": len(_DISMISSED_CAS), "contract": contract, "symbol": symbol}
+
+
+def reset_dismissed_cas() -> dict:
+    """Clear all dismissed/copied CAs so they can appear again if the user resets."""
+    global _DISMISSED_CAS
+    _load_dismissed_cas()
+    _DISMISSED_CAS.clear()
+    _save_dismissed_cas()
+    _PULSE_CACHE["data"] = None
+    _PULSE_CACHE["updated_at"] = 0.0
+    return {"dismissed_count": 0}
+
+
+def get_dismissed_cas() -> list[str]:
+    _load_dismissed_cas()
+    return sorted(_DISMISSED_CAS)
+
+
+def is_dismissed_ca(contract: str = "", symbol: str = "") -> bool:
+    """Return True if the user has already copied/dismissed this coin."""
+    _load_dismissed_cas()
+    if not _DISMISSED_CAS:
+        return False
+    ca_l = str(contract or "").strip().lower()
+    if ca_l and ca_l in _DISMISSED_CAS:
+        return True
+    sym_l = str(symbol or "").strip().lower()
+    if sym_l and sym_l in _DISMISSED_CAS:
+        return True
+    base_l = sym_l.split("/")[0].strip()
+    if base_l and base_l in _DISMISSED_CAS:
+        return True
+    return False
 
 VALID_QUOTE_SYMBOLS: set[str] = {
     "SOL", "WSOL", "USDC", "USDT", "USD", "USD1", "WETH", "ETH",
@@ -215,9 +305,23 @@ def is_legacy_token(symbol_or_base: str) -> bool:
     return clean in LEGACY_ESTABLISHED_TOKENS
 
 
-# ── STRICT CHARITY, DONATION & MAYHEM TOKEN FILTER ──────────────────
-# Prohibit all charity, donation, nonprofit, and mayhem tokens
-# from Pulse/Trenches Radar feeds and Auto Entry execution.
+# ── STRICT CHARITY, DONATION, AWARENESS & FEE-ROUTING TOKEN FILTER ──
+# Prohibit all charity, donation, nonprofit, awareness, medical fundraiser,
+# fee-diversion, and mayhem tokens from Pulse/Trenches Radar feeds and Auto Entry.
+_CHARITY_BLACKLIST_CAS: set[str] = {
+    "cseycgmdcad7voh2cgtpbyq4jyh9sldsekux8g2opump",  # White Coin (Lung Cancer Awareness)
+    "42njgy25velgphpdw3qhz6tajcrgvvjhfhyvvvfepump",  # BLUEPEPE (Movember charity fees)
+    "42njgy25velgphpdw3qhz6tajcrgvvjhfhytvvfepump",  # BLUEPEPE (Movember charity fees)
+    "a5dnsptfybyeugkxw4pgkehzslli1fn9td58oy8wpump",  # MOVEMBER
+    "a7bhlacmqnc2lgb7bxt77sttbdbm1tyxbphb58epump",   # MOBROS (Mo Bros)
+    "a7bhlacmqnc2lgb7bxt77sttbbdm1tyxvbphb58epump",  # MOBROS (Mo Bros)
+    "gfrpypkdkepzmmykudjcztmskqnqmpbn39uewojppump",  # PURPLE COIN (pancreatic.org)
+    "cpogsmcjprcva2mfyljmpqkgjmgvzkg4rvwmdrzpump",   # BLUE COIN (Prostate/Men's Health Awareness)
+    "cpogsmcjprcva2mfyljmpqkgjmgvzkg4rvwmdrzpump",
+    "cpogsmcjprcvza2mfyljmpqkgjmgvzkg4rvwmdrzpump",  # BLUE COIN
+    "3krqdkpgqmwwbdgjivpppqvzfsnyg5pdqvrvz1d2pump",  # tipr (fee routing / tips)
+}
+
 CHARITY_KEYWORDS = {
     "CHARITY", "CHARITIES", "DONATE", "DONATION", "DONATIONS", "DONATING",
     "GIVEBACK", "FOUNDATION", "NONPROFIT", "NGO", "PHILANTHROPY",
@@ -226,47 +330,83 @@ CHARITY_KEYWORDS = {
     "ANIMALRESCUE", "SAVETHEKIDS", "SAVETHECHILDREN", "SAVECHILDREN",
     "SAVETHEOCEAN", "SAVEDOGS", "SAVECATS", "SAVETHEEARTH", "SAVETHEPLANET",
     "SAVEPLANET", "SAVEEARTH", "HUNGERRELIEF", "CLEANWATER", "RELIEF",
-    "MAYHEM", "MAYHEMS",
+    "MAYHEM", "MAYHEMS", "MOVEMBER", "MOBROS", "NOSHAVE", "CANCER",
+    "PANCREATIC", "LEUKEMIA", "LYMPHOMA", "TUMOR", "ONCOLOGY", "CHEMO",
+    "AUTISM", "ALZHEIMER", "PARKINSON", "DEMENTIA", "DIABETES", "STJUDE",
+    "MAKEAWISH", "HOSPICE", "AWARENESS", "FUNDRAISER", "FUNDRAISING",
+    "GOFUNDME", "GIVEBUTTER", "JUSTGIVING", "PLEDGE", "SANCTUARY",
+    "ASPCA", "SPCA", "PETA", "WWF", "GREENPEACE", "FOODBANK", "REFUGEE",
+    "BLUEPEPE", "TIPR",
 }
 
 _CHARITY_PATTERNS = [
-    r"\bCHARIT(Y|IES)\b",
-    r"\bDONAT(E|ES|ED|ING|ION|IONS)\b",
-    r"\bGIVEBACK\b",
-    r"\bFOUNDATION\b",
-    r"\bNON[- ]?PROFIT\b",
-    r"\bNGO\b",
-    r"\bPHILANTHROP(Y|IC)\b",
+    r"\bCHARIT(Y|IES|ABLE)\b",
+    r"\bDONAT(E|ES|ED|ING|ION|IONS|OR|ORS)\b",
+    r"\bGIVE[-_ ]?BACK\b",
+    r"\bFOUNDATION(S)?\b",
+    r"\bNON[-_ ]?PROFIT(S)?\b",
+    r"\bNGO(S)?\b",
+    r"\bPHILANTHROP(Y|IC|IST)\b",
     r"\bHUMANITARIAN\b",
-    r"\bORPHAN(AGE)?\b",
+    r"\bORPHAN(AGE|S)?\b",
     r"\bSAVETHE[A-Z0-9]*\b",
-    r"\bSAVE[-_ ]?(THE)?[-_ ]?(KIDS|CHILDREN|DOGS|CATS|ANIMALS|OCEAN|EARTH|PLANET|WORLD)\b",
-    r"\bANIMAL[-_ ]?RESCUE\b",
-    r"\bFEED[-_ ]?(THE)?[-_ ]?(POOR|HUNGRY|CHILDREN|KIDS|WORLD)\b",
-    r"\b(YAYASAN|DONASI|SEDEKAH|ZAKAT)\b",
-    r"\b(AID|DISASTER)[-_ ]?RELIEF\b",
-    r"\bCLEAN[-_ ]?WATER\b",
+    r"\bSAVE[-_ ]?(THE)?[-_ ]?(KIDS|CHILDREN|DOGS|CATS|ANIMALS|OCEAN|EARTH|PLANET|WORLD|WHALES|TREES|FOREST)\b",
+    r"\b(ANIMAL|DOG|CAT|WILDLIFE|PET)[-_ ]?(RESCUE|SHELTER|SANCTUARY|RELIEF)\b",
+    r"\bFEED[-_ ]?(THE)?[-_ ]?(POOR|HUNGRY|CHILDREN|KIDS|WORLD|HOMELESS)\b",
+    r"\b(YAYASAN|DONASI|SEDEKAH|ZAKAT|INFAQ|WAKAF)\b",
+    r"\b(AID|DISASTER|HUNGER|MEDICAL|FAMINE|WAR)[-_ ]?RELIEF\b",
+    r"\bCLEAN[-_ ]?(WATER|OCEAN|EARTH)\b",
     r"\bMAYHEM(S)?\b",
+    r"\b(MOVEMBER|MOBROS|MO[-_ ]?BROS|NO[-_ ]?SHAVE)\b",
+    r"\b(CANCER|PANCREATIC|LEUKEMIA|LYMPHOMA|TUMOR|ONCOLOGY|CHEMO|BREAST[-_ ]?CANCER|LUNG[-_ ]?CANCER|PROSTATE)\b",
+    r"\b(AUTISM|ALZHEIMER|PARKINSON|DEMENTIA|DIABETES|EPILEPSY|DOWN[-_ ]?SYNDROME|MENTAL[-_ ]?HEALTH|MENS[-_ ]?HEALTH|MEN'S[-_ ]?HEALTH)\b",
+    r"\b(ST[-_ .]?JUDE|MAKE[-_ ]?A[-_ ]?WISH|RED[-_ ]?CROSS|UNICEF|WWF|GREENPEACE|ASPCA|SPCA|PETA|WHO)\b",
+    r"\b(AWARENESS|FUNDRAIS(ER|ING|E)|GOFUNDME|GIVEBUTTER|JUSTGIVING|CROWDFUND(ING)?)\b",
+    r"\b(FEES[-_ ]?GO[-_ ]?TO|CREATOR[-_ ]?FEES[-_ ]?GO|100%[-_ ]?OF[-_ ]?FEES|50%[-_ ]?OF[-_ ]?(ALL[-_ ]?)?(CREATOR[-_ ]?)?FEES|FEES[-_ ]?DONATED|PROCEEDS[-_ ]?GO|FEES[-_ ]?INTO[-_ ]?TIPS|ROUTE[-_ ]?FEES)\b",
+    r"\b(PURPLE|WHITE|BLUE|PINK|YELLOW|GREEN|RED|GOLD|BLACK|ORANGE|SILVER|RIBBON)[-_ ]?COIN\b",
+    r"\b(PRAY[-_ ]?FOR|STAND[-_ ]?WITH|JUSTICE[-_ ]?FOR|FREE[-_ ]?PALESTINE|FREE[-_ ]?GAZA|HELP[-_ ]?THE)\b",
+    r"https?://(?:[a-z0-9-]+\.)*[a-z0-9-]+\.org(?:/|\b)",
 ]
 
 _CHARITY_REGEX = re.compile("|".join(_CHARITY_PATTERNS), re.IGNORECASE)
 
 
-def is_charity_token(symbol_or_base: str = "", name: str = "", description: str = "") -> bool:
+def is_charity_token(
+    symbol_or_base: str = "",
+    name: str = "",
+    description: str = "",
+    website_url: str = "",
+    contract: str = "",
+) -> bool:
     """
-    Return True if the token appears to be a charity, donation, philanthropy, or mayhem token.
+    Return True if the token appears to be a charity, donation, medical awareness, fee-donation, or mayhem token.
     Such tokens are strictly prohibited from radar feeds and auto-entry due to extreme scam/dump risk.
     """
+    ca_clean = (contract or "").strip()
+    if ca_clean:
+        if ca_clean.lower() in _CHARITY_BLACKLIST_CAS:
+            return True
+        if not description:
+            description = _TOKEN_DESCRIPTIONS.get(ca_clean, "") or _TOKEN_DESCRIPTIONS.get(ca_clean.lower(), "")
+
     sym = (symbol_or_base or "").strip().upper()
     nm = (name or "").strip().upper()
     desc = (description or "").strip().upper()
-    full_text = f"{sym} {nm} {desc}".strip()
+    web = (website_url or "").strip().lower()
+    full_text = f"{sym} {nm} {desc} {web}".strip()
     if not full_text:
         return False
 
-    clean_sym = sym.split("/")[0].strip()
+    clean_sym = sym.split("/")[0].lstrip("$").strip()
+    if clean_sym in CHARITY_KEYWORDS:
+        return True
+
     # Check if exact ticker or subwords match excluded prefixes
-    for prefix in ("CHARITY", "DONATE", "DONATION", "GIVEBACK", "SAVETHE", "YAYASAN", "NONPROFIT", "MAYHEM", "DONASI"):
+    for prefix in (
+        "CHARITY", "DONATE", "DONATION", "GIVEBACK", "SAVETHE", "YAYASAN",
+        "NONPROFIT", "MAYHEM", "DONASI", "MOVEMBER", "MOBROS", "CANCER",
+        "AUTISM", "AWARENESS", "FUNDRAIS", "BLUEPEPE", "RELIEF",
+    ):
         if prefix in clean_sym:
             return True
 
@@ -274,7 +414,12 @@ def is_charity_token(symbol_or_base: str = "", name: str = "", description: str 
         if word in CHARITY_KEYWORDS:
             return True
 
-    return bool(_CHARITY_REGEX.search(full_text))
+    if bool(_CHARITY_REGEX.search(full_text)):
+        if ca_clean:
+            _CHARITY_BLACKLIST_CAS.add(ca_clean.lower())
+        return True
+
+    return False
 
 
 # ── STRICT COIN & TOKEN MINT VERIFICATION ──────────────────────────
@@ -578,6 +723,14 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     if len(base_addr) < 32 or base_addr in MAJOR_MINT_ADDRESSES or base_sym.upper() in MAJOR_BASE_CURRENCIES:
         return None
 
+    # Quote token must be a valid major quote currency (SOL, WSOL, USDC, USDT, USD, USD1)
+    if quote_sym.upper() not in VALID_QUOTE_SYMBOLS:
+        return None
+
+    # Reject if user already copied/dismissed this CA or symbol
+    if is_dismissed_ca(base_addr, base_sym):
+        return None
+
     symbol = f"{base_sym}/{quote_sym}"
     dex_id = str(pair.get("dexId") or "raydium")
     chain_id = str(pair.get("chainId") or "solana")
@@ -690,7 +843,16 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
 
     is_legacy = is_legacy_token(base_sym)
     token_name = str(base.get("name") or "Meme Token")
-    is_charity = is_charity_token(base_sym, token_name)
+    cached_desc = _TOKEN_DESCRIPTIONS.get(base_addr, "") or _TOKEN_DESCRIPTIONS.get(base_addr.lower(), "")
+    is_charity = is_charity_token(
+        base_sym,
+        token_name,
+        description=f"{cached_desc} {twitter_url} {telegram_url}",
+        website_url=website_url,
+        contract=base_addr,
+    )
+    if is_charity:
+        return None
     is_safe_to_trade = bool((not is_honeypot) and (not extreme_dump) and (not is_charity) and safety_score >= 65)
     is_new_creation = (not is_legacy) and (not is_charity) and (not is_honeypot) and (age_hours <= 6.0 or (is_bonding_dex and mcap <= 250000.0)) and (mcap <= 600000.0)
 
@@ -1008,29 +1170,15 @@ def _fetch_pumpfun_or_rugcheck_fallback(ca: str, usd_idr: float) -> dict | None:
 def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> list[dict]:
     """
     Discover 100% real newly created Solana & Pump.fun meme coins using:
-    1. DexScreener Pump.fun Bonding Curve & PumpSwap live search ('pumpfun', 'pumpswap')
-    2. DexScreener Latest Token Profiles & Boosts API (strictly Solana chain)
+    1. DexScreener Latest Token Profiles & Boosts API (extracting descriptions & links to block disguised charity tokens)
+    2. DexScreener Pump.fun Bonding Curve & PumpSwap live search ('pumpfun', 'pumpswap')
     3. RugCheck New Tokens feed (/v1/stats/new_tokens & /v1/stats/recent for ...pump mints)
-    Strictly excludes legacy tokens (BONK, PEPE, WIF, POPCAT) and synthetic/dummy data.
+    Strictly excludes legacy tokens (BONK, PEPE, WIF, POPCAT), charity/awareness tokens, and copied/dismissed CAs.
     """
     discovered: list[dict] = []
     seen_c: set[str] = set()
 
-    # 1. Prioritize active Pump.fun bonding-curve & PumpSwap tokens on Solana
-    for q in ("pumpfun", "pumpswap"):
-        try:
-            pump_items = fetch_dexscreener_search(q, limit=25, allow_bonding_curve=True)
-            for pi in pump_items:
-                if str(pi.get("chain") or "").lower() != "solana":
-                    continue
-                k = pi.get("contract") or pi.get("symbol")
-                if k and k not in seen_c and is_genuine_coin(pi):
-                    seen_c.add(k)
-                    discovered.append(pi)
-        except Exception:
-            continue
-
-    # 2. DexScreener Latest Token Profiles & Token Boosts (Solana only)
+    # 1. Scan DexScreener Latest Token Profiles & Token Boosts FIRST to capture descriptions & links
     candidate_addresses: list[str] = []
     for endpoint in (
         "https://api.dexscreener.com/token-profiles/latest/v1",
@@ -1044,8 +1192,48 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> l
                 for item in items:
                     chain_id = str(item.get("chainId") or "").lower()
                     tok_addr = str(item.get("tokenAddress") or "").strip()
-                    if chain_id == "solana" and _SOLANA_BASE58_RE.match(tok_addr) and tok_addr not in candidate_addresses and tok_addr not in seen_c:
+                    if chain_id != "solana" or not _SOLANA_BASE58_RE.match(tok_addr):
+                        continue
+                    desc = str(item.get("description") or "").strip()
+                    links = item.get("links") or []
+                    links_str = " ".join(
+                        str(lk.get("url") or "") for lk in links if isinstance(lk, dict)
+                    )
+                    combined_meta = f"{desc} {links_str}".strip()
+                    if combined_meta:
+                        _TOKEN_DESCRIPTIONS[tok_addr] = combined_meta
+                        _TOKEN_DESCRIPTIONS[tok_addr.lower()] = combined_meta
+                    if is_charity_token("", "", description=combined_meta, contract=tok_addr):
+                        _CHARITY_BLACKLIST_CAS.add(tok_addr.lower())
+                        continue
+                    if is_dismissed_ca(tok_addr):
+                        continue
+                    if tok_addr not in candidate_addresses and tok_addr not in seen_c:
                         candidate_addresses.append(tok_addr)
+        except Exception:
+            continue
+
+    # 2. Prioritize active Pump.fun bonding-curve & PumpSwap tokens on Solana
+    for q in ("pumpfun", "pumpswap"):
+        try:
+            pump_items = fetch_dexscreener_search(q, limit=25, allow_bonding_curve=True)
+            for pi in pump_items:
+                if str(pi.get("chain") or "").lower() != "solana":
+                    continue
+                k = pi.get("contract") or pi.get("symbol")
+                if not k or k in seen_c or not is_genuine_coin(pi):
+                    continue
+                if is_dismissed_ca(pi.get("contract") or "", pi.get("symbol") or pi.get("base_symbol") or ""):
+                    continue
+                if pi.get("is_charity") or is_charity_token(
+                    pi.get("symbol") or pi.get("base_symbol", ""),
+                    pi.get("name", ""),
+                    website_url=pi.get("website_url", ""),
+                    contract=pi.get("contract", ""),
+                ):
+                    continue
+                seen_c.add(k)
+                discovered.append(pi)
         except Exception:
             continue
 
@@ -1061,7 +1249,13 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> l
             if isinstance(rc_items, list):
                 for item in rc_items:
                     mint_addr = str(item.get("mint") or "").strip()
-                    if _SOLANA_BASE58_RE.match(mint_addr) and mint_addr not in candidate_addresses and mint_addr not in seen_c:
+                    if (
+                        _SOLANA_BASE58_RE.match(mint_addr)
+                        and mint_addr not in candidate_addresses
+                        and mint_addr not in seen_c
+                        and not is_dismissed_ca(mint_addr)
+                        and mint_addr.lower() not in _CHARITY_BLACKLIST_CAS
+                    ):
                         candidate_addresses.append(mint_addr)
         except Exception:
             continue
@@ -1078,14 +1272,21 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> l
                 seen_c.add(k)
                 discovered.append(pt)
 
-    # Strictly filter for brand-new meme coins (never legacy tokens like BONK, and NO charity coins)
+    # Strictly filter for brand-new meme coins (never legacy tokens like BONK, NO charity coins, NO copied CAs)
     fresh_creations: list[dict] = []
     for tok in discovered:
         if not is_genuine_coin(tok):
             continue
+        if is_dismissed_ca(tok.get("contract") or "", tok.get("symbol") or tok.get("base_symbol") or ""):
+            continue
         if is_legacy_token(tok.get("symbol") or tok.get("base_symbol", "")):
             continue
-        if tok.get("is_charity") or is_charity_token(tok.get("symbol"), tok.get("name")):
+        if tok.get("is_charity") or is_charity_token(
+            tok.get("symbol") or tok.get("base_symbol", ""),
+            tok.get("name", ""),
+            website_url=tok.get("website_url", ""),
+            contract=tok.get("contract", ""),
+        ):
             continue
         # Must be relatively young (<= 24 hours, or on Pump.fun bonding curve with MCap <= $800k)
         if tok["age_hours"] <= 24.0 and tok["market_cap"] <= 800000.0:
@@ -1240,11 +1441,20 @@ def get_live_pulse_feed() -> dict:
             pass
 
     if _RADAR_POOL_PERSISTENT:
-        # Strictly purge any invalid/non-Base58 or charity/donation tokens from persistent pool
+        # Strictly purge any invalid/non-Base58, copied/dismissed, or charity/donation tokens from persistent pool
         _RADAR_POOL_PERSISTENT = [
             t for t in _RADAR_POOL_PERSISTENT
             if is_genuine_coin(t)
-            and not (t.get("is_charity") or is_charity_token(t.get("symbol") or t.get("base_symbol"), t.get("name")))
+            and not is_dismissed_ca(t.get("contract") or "", t.get("symbol") or t.get("base_symbol") or "")
+            and not (
+                t.get("is_charity")
+                or is_charity_token(
+                    t.get("symbol") or t.get("base_symbol", ""),
+                    t.get("name", ""),
+                    website_url=t.get("website_url", ""),
+                    contract=t.get("contract", ""),
+                )
+            )
         ]
         all_tokens = [_apply_live_micro_tick(t, usd_idr) for t in _RADAR_POOL_PERSISTENT]
         _RADAR_POOL_PERSISTENT = all_tokens
@@ -1273,8 +1483,16 @@ def get_live_pulse_feed() -> dict:
         # Pastikan yang diproses adalah KOIN / TOKEN MINT yang valid (Solana Base58 murni)
         if not is_genuine_coin(t):
             continue
-        # Strictly reject charity / donation / mayhem coins
-        if t.get("is_charity") or is_charity_token(t.get("symbol") or t.get("base_symbol"), t.get("name")):
+        # Strictly reject copied/dismissed CAs
+        if is_dismissed_ca(t.get("contract") or "", t.get("symbol") or t.get("base_symbol") or ""):
+            continue
+        # Strictly reject charity / donation / awareness / mayhem coins
+        if t.get("is_charity") or is_charity_token(
+            t.get("symbol") or t.get("base_symbol", ""),
+            t.get("name", ""),
+            website_url=t.get("website_url", ""),
+            contract=t.get("contract", ""),
+        ):
             continue
         # Strictly reject honeypots, sell-blocked tokens, active dumps, or low safety scores
         if t.get("honeypot") is True or t.get("is_safe_to_trade") is False or int(t.get("safety_score") or 0) < 65:

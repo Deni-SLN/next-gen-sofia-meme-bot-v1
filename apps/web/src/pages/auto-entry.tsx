@@ -26,6 +26,9 @@ export default function AutoEntryPage() {
   const [actionNotice, setActionNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isExecutingSingle, setIsExecutingSingle] = useState<string | null>(null);
+  const [copiedAddresses, setCopiedAddresses] = useState<string[]>([]);
+
+  const copiedSet = useMemo(() => new Set(copiedAddresses.map((a) => a.toLowerCase())), [copiedAddresses]);
 
   // Scanner Mode Filter States
   const [scanFilterMinProfit, setScanFilterMinProfit] = useState<number>(50);
@@ -59,11 +62,43 @@ export default function AutoEntryPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setMode(getTradingMode());
+      try {
+        const saved = localStorage.getItem('sofia_copied_wallets');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setCopiedAddresses(parsed);
+        }
+      } catch {}
+      api.getDismissedCas()
+        .then((res) => {
+          if (res?.dismissed?.length) {
+            setCopiedAddresses((prev) => {
+              const merged = Array.from(new Set([...prev, ...res.dismissed.map((x) => String(x).toLowerCase())]));
+              try {
+                localStorage.setItem('sofia_copied_wallets', JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+          }
+        })
+        .catch(() => {});
       const handleModeChange = (e: any) => setMode(e.detail);
       window.addEventListener('sofia-mode-change', handleModeChange);
       return () => window.removeEventListener('sofia-mode-change', handleModeChange);
     }
   }, []);
+
+  const handleResetCopied = () => {
+    setCopiedAddresses([]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('sofia_copied_wallets');
+      } catch {}
+    }
+    api.resetDismissedCas()
+      .then(() => scannedQuery.refetch())
+      .catch(() => {});
+  };
 
   // Sync state into inputs when loaded
   useEffect(() => {
@@ -78,11 +113,33 @@ export default function AutoEntryPage() {
     }
   }, [state?.status]);
 
-  const handleCopyText = (text: string, key: string) => {
+  const handleCopyText = (text: string, key: string, tokenData?: any) => {
+    const cleanCa = String(text || '').trim();
+    if (!cleanCa) return;
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(cleanCa);
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2500);
+    }
+    if (tokenData || key.includes('ca-')) {
+      const toHide: string[] = [cleanCa.toLowerCase()];
+      if (tokenData?.contract) toHide.push(String(tokenData.contract).trim().toLowerCase());
+      if (tokenData?.symbol) {
+        const symL = String(tokenData.symbol).trim().toLowerCase();
+        toHide.push(symL);
+        toHide.push(symL.split('/')[0].trim());
+      }
+      setCopiedAddresses((prev) => {
+        const next = Array.from(new Set([...prev.map((x) => x.toLowerCase()), ...toHide.filter(Boolean)]));
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('sofia_copied_wallets', JSON.stringify(next));
+          } catch {}
+        }
+        return next;
+      });
+      api.dismissCopiedCa(tokenData?.contract || cleanCa, tokenData?.symbol || '').catch(() => {});
+      showNotice('ok', `📋 CA ${tokenData?.symbol || cleanCa.slice(0, 8)} berhasil disalin & disembunyikan agar tidak muncul lagi!`);
     }
   };
 
@@ -197,16 +254,26 @@ export default function AutoEntryPage() {
   const scannedData: ScannedMemeCoinsResponse | null = scannedQuery.data;
   const rawScannedTokens = scannedData?.tokens || [];
   const scannedTokens = useMemo(() => {
+    const excludedPattern = /\b(charity|charities|donate|donates|donation|donations|donating|giveback|foundation|nonprofit|non-profit|ngo|philanthropy|philanthropic|humanitarian|unicef|redcross|red cross|yayasan|donasi|sedekah|zakat|orphan|orphanage|animalrescue|disaster relief|mayhem|mayhems|movember|mobros|mo bros|noshave|cancer|pancreatic|leukemia|lymphoma|tumor|oncology|chemo|prostate|autism|alzheimer|parkinson|dementia|diabetes|stjude|st jude|makeawish|make a wish|hospice|awareness|fundraiser|fundraising|gofundme|givebutter|justgiving|bluepepe|purple coin|white coin|blue coin|pink coin|black coin|orange coin|silver coin|ribbon coin|tipr)\b/i;
+
     return rawScannedTokens.filter((t: any) => {
       const ca = String(t.contract || '').trim();
+      const caLower = ca.toLowerCase();
       const sym = String(t.symbol || '').toUpperCase();
+      const symLower = sym.toLowerCase();
       const baseSym = String(t.base_symbol || sym.split('/')[0]).toUpperCase();
+      const baseSymLower = baseSym.toLowerCase();
+      const nameLower = String(t.name || '').toLowerCase();
       if (!ca || ca.length < 32) return false;
       if (['SOL', 'WSOL', 'USDC', 'USDT', 'USD', 'DAI', 'ETH', 'BTC'].includes(baseSym)) return false;
-      if (['so11111111111111111111111111111111111111112', 'epjfwdd5aufqssqem2qn1xzybapc8g4weggkzwytde1v', 'es9vmfrzacermjfrf4h2fyd4kconky11mcce8benwnyb'].includes(ca.toLowerCase())) return false;
+      if (['so11111111111111111111111111111111111111112', 'epjfwdd5aufqssqem2qn1xzybapc8g4weggkzwytde1v', 'es9vmfrzacermjfrf4h2fyd4kconky11mcce8benwnyb'].includes(caLower)) return false;
+      if (caLower && copiedSet.has(caLower)) return false;
+      if (symLower && copiedSet.has(symLower)) return false;
+      if (baseSymLower && copiedSet.has(baseSymLower)) return false;
+      if (t.is_charity || excludedPattern.test(symLower) || excludedPattern.test(nameLower)) return false;
       return true;
     });
-  }, [rawScannedTokens]);
+  }, [rawScannedTokens, copiedSet]);
 
   return (
     <>
@@ -453,6 +520,16 @@ export default function AutoEntryPage() {
                   <span className="px-2 py-1 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1 shadow-sm" title="Semua token yang dipindai dipastikan 100% merupakan Koin / Token Mint (SPL Mint Address) aktif">
                     🪙 100% Koin Mint Verified
                   </span>
+                  {copiedAddresses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleResetCopied}
+                      className="px-2 py-1 rounded bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 font-bold transition"
+                      title="Tampilkan kembali koin yang sudah pernah disalin CA-nya"
+                    >
+                      👁️ Disembunyikan: {copiedAddresses.length} (Reset)
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -814,13 +891,13 @@ export default function AutoEntryPage() {
 
                             <button
                               type="button"
-                              onClick={() => handleCopyText(token.contract, `scan-card-ca-${token.contract}`)}
+                              onClick={() => handleCopyText(token.contract, `scan-card-ca-${token.contract}`, token)}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shrink-0 ${
                                 isCaCopied
                                   ? 'bg-emerald-500 text-obsidian-950 shadow-md shadow-emerald-500/20'
                                   : 'bg-obsidian-900 hover:bg-obsidian-850 text-amber-300 border border-obsidian-750'
                               }`}
-                              title="Salin Contract Address (CA)"
+                              title="Salin Contract Address (CA) & sembunyikan koin agar tidak ditampilkan lagi"
                             >
                               <LucideIcon name={isCaCopied ? 'check' : 'copy'} className="w-3.5 h-3.5" />
                               <span>{isCaCopied ? '✓ Tersalin!' : 'Salin CA'}</span>
