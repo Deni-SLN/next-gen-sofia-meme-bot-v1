@@ -8,8 +8,8 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.get("/summary")
-def get_summary(db: Session = Depends(get_db)):
-    return performance.get_summary(db)
+def get_summary(mode: str | None = None, db: Session = Depends(get_db)):
+    return performance.get_summary(db, mode=mode)
 
 
 @router.get("/daily-calendar")

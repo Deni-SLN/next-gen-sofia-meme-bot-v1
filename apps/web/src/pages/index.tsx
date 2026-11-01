@@ -41,15 +41,14 @@ const SNIPE_PCT_PRESETS = [
 
 export default function DashboardPage() {
   const isUltrawide = useUltrawide();
-  const botQuery = useApiQuery(() => api.getBotStatus(), []);
-  const portfolioQuery = useApiQuery(() => api.getPortfolio(), []);
-  const perfQuery = useApiQuery(() => api.getPerformance(), []);
-  const pulseQuery = useApiQuery(() => api.getPulse(), []);
-  const walletsQuery = useApiQuery(() => api.getWallets(), []);
-
   const [quickTicker, setQuickTicker] = useState<string>('PEPE');
   const [quickAmountIdr, setQuickAmountIdr] = useState<number | string>(15000);
-  const [snipeMode, setSnipeMode] = useState<'PAPER' | 'LIVE'>('PAPER');
+  const [snipeMode, setSnipeMode] = useState<'PAPER' | 'LIVE'>(() => getTradingMode());
+  const botQuery = useApiQuery(() => api.getBotStatus(), []);
+  const portfolioQuery = useApiQuery(() => api.getPortfolio(snipeMode), [snipeMode]);
+  const perfQuery = useApiQuery(() => api.getPerformance(snipeMode), [snipeMode]);
+  const pulseQuery = useApiQuery(() => api.getPulse(), []);
+  const walletsQuery = useApiQuery(() => api.getWallets(), []);
   const [snipeMsg, setSnipeMsg] = useState<string>('');
   const [snipeErr, setSnipeErr] = useState<string>('');
   const [activeTarget, setActiveTarget] = useState<string>('SOL/USDC');
@@ -513,11 +512,23 @@ export default function DashboardPage() {
               <PnLChart
                 points={perfQuery.data?.pnl_chart || []}
                 usdIdr={usdIdr}
+                initialCapitalIdr={
+                  isLive
+                    ? Number(perfQuery.data?.initial_capital_idr || activeEquityIdr || 100000)
+                    : paperInitialIdr
+                }
+                initialCapitalUsd={
+                  isLive
+                    ? Number(perfQuery.data?.initial_capital_usd || activeEquityUsd || 10)
+                    : paperInitialUsd
+                }
                 totalTrades={perfQuery.data?.total_trades ?? 0}
                 realizedIdr={realizedPnlIdr}
                 floatingIdr={unrealizedPnlIdr}
+                floatingPct={d?.unrealized_pnl_pct ?? 0}
                 liveEquityUsd={activeEquityUsd}
                 liveEquityIdr={activeEquityIdr}
+                mode={snipeMode}
               />
             </div>
           );

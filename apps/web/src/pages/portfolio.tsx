@@ -10,37 +10,51 @@ export default function PortfolioPage() {
   const isUltrawide = useUltrawide();
   const [mode, setMode] = useState<'PAPER' | 'LIVE'>(() => getTradingMode());
   const portfolioQuery = useApiQuery(() => api.getPortfolio(mode), [mode]);
-  const perfQuery = useApiQuery(() => api.getPerformance(), []);
+  const perfQuery = useApiQuery(() => api.getPerformance(mode), [mode]);
   const walletsQuery = useApiQuery(() => api.getWallets(), []);
   const [actionMsg, setActionMsg] = useState<string>('');
   const [actionErr, setActionErr] = useState<string>('');
   const [sellingKey, setSellingKey] = useState<string | null>(null);
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
+
+  const refetchRef = React.useRef({
+    portfolio: portfolioQuery.refetch,
+    perf: perfQuery.refetch,
+    wallets: walletsQuery.refetch,
+    setPortfolioData: portfolioQuery.setData,
+  });
+  refetchRef.current = {
+    portfolio: portfolioQuery.refetch,
+    perf: perfQuery.refetch,
+    wallets: walletsQuery.refetch,
+    setPortfolioData: portfolioQuery.setData,
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setMode(getTradingMode());
+      const currentMode = getTradingMode();
+      setMode((prev) => (prev !== currentMode ? currentMode : prev));
       const modeHandler = (e: any) => {
-        setMode(e.detail);
-        portfolioQuery.refetch();
-        perfQuery.refetch();
-        walletsQuery.refetch();
+        const nextMode = e?.detail === 'LIVE' ? 'LIVE' : 'PAPER';
+        setMode(nextMode);
+        refetchRef.current.wallets();
       };
       const resetHandler = (e: any) => {
         if (e?.detail) {
-          portfolioQuery.setData(e.detail);
+          refetchRef.current.setPortfolioData(e.detail);
         } else {
-          portfolioQuery.refetch();
+          refetchRef.current.portfolio();
         }
-        perfQuery.refetch();
-        walletsQuery.refetch();
+        refetchRef.current.perf();
+        refetchRef.current.wallets();
         setActionMsg(
-          '🔄 Semua portofolio & posisi meme coin pada mode Paper telah dihapus! Saldo kembali utuh ke Rp 150.000.'
+          '🔄 Semua portofolio & posisi meme coin pada mode Paper telah dihapus! Saldo kembali utuh ke modal awal.'
         );
       };
       const tradeHandler = () => {
-        portfolioQuery.refetch();
-        perfQuery.refetch();
-        walletsQuery.refetch();
+        refetchRef.current.portfolio();
+        refetchRef.current.perf();
+        refetchRef.current.wallets();
       };
       window.addEventListener('sofia-mode-change', modeHandler);
       window.addEventListener('sofia-paper-reset', resetHandler);
@@ -53,31 +67,35 @@ export default function PortfolioPage() {
     }
   }, []);
 
-  const usdIdr = portfolioQuery.data?.usd_idr || perfQuery.data?.usd_idr || 17960;
+  const d = portfolioQuery.data;
+  const usdIdr = d?.usd_idr || perfQuery.data?.usd_idr || 17960;
   const isLive = mode === 'LIVE';
 
   const allWallets: any[] = walletsQuery.data?.wallets || [];
   const liveWallets = allWallets.filter((w) => !w.name?.includes('Modal Paper'));
   const liveTradingWallets = liveWallets.filter((w) => w.gate === 'trading');
 
-  const liveTotalEquityUsd = liveWallets.reduce((acc, w) => acc + (Number(w.balance_usd) || 0), 0);
-  const liveTotalEquityIdr = liveWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
+  const walletsTotalUsd = liveWallets.reduce((acc, w) => acc + (Number(w.balance_usd) || 0), 0);
+  const walletsTotalIdr = liveWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
+  const liveTotalEquityUsd = walletsTotalUsd > 0 ? walletsTotalUsd : (Number(d?.live_total_equity_usd) || 0);
+  const liveTotalEquityIdr = walletsTotalIdr > 0 ? walletsTotalIdr : (Number(d?.live_total_equity_idr) || 0);
 
-  const liveCashUsd = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_usd) || 0), 0);
-  const liveCashIdr = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
+  const walletsCashUsd = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_usd) || 0), 0);
+  const walletsCashIdr = liveTradingWallets.reduce((acc, w) => acc + (Number(w.balance_idr) || 0), 0);
+  const liveCashUsd = walletsCashUsd > 0 ? walletsCashUsd : (Number(d?.live_cash_usd) || 0);
+  const liveCashIdr = walletsCashIdr > 0 ? walletsCashIdr : (Number(d?.live_cash_idr) || 0);
 
   const primaryLiveTradingWallet = liveTradingWallets[0];
   const liveUsdcBal = primaryLiveTradingWallet?.usdc_balance ?? (
-    (primaryLiveTradingWallet?.spl_tokens || []).find((t: { symbol?: string; mint?: string; amount?: number }) => t.symbol === 'USDC' || t.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')?.amount || 0
+    (primaryLiveTradingWallet?.spl_tokens || []).find((t: { symbol?: string; mint?: string; amount?: number }) => t.symbol === 'USDC' || t.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')?.amount ?? Number(d?.live_usdc_usd || 0)
   );
   const liveUsdcUsd = primaryLiveTradingWallet?.usdc_usd ?? liveUsdcBal;
-  const liveUsdcIdr = primaryLiveTradingWallet?.usdc_idr ?? (liveUsdcUsd * usdIdr);
+  const liveUsdcIdr = primaryLiveTradingWallet?.usdc_idr ?? (Number(d?.live_usdc_idr) || (liveUsdcUsd * usdIdr));
 
-  const liveGasBal = primaryLiveTradingWallet?.gas_fee_balance ?? (Number(primaryLiveTradingWallet?.balance) || 0);
+  const liveGasBal = primaryLiveTradingWallet?.gas_fee_balance ?? (Number(primaryLiveTradingWallet?.balance) || Number(d?.live_gas_sol) || 0);
   const liveGasToken = primaryLiveTradingWallet?.gas_fee_token || primaryLiveTradingWallet?.token || 'SOL';
-  const liveGasUsd = primaryLiveTradingWallet?.gas_fee_usd ?? Math.max(0, (Number(primaryLiveTradingWallet?.balance_usd) || 0) - liveUsdcUsd);
-  const liveGasIdr = primaryLiveTradingWallet?.gas_fee_idr ?? (liveGasUsd * usdIdr);
-  const d = portfolioQuery.data;
+  const liveGasUsd = primaryLiveTradingWallet?.gas_fee_usd ?? (Number(d?.live_gas_usd) || Math.max(0, (Number(primaryLiveTradingWallet?.balance_usd) || 0) - liveUsdcUsd));
+  const liveGasIdr = primaryLiveTradingWallet?.gas_fee_idr ?? (Number(d?.live_gas_idr) || (liveGasUsd * usdIdr));
   const paperInitialIdr = Number(d?.paper_initial_idr) || 150000;
   const paperInitialUsd = Number(d?.paper_initial_usd) || (paperInitialIdr / usdIdr);
   const holdingsValUsd = Number(d?.net_holdings_value_usd || d?.total_value) || 0;
@@ -348,17 +366,28 @@ export default function PortfolioPage() {
         </div>
 
         {(() => {
+          const chartInitialIdr = isLive
+            ? Number(perfQuery.data?.initial_capital_idr || activeEquityIdr || 100000)
+            : paperInitialIdr;
+          const chartInitialUsd = isLive
+            ? Number(perfQuery.data?.initial_capital_usd || activeEquityUsd || (chartInitialIdr / usdIdr))
+            : paperInitialUsd;
+          const chartTotalTrades = perfQuery.data?.total_trades ?? (isLive ? (d?.live_trades ?? 0) : (d?.paper_trades ?? 0));
+          const chartRealizedIdr = perfQuery.data?.total_pnl_idr ?? (isLive ? (d?.live_realized_pnl_idr ?? 0) : (d?.paper_realized_pnl_idr ?? 0));
+
           const chartBlock = (
             <PnLChart
               points={perfQuery.data?.pnl_chart || []}
               usdIdr={usdIdr}
-              initialCapitalIdr={paperInitialIdr}
-              initialCapitalUsd={paperInitialUsd}
-              totalTrades={perfQuery.data?.total_trades ?? 0}
-              realizedIdr={perfQuery.data?.total_pnl_idr ?? 0}
+              initialCapitalIdr={chartInitialIdr}
+              initialCapitalUsd={chartInitialUsd}
+              totalTrades={chartTotalTrades}
+              realizedIdr={chartRealizedIdr}
               floatingIdr={d?.unrealized_pnl_idr ?? 0}
+              floatingPct={d?.unrealized_pnl_pct ?? 0}
               liveEquityUsd={activeEquityUsd}
               liveEquityIdr={activeEquityIdr}
+              mode={mode}
             />
           );
 
@@ -420,10 +449,10 @@ export default function PortfolioPage() {
                     </td>
                   </tr>
                 ) : (
-                  d.holdings.map((h: any) => (
+                  (d?.holdings || []).map((h: any) => (
                     <tr key={h.symbol} className="border-b border-obsidian-800/60 hover:bg-obsidian-850/60">
                       <td className="p-3 font-extrabold text-slate-100">${h.symbol}</td>
-                      <td className="p-3 text-slate-200">{h.quantity.toLocaleString()}</td>
+                      <td className="p-3 text-slate-200">{Number(h.quantity || 0).toLocaleString()}</td>
                       <td className="p-3">
                         <div className="text-slate-200">{formatUsd(h.avg_entry_price)}</div>
                         <div className="text-[10px] text-slate-500">≈ {formatIdr(h.avg_entry_price * usdIdr)}</div>

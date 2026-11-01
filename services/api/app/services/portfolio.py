@@ -163,13 +163,21 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
     updates their live prices and quantities, and removes any positions whose on-chain balance is 0.
     Excludes stablecoins (USDC) and zero-liquidity/flagged spam tokens (< $50 liq).
     """
-    from app.services import live_engine
+    import time
+    from app.services import live_engine, wallets as wallet_svc
 
     live_w, _, _ = live_engine.get_live_trading_wallet(db, "Solana")
     if not live_w or not live_w.address or live_w.address.startswith("SIMULATION"):
         return list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
 
-    onchain_tokens = live_engine.query_solana_spl_tokens(live_w.address, max_cache_seconds=20.0)
+    addr = live_w.address.strip()
+    cached_entry = live_engine._SPL_CACHE.get(addr)
+    if cached_entry is not None:
+        cache_ts, onchain_tokens = cached_entry
+        if (time.time() - cache_ts) > 20.0:
+            wallet_svc._trigger_bg_onchain_wallet_sync(addr)
+    else:
+        onchain_tokens = live_engine.query_solana_spl_tokens(addr, max_cache_seconds=20.0)
     if not onchain_tokens:
         return list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
     seen_symbols = set()
@@ -193,73 +201,79 @@ def sync_onchain_holdings_to_portfolio(db: Session) -> list[PortfolioHolding]:
 
     # 2. Delete any LIVE DB holdings that are no longer present on-chain, ONLY when RPC response is 100% fresh
     if is_fresh_rpc:
-        existing_live = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
-        for h in existing_live:
-            if h.symbol.upper() not in seen_symbols:
-                upd_dt = h.updated_at if (h.updated_at and h.updated_at.tzinfo) else (h.updated_at.replace(tzinfo=timezone.utc) if h.updated_at else None)
-                if upd_dt and (now - upd_dt).total_seconds() < 60.0:
-                    continue
-                db.delete(h)
-        db.commit()
+        try:
+            existing_live = list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
+            for h in existing_live:
+                if h.symbol.upper() not in seen_symbols:
+                    upd_dt = h.updated_at if (h.updated_at and h.updated_at.tzinfo) else (h.updated_at.replace(tzinfo=timezone.utc) if h.updated_at else None)
+                    if upd_dt and (now - upd_dt).total_seconds() < 60.0:
+                        continue
+                    db.delete(h)
+            db.commit()
+        except Exception:
+            db.rollback()
 
     # 3. Upsert active on-chain holdings into PortfolioHolding with mode="LIVE"
     for tok in valid_tokens:
-        sym = tok.get("symbol") or tok.get("mint", "")[:6]
-        amt = float(tok.get("amount", 0.0))
-        live_price = float(tok.get("price", 0.0))
-        if live_price <= 0 and amt > 0 and tok.get("usd_val", 0.0) > 0:
-            live_price = float(tok["usd_val"]) / amt
-        liq = float(tok.get("liquidity", 1800.0))
+        try:
+            sym = tok.get("symbol") or tok.get("mint", "")[:6]
+            amt = float(tok.get("amount", 0.0))
+            live_price = float(tok.get("price", 0.0))
+            if live_price <= 0 and amt > 0 and tok.get("usd_val", 0.0) > 0:
+                live_price = float(tok["usd_val"]) / amt
+            liq = float(tok.get("liquidity", 1800.0))
 
-        if tok.get("mint"):
-            market.pin_holding_contract(sym, str(tok["mint"]))
+            if tok.get("mint"):
+                market.pin_holding_contract(sym, str(tok["mint"]))
 
-        existing = db.execute(
-            select(PortfolioHolding).where(
-                PortfolioHolding.symbol == sym,
-                PortfolioHolding.mode == "LIVE",
-            )
-        ).scalar_one_or_none()
-        if existing:
-            if existing.quantity > 0 and amt > 0 and abs(existing.quantity - amt) / existing.quantity > 0.08:
-                # Preserve cost basis invariant when on-chain token count adjusts from initial estimate
-                prev_cost_usd = existing.quantity * existing.avg_entry_price
-                rescaled_entry = prev_cost_usd / amt
-                if live_price > 0 and (rescaled_entry < live_price * 0.4 or rescaled_entry > live_price * 2.5):
-                    existing.avg_entry_price = live_price * 1.006
-                else:
-                    existing.avg_entry_price = rescaled_entry
-            existing.quantity = amt
-            if live_price > 0:
-                existing.current_price = live_price
-            if liq > 0:
-                existing.liquidity_usd = liq
-            existing.updated_at = now
-        else:
-            base_sym = sym.split("/")[0]
-            recent_buy = (
-                db.execute(
-                    select(Trade)
-                    .where(Trade.symbol.ilike(f"%{base_sym}%"), Trade.side == "buy", Trade.mode == "LIVE")
-                    .order_by(Trade.id.desc())
-                    .limit(1)
+            existing = db.execute(
+                select(PortfolioHolding).where(
+                    PortfolioHolding.symbol == sym,
+                    PortfolioHolding.mode == "LIVE",
                 )
-                .scalar_one_or_none()
-            )
-            entry_px = float(recent_buy.price) if recent_buy and recent_buy.price > 0 else (live_price or 0.00001)
+            ).scalar_one_or_none()
+            if existing:
+                if existing.quantity > 0 and amt > 0 and abs(existing.quantity - amt) / existing.quantity > 0.08:
+                    # Preserve cost basis invariant when on-chain token count adjusts from initial estimate
+                    prev_cost_usd = existing.quantity * existing.avg_entry_price
+                    rescaled_entry = prev_cost_usd / amt
+                    if live_price > 0 and (rescaled_entry < live_price * 0.4 or rescaled_entry > live_price * 2.5):
+                        existing.avg_entry_price = live_price * 1.006
+                    else:
+                        existing.avg_entry_price = rescaled_entry
+                existing.quantity = amt
+                if live_price > 0:
+                    existing.current_price = live_price
+                if liq > 0:
+                    existing.liquidity_usd = liq
+                existing.updated_at = now
+            else:
+                base_sym = sym.split("/")[0]
+                recent_buy = (
+                    db.execute(
+                        select(Trade)
+                        .where(Trade.symbol.ilike(f"%{base_sym}%"), Trade.side == "buy", Trade.mode == "LIVE")
+                        .order_by(Trade.id.desc())
+                        .limit(1)
+                    )
+                    .scalar_one_or_none()
+                )
+                entry_px = float(recent_buy.price) if recent_buy and recent_buy.price > 0 else (live_price or 0.00001)
 
-            new_h = PortfolioHolding(
-                symbol=sym,
-                mode="LIVE",
-                quantity=amt,
-                avg_entry_price=entry_px,
-                current_price=live_price or entry_px,
-                entry_costs_usd=0.001,
-                liquidity_usd=liq or 1800.0,
-                updated_at=now,
-            )
-            db.add(new_h)
-        db.commit()
+                new_h = PortfolioHolding(
+                    symbol=sym,
+                    mode="LIVE",
+                    quantity=amt,
+                    avg_entry_price=entry_px,
+                    current_price=live_price or entry_px,
+                    entry_costs_usd=0.001,
+                    liquidity_usd=liq or 1800.0,
+                    updated_at=now,
+                )
+                db.add(new_h)
+            db.commit()
+        except Exception:
+            db.rollback()
 
     return list(db.execute(select(PortfolioHolding).where(PortfolioHolding.mode == "LIVE")).scalars().all())
 
@@ -495,8 +509,12 @@ def get_overview(
                 reason="live_market_tick",
             )
 
-    from app.services import live_engine
-    live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=skip_rpc)
+    import time
+    from app.services import live_engine, wallets as wallet_svc
+    if not skip_rpc and (time.time() - getattr(live_engine, "_LAST_ONCHAIN_SYNC", 0.0)) >= 30.0:
+        wallet_svc._trigger_bg_onchain_wallet_sync()
+    has_ever_synced = getattr(live_engine, "_LAST_ONCHAIN_SYNC", 0.0) > 0.0
+    live_eq = live_engine.get_live_equity_metrics(db, usd_idr, skip_rpc=(skip_rpc or has_ever_synced))
 
     active_mode = (mode or "PAPER").upper()
     is_live = active_mode == "LIVE"
@@ -934,6 +952,7 @@ def sell_all_holdings(db: Session, mode: str | None = None) -> dict:
     results = []
     total_proceeds_idr = 0.0
     total_pnl_idr = 0.0
+    total_pnl_usd = 0.0
 
     for h in holdings:
         if h.quantity > 0:
@@ -941,12 +960,15 @@ def sell_all_holdings(db: Session, mode: str | None = None) -> dict:
             results.append(res)
             total_proceeds_idr += float(res.get("proceeds_idr") or 0.0)
             total_pnl_idr += float(res.get("realized_pnl_idr") or 0.0)
+            total_pnl_usd += float(res.get("realized_pnl_usd") or 0.0)
 
     return {
         "status": "liquidated_all",
+        "mode": active_mode,
         "positions_closed": len(results),
         "total_proceeds_idr": round(total_proceeds_idr, 0),
         "total_realized_pnl_idr": round(total_pnl_idr, 0),
+        "total_realized_pnl_usd": round(total_pnl_usd, 4),
         "results": results,
     }
 

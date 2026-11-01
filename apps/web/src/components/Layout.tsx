@@ -377,19 +377,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
       return;
     }
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('sofia-nav-start', { detail: href }));
-      if (window.location.pathname === href) {
+      if (window.location.pathname.toLowerCase() === href.toLowerCase()) {
+        e.preventDefault();
         return;
       }
+      window.dispatchEvent(new CustomEvent('sofia-nav-start', { detail: href }));
       e.preventDefault();
       router.push(href).catch(() => {
         window.location.href = href;
       });
       setTimeout(() => {
-        if (window.location.pathname !== href) {
+        if (window.location.pathname.toLowerCase() !== href.toLowerCase()) {
           window.location.href = href;
         }
-      }, 450);
+      }, 2500);
     }
   };
 

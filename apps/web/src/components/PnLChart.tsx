@@ -24,8 +24,10 @@ interface PnLChartProps {
   totalTrades?: number;
   realizedIdr?: number;
   floatingIdr?: number;
+  floatingPct?: number;
   liveEquityUsd?: number;
   liveEquityIdr?: number;
+  mode?: 'PAPER' | 'LIVE';
 }
 interface InspectionState {
   index: number;
@@ -48,8 +50,10 @@ export function PnLChart({
   totalTrades = 0,
   realizedIdr = 0,
   floatingIdr = 0,
+  floatingPct,
   liveEquityUsd,
   liveEquityIdr,
+  mode = 'PAPER',
 }: PnLChartProps) {
   const [viewMode, setViewMode] = useState<'equity' | 'pnl'>('equity');
   const [inspected, setInspected] = useState<InspectionState | null>(null);
@@ -58,6 +62,9 @@ export function PnLChart({
   const rate = usdIdr || 17960;
   const initialIdr = initialCapitalIdr ?? 150000;
   const initialUsd = initialCapitalUsd ?? (initialIdr / rate);
+  const displayFloatingPct = floatingPct ?? (floatingIdr !== 0 && initialIdr > 0 ? (floatingIdr / initialIdr) * 100 : 0);
+  const isLiveMode = mode === 'LIVE';
+  const baseLabelText = isLiveMode ? 'Saldo Dasar Live' : 'Modal Awal';
   const basePoint: PnLPoint = {
     step: 0,
     label: 'Modal Awal',
@@ -265,9 +272,9 @@ export function PnLChart({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
-                Modal Awal:{' '}
+                {baseLabelText}:{' '}
                 <strong className="text-slate-200 font-semibold">
-                  Rp 150.000 ({formatUsd(initialUsd)})
+                  {formatIdr(initialIdr)} ({formatUsd(initialUsd)})
                 </strong>{' '}
                 • Kurs Live: <span className="text-cyan-300">$1 = {formatIdr(rate)}</span>
               </p>
@@ -286,7 +293,7 @@ export function PnLChart({
                 : 'px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 text-[11px] transition flex items-center gap-1'
             }
           >
-            <LucideIcon name="trending-up" className="w-3 h-3" /> Saldo Modal (Rp 150rb)
+            <LucideIcon name="trending-up" className="w-3 h-3" /> Saldo Modal ({formatIdr(initialIdr)})
           </button>
           <button
             type="button"
@@ -321,10 +328,10 @@ export function PnLChart({
           {/* Target Reference Badges (Top-Right) */}
           <div className="absolute right-3 top-3 text-right font-mono text-[10px] space-y-0.5 text-slate-400 pointer-events-none z-10">
             <div>
-              Target 2x: <span className="text-slate-300 font-semibold">Rp 300.000</span>
+              Target 2x: <span className="text-slate-300 font-semibold">{formatIdr(initialIdr * 2)}</span>
             </div>
             <div>
-              Baseline: <span className="text-emerald-400 font-semibold">Rp 150.000</span>
+              Baseline: <span className="text-emerald-400 font-semibold">{formatIdr(initialIdr)}</span>
             </div>
           </div>
 
@@ -466,9 +473,9 @@ export function PnLChart({
                   </div>
                 </div>
 
-                {/* Delta / PnL from Rp 150.000 */}
+                {/* Delta / PnL from Baseline */}
                 <div className="mt-1.5 pt-1.5 border-t border-obsidian-800 flex items-center justify-between gap-2 text-[10px]">
-                  <span className="text-slate-400 font-sans">Δ dari Rp 150rb:</span>
+                  <span className="text-slate-400 font-sans">Δ dari {baseLabelText}:</span>
                   <span
                     className={`font-bold ${
                       inspected.diffIdr >= 0 ? 'text-emerald-400' : 'text-rose-400'
@@ -528,7 +535,7 @@ export function PnLChart({
 
           {/* Time axis labels */}
           <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono pt-1.5 border-t border-obsidian-850 pointer-events-none">
-            <span>Modal Awal (Rp 150rb)</span>
+            <span>{baseLabelText} ({formatIdr(initialIdr)})</span>
             <span className="text-cyan-400/90 italic font-medium">
               💡 {inspected ? 'Geser kursor atau klik titik lain' : 'Klik titik atau garis grafik untuk melihat saldo'}
             </span>
@@ -540,8 +547,8 @@ export function PnLChart({
       {/* Metric Footers Under Chart */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] font-mono pt-1 text-slate-400">
         <div className="bg-obsidian-950/60 px-2.5 py-1.5 rounded border border-obsidian-800">
-          <span className="text-slate-400 text-[10px]">Titik Modal Awal:</span>
-          <div className="text-slate-200 font-medium">Rp 150.000 ({formatUsd(initialUsd)})</div>
+          <span className="text-slate-400 text-[10px]">Titik {baseLabelText}:</span>
+          <div className="text-slate-200 font-medium">{formatIdr(initialIdr)} ({formatUsd(initialUsd)})</div>
         </div>
         <div className="bg-obsidian-950/60 px-2.5 py-1.5 rounded border border-obsidian-800">
           <span className="text-slate-400 text-[10px]">Live Real-Time:</span>
@@ -551,16 +558,16 @@ export function PnLChart({
         </div>
         <div className="bg-obsidian-950/60 px-2.5 py-1.5 rounded border border-obsidian-800">
           <span className="text-slate-400 text-[10px]">Floating PnL:</span>
-          <div className={isPositive ? 'text-cyan-400 font-medium' : 'text-rose-400 font-medium'}>
+          <div className={floatingIdr >= 0 ? 'text-cyan-400 font-medium' : 'text-rose-400 font-medium'}>
             {floatingIdr >= 0 ? '+' : ''}
-            {formatIdr(floatingIdr)} ({netPct >= 0 ? '+' : ''}
-            {netPct.toFixed(2)}%)
+            {formatIdr(floatingIdr)} ({displayFloatingPct >= 0 ? '+' : ''}
+            {displayFloatingPct.toFixed(2)}%)
           </div>
         </div>
         <div className="bg-obsidian-950/60 px-2.5 py-1.5 rounded border border-obsidian-800">
-          <span className="text-slate-400 text-[10px]">Total Closed Trades:</span>
+          <span className="text-slate-400 text-[10px]">Total Closed Trades ({mode}):</span>
           <div className="text-slate-200 font-medium">
-            {totalTrades} Transaksi • Realized: {formatIdr(realizedIdr)}
+            {totalTrades} Transaksi • Realized: {realizedIdr >= 0 ? '+' : ''}{formatIdr(realizedIdr)}
           </div>
         </div>
       </div>

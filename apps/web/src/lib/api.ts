@@ -317,14 +317,10 @@ export function useApiQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState<any>(null);
   const hasDataRef = useState<{ current: boolean }>({ current: false })[0];
-  const inFlightRef = useState<{ current: boolean }>({ current: false })[0];
+  const reqIdRef = useState<{ current: number }>({ current: 0 })[0];
 
   const refetch = useCallback(async () => {
-    // Prevent overlapping duplicate requests from exhausting the browser's 6-connection pool
-    if (inFlightRef.current) {
-      return;
-    }
-    inFlightRef.current = true;
+    const reqId = ++reqIdRef.current;
     // Only trigger full skeleton/loading state if data hasn't been loaded yet
     if (!hasDataRef.current) {
       setIsLoading(true);
@@ -334,18 +330,33 @@ export function useApiQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
     setError(null);
     try {
       const result = await fetcher();
+      if (reqId !== reqIdRef.current) {
+        return;
+      }
       hasDataRef.current = true;
       setData(result);
+      setIsLoading(false);
+      setIsFetching(false);
     } catch (err: any) {
+      if (reqId !== reqIdRef.current) {
+        return;
+      }
       if (err?.name === 'AbortError') {
+        if (!hasDataRef.current) {
+          setTimeout(() => {
+            if (!hasDataRef.current && reqId === reqIdRef.current) {
+              refetch();
+            }
+          }, 180);
+        } else {
+          setIsFetching(false);
+        }
         return;
       }
       if (!hasDataRef.current) {
         setIsError(true);
         setError(err);
       }
-    } finally {
-      inFlightRef.current = false;
       setIsLoading(false);
       setIsFetching(false);
     }
@@ -386,7 +397,7 @@ export const api = {
     }),
   stopBot: () => request<any>('/bot/stop', { method: 'POST' }),
   getPortfolio: (mode?: string) =>
-    request<any>(`/portfolio/overview${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`),
+    request<any>(`/portfolio/overview${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`, { timeoutMs: 25000 }),
   addHolding: (data: { symbol: string; quantity: number; avg_entry_price: number; current_price?: number }) =>
     request<any>('/portfolio/holdings', { method: 'POST', body: JSON.stringify(data) }),
   sellHolding: (symbol: string, sell_pct: number = 100, mode?: string) =>
@@ -451,13 +462,14 @@ export const api = {
   getRiskConfig: () => request<any>('/risk/config'),
   updateRiskConfig: (data: any) =>
     request<any>('/risk/config', { method: 'PUT', body: JSON.stringify(data) }),
-  getPerformance: () => request<any>('/performance/summary'),
+  getPerformance: (mode?: string) =>
+    request<any>(`/performance/summary${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`, { timeoutMs: 25000 }),
   getDailyCalendar: (mode: string = 'PAPER', year?: number, month?: number, walletAddress?: string) => {
     const params = new URLSearchParams({ mode });
     if (year) params.append('year', String(year));
     if (month) params.append('month', String(month));
     if (walletAddress) params.append('wallet_address', walletAddress);
-    return request<any>(`/performance/daily-calendar?${params.toString()}`);
+    return request<any>(`/performance/daily-calendar?${params.toString()}`, { timeoutMs: 25000 });
   },
   getTreasurySummary: () => request<any>('/wallets/treasury/summary'),
   topupGasReserve: (amount_idr: number = 5000) =>
@@ -467,7 +479,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ trigger: 'manual_check_0500_wib', simulate_net_profit_idr }),
     }),
-  getWallets: () => request<any>('/wallets'),
+  getWallets: () => request<any>('/wallets', { timeoutMs: 25000 }),
   getLiveWalletStatus: () => request<any>('/wallets/live-status'),
   setPrimarySolanaWallet: (address: string, name?: string) =>
     request<any>('/wallets/primary-solana', {

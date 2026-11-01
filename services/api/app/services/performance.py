@@ -1,24 +1,62 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 from app.db.models import Trade, EquitySnapshot
 from app.services import market, portfolio
 
 
-def get_summary(db: Session) -> dict:
+def get_summary(db: Session, mode: str | None = None) -> dict:
     fx = market.get_fx_rate()
     usd_idr = fx["usd_idr"]
-    initial_idr = portfolio.get_paper_initial_capital_idr()
-    initial_usd = round(initial_idr / usd_idr, 4)
+    active_mode = (mode or "PAPER").upper().strip()
+    if active_mode not in ("PAPER", "LIVE"):
+        active_mode = "PAPER"
 
+    # Use fast overview without blocking on external HTTP/RPC calls to avoid contention with /portfolio/overview
+    port_overview = portfolio.get_overview(
+        db,
+        refresh_live_prices=False,
+        mode=active_mode,
+        skip_rpc=True,
+        reconcile_cash=False,
+    )
+    unrealized_usd = float(port_overview.get("unrealized_pnl", 0.0))
+
+    norm_mode_col = func.upper(func.coalesce(Trade.mode, "PAPER"))
     trades = list(
-        db.execute(select(Trade).where(Trade.status == "closed").order_by(Trade.closed_at.asc(), Trade.id.asc()))
+        db.execute(
+            select(Trade)
+            .where(
+                Trade.status == "closed",
+                norm_mode_col == active_mode,
+                or_(Trade.side == "sell", Trade.pnl != 0),
+                or_(Trade.notes.is_(None), ~Trade.notes.contains("dibersihkan karena token tidak ditemukan")),
+            )
+            .order_by(Trade.closed_at.asc(), Trade.id.asc())
+        )
         .scalars()
         .all()
     )
-    # Refresh live prices from DexScreener so equity curve moves in real time with market data
-    port_overview = portfolio.get_overview(db, refresh_live_prices=True)
-    unrealized_usd = float(port_overview.get("unrealized_pnl", 0.0))
+
+    total_realized_usd = sum(float(t.pnl or 0.0) for t in trades)
+
+    if active_mode == "LIVE":
+        live_eq_usd = float(
+            port_overview.get("live_total_equity_usd")
+            or port_overview.get("active_total_equity_usd")
+            or 0.0
+        )
+        derived_base_usd = live_eq_usd - total_realized_usd - unrealized_usd
+        if derived_base_usd > 0.5:
+            initial_usd = round(derived_base_usd, 4)
+        elif live_eq_usd > 0:
+            initial_usd = round(live_eq_usd, 4)
+        else:
+            initial_usd = 10.0
+        initial_idr = round(initial_usd * usd_idr, 0)
+    else:
+        initial_idr = float(port_overview.get("paper_initial_idr") or portfolio.get_paper_initial_capital_idr())
+        initial_usd = float(port_overview.get("paper_initial_usd") or round(initial_idr / usd_idr, 4))
 
     # Build time-series PnL & Equity curve starting from configured Initial Capital (capped to 200 trades)
     pnl_chart = [
@@ -42,7 +80,7 @@ def get_summary(db: Session) -> dict:
     for idx, t in enumerate(chart_trades, start=1):
         t_pnl = float(t.pnl or 0.0)
         cum_pnl_usd += t_pnl
-        eq_usd = initial_usd + cum_pnl_usd
+        eq_usd = max(0.0, initial_usd + cum_pnl_usd)
         pnl_chart.append({
             "step": len(pnl_chart),
             "label": f"#{idx} {t.symbol.split('/')[0]}",
@@ -57,43 +95,48 @@ def get_summary(db: Session) -> dict:
             "timestamp": (t.closed_at or t.opened_at or datetime.now(timezone.utc)).isoformat(),
         })
 
-    # Include recent real-time EquitySnapshots from Neon Postgres so the chart dynamically moves with live ticks
-    snapshots = list(
-        db.execute(
-            select(EquitySnapshot)
-            .where(EquitySnapshot.reason != "reset")
-            .order_by(EquitySnapshot.id.desc())
-            .limit(12)
+    # Include recent real-time EquitySnapshots from Neon Postgres for PAPER mode
+    if active_mode == "PAPER":
+        snapshots = list(
+            db.execute(
+                select(EquitySnapshot)
+                .where(EquitySnapshot.reason != "reset")
+                .order_by(EquitySnapshot.id.desc())
+                .limit(12)
+            )
+            .scalars()
+            .all()
         )
-        .scalars()
-        .all()
-    )
-    snapshots.reverse()
-    prev_snap_eq = pnl_chart[-1]["equity_usd"]
-    for snap in snapshots:
-        snap_eq_usd = float(snap.equity_usd)
-        delta_usd = snap_eq_usd - prev_snap_eq
-        cum_snap_usd = snap_eq_usd - initial_usd
-        prev_snap_eq = snap_eq_usd
-        time_lbl = snap.created_at.strftime("%H:%M:%S") if snap.created_at else "Tick"
-        sym_lbl = snap.reason.split(":")[-1] if ":" in (snap.reason or "") else "LIVE"
-        pnl_chart.append({
-            "step": len(pnl_chart),
-            "label": f"{time_lbl}",
-            "symbol": sym_lbl,
-            "side": "buy" if (snap.reason or "").startswith("buy") else ("sell" if (snap.reason or "").startswith("sell") else "mark"),
-            "trade_pnl_usd": round(delta_usd, 4),
-            "trade_pnl_idr": round(delta_usd * usd_idr, 0),
-            "cumulative_pnl_usd": round(cum_snap_usd, 4),
-            "cumulative_pnl_idr": round(cum_snap_usd * usd_idr, 0),
-            "equity_usd": round(snap_eq_usd, 4),
-            "equity_idr": round(snap_eq_usd * usd_idr, 0),
-            "timestamp": (snap.created_at or datetime.now(timezone.utc)).isoformat(),
-        })
+        snapshots.reverse()
+        prev_snap_eq = pnl_chart[-1]["equity_usd"]
+        for snap in snapshots:
+            snap_eq_usd = float(snap.equity_usd)
+            delta_usd = snap_eq_usd - prev_snap_eq
+            cum_snap_usd = snap_eq_usd - initial_usd
+            prev_snap_eq = snap_eq_usd
+            time_lbl = snap.created_at.strftime("%H:%M:%S") if snap.created_at else "Tick"
+            sym_lbl = snap.reason.split(":")[-1] if ":" in (snap.reason or "") else "LIVE"
+            pnl_chart.append({
+                "step": len(pnl_chart),
+                "label": f"{time_lbl}",
+                "symbol": sym_lbl,
+                "side": "buy" if (snap.reason or "").startswith("buy") else ("sell" if (snap.reason or "").startswith("sell") else "mark"),
+                "trade_pnl_usd": round(delta_usd, 4),
+                "trade_pnl_idr": round(delta_usd * usd_idr, 0),
+                "cumulative_pnl_usd": round(cum_snap_usd, 4),
+                "cumulative_pnl_idr": round(cum_snap_usd * usd_idr, 0),
+                "equity_usd": round(snap_eq_usd, 4),
+                "equity_idr": round(snap_eq_usd * usd_idr, 0),
+                "timestamp": (snap.created_at or datetime.now(timezone.utc)).isoformat(),
+            })
 
-    # Add current live Mark-to-Market point if there are open holdings
-    if len(port_overview.get("holdings", [])) > 0 or unrealized_usd != 0.0:
-        live_eq_usd = float(port_overview.get("total_equity_usd", initial_usd + cum_pnl_usd + unrealized_usd))
+    # Add current live Mark-to-Market point
+    live_eq_usd = float(
+        port_overview.get("active_total_equity_usd")
+        or port_overview.get("total_equity_usd")
+        or (initial_usd + cum_pnl_usd + unrealized_usd)
+    )
+    if len(port_overview.get("holdings", [])) > 0 or unrealized_usd != 0.0 or abs(live_eq_usd - pnl_chart[-1]["equity_usd"]) > 0.005:
         live_cum_usd = live_eq_usd - initial_usd
         pnl_chart.append({
             "step": len(pnl_chart),
@@ -109,12 +152,14 @@ def get_summary(db: Session) -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
-    all_trades_count = db.execute(select(func.count(Trade.id))).scalar() or 0
     closed_count = len(trades)
     if closed_count == 0:
         return {
+            "mode": active_mode,
             "usd_idr": usd_idr,
-            "total_trades": all_trades_count,
+            "initial_capital_usd": initial_usd,
+            "initial_capital_idr": initial_idr,
+            "total_trades": 0,
             "winning_trades": 0,
             "losing_trades": 0,
             "win_rate": 0.0,
@@ -137,8 +182,11 @@ def get_summary(db: Session) -> dict:
     win_rate = (winning_trades / closed_count) * 100.0
 
     return {
+        "mode": active_mode,
         "usd_idr": usd_idr,
-        "total_trades": all_trades_count,
+        "initial_capital_usd": initial_usd,
+        "initial_capital_idr": initial_idr,
+        "total_trades": closed_count,
         "winning_trades": winning_trades,
         "losing_trades": losing_trades,
         "win_rate": round(win_rate, 2),
