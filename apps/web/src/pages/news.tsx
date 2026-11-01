@@ -173,23 +173,32 @@ export default function NewsPage() {
     const posPct = Math.round((posTotal / total) * 100);
     const netralPct = Math.max(0, 100 - negPct - posPct);
 
-    // Bobot arah: Bahaya (-2.0), Waspada (-1.0), Netral (0.0), Positif (+1.0), Peluang Cuan (+2.0)
-    const negPoints = (bahayaCount * 2.0) + (waspadaCount * 1.0);
-    const posPoints = (cuanCount * 2.0) + (positifCount * 1.0);
-    const netDirectional = posPoints - negPoints;
+    // Skor intrinsik per artikel pada skala 1-10 (Netral = 5.0 tepat di tengah)
+    const allWeightedSum =
+      bahayaCount * 1.2 +
+      waspadaCount * 3.0 +
+      netralCount * 5.0 +
+      positifCount * 7.6 +
+      cuanCount * 9.5;
+    const articleWeightedAvg = allWeightedSum / total;
+
     const directionalCount = negTotal + posTotal;
+    const directionalAvg =
+      directionalCount > 0
+        ? (bahayaCount * 1.2 + waspadaCount * 3.0 + positifCount * 7.6 + cuanCount * 9.5) / directionalCount
+        : 5.0;
 
-    let rawScore = 5.0;
-    if (directionalCount > 0) {
-      const dirRatio = netDirectional / (2.0 * directionalCount); // [-1.0 .. +1.0]
-      const coverageFactor = Math.min(1.0, Math.max(0.55, (directionalCount / total) * 1.5));
-      rawScore = 5.2 + (dirRatio * coverageFactor * 4.5);
-    }
+    // Padukan rata-rata seluruh artikel dengan rata-rata arah (directional) sesuai porsi berita berarah
+    const dirShare = directionalCount / total;
+    const dirBlendWeight = Math.min(0.65, dirShare * 1.15);
+    let rawScore = articleWeightedAvg * (1 - dirBlendWeight) + directionalAvg * dirBlendWeight;
 
-    // Jaminan konsistensi matematis: jika jumlah berita Negatif > Positif secara nyata, skor wajib di zona Bearish/Waspada (<= 4.4)
-    if (negTotal > posTotal && (negTotal - posTotal >= 2 || negPoints > posPoints * 1.25)) {
+    // Jaminan konsistensi:
+    // - Jika porsi Negatif dominan (> Positif dan >= 20% total berita), skor wajib di zona Bearish/Waspada (<= 4.4)
+    // - Jika porsi Positif dominan (> Negatif dan >= 20% total berita), skor wajib di zona Positif/Bullish (>= 6.5)
+    if (negTotal > posTotal && negPct >= 20) {
       rawScore = Math.min(4.3, rawScore);
-    } else if (posTotal > negTotal && (posTotal - negTotal >= 2 || posPoints > negPoints * 1.25)) {
+    } else if (posTotal > negTotal && posPct >= 20) {
       rawScore = Math.max(6.6, rawScore);
     }
 

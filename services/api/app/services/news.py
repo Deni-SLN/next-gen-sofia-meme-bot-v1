@@ -229,29 +229,35 @@ def _classify_article_tags(title: str, summary: str, category: str) -> dict:
     text = f"{title_l} {summary_l}"
 
     danger_words = [
-        "scam", "rug pull", "rugpull", "bobol", "diretas", "peretasan", "hacker",
-        "penipuan", "bodong", "ilegal", "pailit", "bangkrut", "anjlok parah",
-        "krisis", "delisting", "likuidasi", "digembok", "suspensi", "disuspensi",
+        "scam", "rug pull", "rugpull", "bobol", "kebobolan", "diretas", "peretasan", "hacker",
+        "penipuan", "bodong", "ilegal", "pailit", "kepailitan", "bangkrut", "kebangkrutan",
+        "anjlok parah", "krisis", "delisting", "likuidasi", "digembok", "suspensi", "disuspensi",
         "kerugian besar", "jebakan", "manipulasi", "serangan rudal", "perang terbuka",
-        "invasi", "runtuh", "kolaps", "gagal bayar", "default",
+        "invasi", "runtuh", "kolaps", "gagal bayar", "default", "korupsi", "ditahan",
+        "tersangka", "kejahatan", "pencucian uang", "darurat",
     ]
     caution_words = [
-        "waspada", "hati-hati", "turun", "anjlok", "melemah", "rugi", "koreksi",
-        "bearish", "merah", "jatuh", "tertekan", "defisit", "inflasi", "dump",
-        "longsor", "phk", "terjun", "volatilitas", "gejolak", "aksi jual", "outflow",
-        "ketidakpastian", "tarif", "perang dagang", "utang", "beban", "rawan",
-        "sanksi", "konflik", "ketegangan", "lesu", "melambat", "merosot", "terpangkas",
+        "waspada", "hati-hati", "turun", "penurunan", "menurun", "anjlok", "melemah", "pelemahan",
+        "rugi", "merugi", "kerugian", "koreksi", "terkoreksi", "bearish", "merah", "zona merah",
+        "jatuh", "terjatuh", "tertekan", "tekanan", "defisit", "inflasi", "dump", "longsor",
+        "phk", "terjun", "volatilitas", "gejolak", "aksi jual", "net sell", "outflow",
+        "ketidakpastian", "tarif", "perang dagang", "utang", "beban", "rawan", "sanksi",
+        "konflik", "ketegangan", "lesu", "melambat", "perlambatan", "merosot", "terpangkas",
+        "ancaman", "terancam", "risiko", "gugatan", "investigasi", "dugaan", "lindungi diri",
+        "bayangi", "membayangi", "pesimis",
     ]
     strong_bull_words = [
-        "rekor", "melonjak", "meroket", "terbang", "cuan", "untung besar", "all time high",
-        "ath", "reli", "breakout", "dividen jumbo", "laba melonjak", "surplus besar",
-        "prospek cerah", "bullish", "cetak rekor", "melambung tinggi", "panen cuan",
+        "rekor", "cetak rekor", "melonjak", "lonjakan", "meroket", "terbang", "cuan", "panen cuan",
+        "untung besar", "all time high", "ath", "reli", "breakout", "dividen jumbo",
+        "laba melonjak", "surplus besar", "prospek cerah", "bullish", "melambung tinggi",
     ]
     positive_words = [
-        "naik", "menguat", "positif", "tumbuh", "melambung", "hijau", "surplus",
-        "optimis", "apresiasi", "ekspansi", "inovasi", "kerjasama", "adopsi",
-        "stabil", "pulih", "bangkit", "inflow", "akumulasi", "untung", "laba naik",
-        "dividen", "buyback", "rebound", "menggeliat", "cerah",
+        "naik", "kenaikan", "menguat", "penguatan", "positif", "tumbuh", "pertumbuhan", "bertumbuh",
+        "melambung", "hijau", "zona hijau", "surplus", "optimis", "optimisme", "apresiasi",
+        "ekspansi", "inovasi", "kerjasama", "kemitraan", "adopsi", "stabil", "stabilitas",
+        "pulih", "pemulihan", "bangkit", "inflow", "net buy", "aksi beli", "akumulasi",
+        "untung", "keuntungan", "laba", "dividen", "buyback", "rebound", "menggeliat",
+        "cerah", "peluang", "prospek", "mendorong", "kinerja positif", "tertinggi",
     ]
 
     # Headline (title) carries 2x weight compared to description summary
