@@ -46,6 +46,9 @@ class EntryDecisionOutput(BaseModel):
     invalidation: Optional[float] = None
     expected_rr_ratio: Optional[float] = None
     dimensions: Optional[EntryDimensionsScore] = None
+    input_snapshot: Optional[Dict[str, Any]] = None  # Mandatory: reproducible state snapshot (Directive Item 12)
+    quality_gate_passed: Optional[bool] = None
+    quality_gate_reason: Optional[str] = None
     risk_flags: List[str] = Field(default_factory=list)
     reasoning: List[str] = Field(default_factory=list)
     data_timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

@@ -64,6 +64,9 @@ def _ensure_column_migrations() -> None:
         ("portfolio_holdings", "entry_costs_usd", "FLOAT DEFAULT 0.0"),
         ("portfolio_holdings", "liquidity_usd", "FLOAT DEFAULT 0.0"),
         ("portfolio_holdings", "mode", "VARCHAR(10) DEFAULT 'PAPER'"),
+        ("agent_decisions", "input_snapshot", "JSON"),
+        ("entry_assessments", "input_snapshot", "JSON"),
+        ("entry_assessments", "rejection_reason", "VARCHAR(120)"),
     ]
     is_pg = not settings.database_url.startswith("sqlite")
     with engine.begin() as conn:

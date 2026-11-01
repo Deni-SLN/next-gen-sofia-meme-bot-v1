@@ -23,14 +23,28 @@ from app.v2.agents.registry import agent_registry
 from app.v2.db.models import AgentDecision, EntryAssessment, ExitAssessment
 from app.services import memecoins, portfolio
 
+from app.v2.services.entry_intelligence import entry_intelligence
+from app.v2.core.quality_gate import quality_gate
+from app.v2.services.scanner_bridge import scanner_bridge
+from app.v2.services.paper_executor import paper_executor
+
 router = APIRouter(tags=["V2 AI Intelligence"])
 
 
 class AnalyzeEntryRequest(BaseModel):
     mint: str
     symbol: Optional[str] = None
+    strategy_mode: str = "DEFAULT"
     model_override: Optional[str] = None
     provider_preference: Optional[str] = None
+    force_deterministic: bool = False
+
+
+class SimulatePaperRequest(BaseModel):
+    mint: str
+    symbol: Optional[str] = None
+    strategy_mode: str = "DEFAULT"
+    allocation_usd: float = 1.0
 
 
 class AnalyzeExitRequest(BaseModel):
@@ -81,6 +95,30 @@ def list_ai_agents():
     }
 
 
+@router.get("/entry/candidates")
+def list_evaluated_candidates(
+    strategy_mode: str = Query(default="DEFAULT", description="DEFAULT, SAFE, or AGGRESSIVE"),
+    limit: int = Query(default=10, ge=1, le=25),
+    db: Session = Depends(get_db),
+):
+    """
+    Scans live Solana meme pools from DexScreener & GMGN radar,
+    evaluates candidates across the 6-dimension Entry Intelligence framework,
+    and runs them through the Trade Quality Gate with deterministic risk vetoes.
+    """
+    return {
+        "strategy_mode": strategy_mode.upper(),
+        "limit": limit,
+        "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        "candidates": scanner_bridge.scan_and_evaluate_candidates(
+            db=db,
+            strategy_mode=strategy_mode,
+            limit=limit,
+            force_deterministic=True,
+        ),
+    }
+
+
 @router.post("/entry/analyze", response_model=EntryDecisionOutput)
 def analyze_token_candidate(
     req: AnalyzeEntryRequest,
@@ -88,15 +126,14 @@ def analyze_token_candidate(
     user: Optional[dict] = Depends(get_current_user_optional),
 ):
     """
-    Evaluates a candidate token through the Entry Intelligence Agent.
-    Fetches real-time DexScreener/GMGN on-chain data, applies the 6-dimension scoring framework,
-    and returns a structured BUY/WAIT/WATCHLIST/SKIP decision.
+    Evaluates a candidate token through the Entry Intelligence Agent and Trade Quality Gate.
+    Calculates 6 analytical dimensions, verifies data freshness (<180s), and creates an immutable snapshot.
     """
     mint_clean = req.mint.strip()
     if not mint_clean:
         raise HTTPException(status_code=400, detail="Mint token wajib diisi")
 
-    # Fetch real on-chain market data from DexScreener & RugCheck (Zero Dummy Data)
+    # Fetch real on-chain market data from DexScreener & RugCheck
     from app.services import market
     fx = market.get_fx_rate()
     usd_idr = fx.get("usd_idr", 16000.0)
@@ -104,86 +141,100 @@ def analyze_token_candidate(
     tok = tokens[0] if tokens else {}
     rug = memecoins.analyze_rug_check(mint_clean)
 
-    symbol = req.symbol or tok.get("base_symbol") or tok.get("symbol") or rug.get("symbol") or "MEME"
-    mcap = float(tok.get("market_cap_usd") or tok.get("fdv_usd") or 0.0)
-    liq = float(tok.get("liquidity_usd") or 0.0)
-    v5m = float(tok.get("volume_5m_usd") or 0.0)
-    v1h = float(tok.get("volume_1h_usd") or 0.0)
-    p5m = float(tok.get("price_change_5m_pct") or 0.0)
-    p1h = float(tok.get("price_change_1h_pct") or 0.0)
-    top10 = float(rug.get("top10_pct") or 20.0)
-    dev_h = float(rug.get("dev_holding_pct") or 0.0)
+    merged = {
+        **tok,
+        "contract": mint_clean,
+        "symbol": req.symbol or tok.get("base_symbol") or tok.get("symbol") or rug.get("symbol") or "MEME",
+        "top10_concentration_pct": rug.get("top10_pct", 20.0),
+        "dev_holding_pct": rug.get("dev_holding_pct", 0.0),
+        "mint_revoked": rug.get("mint_revoked", False),
+        "freeze_revoked": rug.get("freeze_revoked", False),
+        "lp_burned": rug.get("lp_burned", False),
+        "honeypot": rug.get("honeypot", False),
+        "data_timestamp": tok.get("data_timestamp") or tok.get("updated_at"),
+    }
 
-    # 1. Calculate deterministic baseline first (PRD Section 5.1)
-    math_eval = orchestrator.math_engine.calculate_entry_scores(
-        token_data=tok,
-        market_cap_usd=mcap,
-        liquidity_usd=liq,
-        volume_5m_usd=v5m,
-        volume_1h_usd=v1h,
-        price_change_5m_pct=p5m,
-        price_change_1h_pct=p1h,
-        top10_concentration_pct=top10,
-        dev_holding_pct=dev_h,
-    )
-
-    sys_prompt = (
-        "You are the Entry Intelligence Agent for SOFIA MEME BOT V2 on Solana. "
-        "Analyze the provided raw market metrics and return a valid JSON object matching EntryDecisionOutput schema. "
-        "Strict rules: Never fabricate numbers. If score >= 85 decision is BUY (Strong), 75-84 BUY, 60-74 WAIT, <60 SKIP. "
-        "Penalize tokens with volume drop, late entries (>300% 1h runup), or top 10 holders > 25%."
-    )
-
-    user_prompt = (
-        f"Token: {symbol} (Mint: {mint_clean})\n"
-        f"Market Cap: ${mcap:,.2f} | Liquidity: ${liq:,.2f}\n"
-        f"Volume 5m: ${v5m:,.2f} | Volume 1h: ${v1h:,.2f}\n"
-        f"Change 5m: {p5m:+.2f}% | Change 1h: {p1h:+.2f}%\n"
-        f"Top 10 Holders: {top10:.1f}% | Dev Holding: {dev_h:.1f}%\n"
-        f"Deterministic Baseline Scores: {json.dumps(math_eval['dimensions'])}\n"
-        f"Calculated Score: {math_eval['score']}/100"
-    )
-
-    decision_out, db_record = orchestrator.execute_structured_agent(
+    # Evaluate via independent Entry Intelligence Service
+    decision_out, snapshot = entry_intelligence.evaluate_candidate(
+        token_data=merged,
         db=db,
-        agent_name="entry_intelligence",
-        system_prompt=sys_prompt,
-        user_prompt=user_prompt,
-        schema_cls=EntryDecisionOutput,
-        target_mint=mint_clean,
-        symbol=symbol,
         model_override=req.model_override,
         provider_preference=req.provider_preference,
+        force_deterministic=req.force_deterministic,
     )
 
-    # Record in agent registry
-    agent_registry.record_decision("entry_intelligence", decision_out.decision, decision_out.score)
+    # Evaluate via Trade Quality Gate (Deterministic Risk Veto)
+    qg_res = quality_gate.evaluate(
+        entry_decision=decision_out,
+        risk_data=merged,
+        strategy_mode=req.strategy_mode,
+        db=db,
+    )
 
-    # Persist EntryAssessment detail
-    if db and db_record:
-        try:
-            ea = EntryAssessment(
-                decision_id=db_record.id,
-                target_mint=mint_clean,
-                symbol=symbol,
-                market_structure_score=math_eval["dimensions"]["market_structure"],
-                momentum_score=math_eval["dimensions"]["momentum"],
-                smart_money_score=math_eval["dimensions"]["smart_money"],
-                liquidity_score=math_eval["dimensions"]["liquidity"],
-                holder_score=math_eval["dimensions"]["holder_intelligence"],
-                narrative_score=math_eval["dimensions"]["narrative"],
-                total_score=decision_out.score,
-                entry_zone_min=decision_out.entry_zone.min,
-                entry_zone_max=decision_out.entry_zone.max,
-                invalidation_price=decision_out.invalidation,
-                expected_rr_ratio=decision_out.expected_rr_ratio,
-                passed_quality_gate=(decision_out.score >= 75.0),
-                risk_flags=decision_out.risk_flags,
-            )
-            db.add(ea)
-            db.commit()
-        except Exception:
-            db.rollback()
+    return decision_out
+
+
+@router.post("/entry/simulate-paper")
+def simulate_paper_entry(
+    req: SimulatePaperRequest,
+    db: Session = Depends(get_db),
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """
+    Simulates paper trade execution for an approved candidate token.
+    Enforces Directive Item 5: Zero modifications to LIVE trading execution.
+    """
+    mint_clean = req.mint.strip()
+    if not mint_clean:
+        raise HTTPException(status_code=400, detail="Mint token wajib diisi")
+
+    from app.services import market
+    fx = market.get_fx_rate()
+    usd_idr = fx.get("usd_idr", 16000.0)
+    tokens = market.fetch_dexscreener_tokens_by_addresses([mint_clean], usd_idr)
+    tok = tokens[0] if tokens else {}
+    rug = memecoins.analyze_rug_check(mint_clean)
+
+    merged = {
+        **tok,
+        "contract": mint_clean,
+        "symbol": req.symbol or tok.get("base_symbol") or tok.get("symbol") or rug.get("symbol") or "MEME",
+        "top10_concentration_pct": rug.get("top10_pct", 20.0),
+        "dev_holding_pct": rug.get("dev_holding_pct", 0.0),
+        "mint_revoked": rug.get("mint_revoked", False),
+        "freeze_revoked": rug.get("freeze_revoked", False),
+        "lp_burned": rug.get("lp_burned", False),
+        "honeypot": rug.get("honeypot", False),
+        "data_timestamp": tok.get("data_timestamp") or tok.get("updated_at"),
+    }
+
+    decision_out, _ = entry_intelligence.evaluate_candidate(
+        token_data=merged,
+        db=db,
+        force_deterministic=True,
+    )
+
+    qg_res = quality_gate.evaluate(
+        entry_decision=decision_out,
+        risk_data=merged,
+        strategy_mode=req.strategy_mode,
+        db=db,
+    )
+
+    if not qg_res.passed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Trade Quality Gate DITOLAK: {qg_res.verdict}. Alasan: {'; '.join(qg_res.rejection_reasons)}",
+        )
+
+    result = paper_executor.execute_paper_entry(
+        db=db,
+        entry_decision=decision_out,
+        quality_gate_result=qg_res,
+        allocation_usd=req.allocation_usd,
+    )
+
+    return result
 
     return decision_out
 

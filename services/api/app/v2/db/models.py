@@ -28,6 +28,7 @@ class AgentDecision(Base):
     suggested_action: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     reasoning: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     raw_output: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    input_snapshot: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)  # Mandatory: reproducible decision state (Directive Item 12)
     provider: Mapped[str] = mapped_column(String(32), default="openrouter")
     model: Mapped[str] = mapped_column(String(128), default="google/gemini-2.0-flash-exp:free")
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
@@ -60,6 +61,8 @@ class EntryAssessment(Base):
     invalidation_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     expected_rr_ratio: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     passed_quality_gate: Mapped[bool] = mapped_column(Boolean, default=False)
+    rejection_reason: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    input_snapshot: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)  # Mandatory: reproducible input snapshot
     risk_flags: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
