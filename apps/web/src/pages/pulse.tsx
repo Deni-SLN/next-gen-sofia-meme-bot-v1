@@ -323,6 +323,21 @@ export default function PulsePage() {
 
       if (t.safety_score < minSafety) return false;
 
+      // 4a. Anti-Dump Guard: tolak koin yang sudah jatuh / tren turun / seller dominan
+      const c5m = Number(t.price_change_5m) || 0;
+      const c1h = Number(t.price_change_1h) || 0;
+      const c24h = Number(t.price_change_24h) || 0;
+      const b5 = Number(t.buys_5m) || 0;
+      const s5 = Number(t.sells_5m) || 0;
+      const dexL = String(t.dex || '').toLowerCase();
+      const isPreGrad = dexL === 'pump.fun' || dexL === 'pumpfun' || dexL === 'moonshot';
+      const mcapNow = Number(t.market_cap) || 0;
+      if (t.is_dumped === true || t.signal_tag === 'AVOID_DUMP') return false;
+      if (c24h <= 0 || c1h < 0) return false;
+      if (c5m < 0 && !(c5m >= -2 && c1h >= 15 && c24h >= 20 && b5 > s5)) return false;
+      if (s5 >= b5) return false;
+      if (!isPreGrad && mcapNow < 42000) return false;
+
       // 4. Filter Tambahan Profitabilitas Sniper
       const buys = Number(t.buys_5m) || 0;
       const sells = Number(t.sells_5m) || 0;
@@ -375,7 +390,19 @@ export default function PulsePage() {
     const holderPenalty = top10 > 25 ? -18 : (top10 <= 15 ? 12 : 0);
     const devPenalty = devHold > 5 ? -25 : (devHold <= 1.5 ? 10 : 0);
 
-    return (safety * 1.6) + bondingBonus + volScore + smart + mintSafe + lpSafe + orderflowScore + holderPenalty + devPenalty;
+    // 4. Momentum Multi-Timeframe: bonus jika naik, penalti berat jika turun
+    const c5m = Number(t.price_change_5m) || 0;
+    const c1h = Number(t.price_change_1h) || 0;
+    const c24h = Number(t.price_change_24h) || 0;
+    const momentumScore =
+      (c5m >= 0 ? Math.min(35, c5m * 1.5) : Math.max(-60, c5m * 6)) +
+      (c1h >= 0 ? Math.min(25, c1h * 0.4) : Math.max(-60, c1h * 4)) +
+      (c24h >= 0 ? Math.min(15, c24h * 0.08) : Math.max(-60, c24h * 1.5));
+    const sellerPenalty = sells >= buys ? -40 : 0;
+    const dumpPenalty = (t.is_dumped === true || t.signal_tag === 'AVOID_DUMP') ? -200 : 0;
+
+    return (safety * 1.6) + bondingBonus + volScore + smart + mintSafe + lpSafe + orderflowScore + holderPenalty + devPenalty
+      + momentumScore + sellerPenalty + dumpPenalty;
   };
 
   // Normalisasi Skor Profit AI ke skala 0-99 untuk badge kartu

@@ -570,6 +570,74 @@ def _register_token_cache(tok: dict, now: float | None = None) -> None:
             _CONTRACT_REGISTRY[base_key] = tok["contract"]
 
 
+def is_dumped_or_dead_coin(tok: dict) -> bool:
+    """
+    Deteksi ketat apakah koin meme sudah jatuh (dumped/crashed/rugged), tren turun (downtrend),
+    atau orderflow mati sehingga WAJIB diblokir dari feed & rekomendasi Pulse Radar / Auto-Entry.
+    """
+    if not isinstance(tok, dict):
+        return True
+
+    dex_raw = str(tok.get("dex") or "").strip().lower()
+    is_pre_grad_bonding = dex_raw in ("pump.fun", "pumpfun", "moonshot")
+
+    mcap = float(tok.get("market_cap") or 0.0)
+    liq = float(tok.get("liquidity") or 0.0)
+    age_h = float(tok.get("age_hours") or 0.0)
+    vol_5m = float(tok.get("volume_5m") or 0.0)
+
+    c5m = float(tok.get("price_change_5m") or 0.0)
+    c1h = float(tok.get("price_change_1h") or 0.0)
+    c24h = float(tok.get("price_change_24h") or 0.0)
+
+    buys_5m = int(tok.get("buys_5m") or 0)
+    sells_5m = int(tok.get("sells_5m") or 0)
+    total_tx_5m = buys_5m + sells_5m
+
+    # 1. Koin yang sudah lulus (PumpSwap / Raydium / Meteora / Orca) tapi MCap anjlok di bawah $42,000
+    # (Padahal kelulusan Pump.fun berada di ~$69,000 -> artinya koin ini sudah dump berat pasca-migrasi)
+    if not is_pre_grad_bonding and mcap < 42000.0:
+        return True
+
+    # 2. Koin masih di Bonding Curve (Pump.fun / Moonshot) tapi MCap jatuh ke dasar (< $6,500),
+    # atau gagal naik setelah > 30 menit (< $9,000) / > 2 jam (< $16,000), atau mangkrak > 12 jam belum lulus
+    if is_pre_grad_bonding:
+        if mcap < 6500.0:
+            return True
+        if age_h > 0.5 and mcap < 9000.0:
+            return True
+        if age_h > 2.0 and mcap < 16000.0:
+            return True
+        if age_h > 12.0:
+            return True
+
+    # 3. Koin kadaluarsa (> 72 jam / 3 hari) bukan lagi target Trench Sniper
+    if age_h > 72.0:
+        return True
+
+    # 4. Likuiditas terlalu tipis / sudah terkuras rug pull
+    if liq < 2500.0:
+        return True
+
+    # 5. Filter Multi-Timeframe Anti-Dump Ketat:
+    # - 1h wajib >= 0% dan 24h wajib > 0% (tidak boleh ada tren turun jam-jaman atau harian)
+    # - 5m wajib >= 0% (atau maksimal koreksi mikro -2.0% HANYA jika 1h >= +15% dan 24h >= +20% dengan buyer tetap dominan)
+    if c24h <= 0.0 or c1h < 0.0:
+        return True
+    if c5m < 0.0 and not (c5m >= -2.0 and c1h >= 15.0 and c24h >= 20.0 and buys_5m > sells_5m):
+        return True
+
+    # 6. Tekanan Jual Dominan (Seller >= Buyer) atau Orderflow Mati pada 5 menit terakhir
+    if buys_5m < 3 or total_tx_5m < 4:
+        return True
+    if sells_5m >= buys_5m:
+        return True
+    if vol_5m < 150.0:
+        return True
+
+    return False
+
+
 def _compute_profitability_telemetry(tok: dict) -> dict:
     """
     Hitung metrik profitabilitas sniper meme coin secara deterministik dari data pasangan DEX riil:
@@ -588,7 +656,7 @@ def _compute_profitability_telemetry(tok: dict) -> dict:
     buys_5m = max(0, int(t.get("buys_5m") or 0))
     sells_5m = max(0, int(t.get("sells_5m") or 0))
     total_tx_5m = buys_5m + sells_5m
-    buy_pressure_5m_pct = round((buys_5m / total_tx_5m) * 100.0, 1) if total_tx_5m > 0 else 50.0
+    buy_pressure_5m_pct = round((buys_5m / total_tx_5m) * 100.0, 1) if total_tx_5m > 0 else 0.0
     net_buys_5m = buys_5m - sells_5m
     avg_tx_usd_5m = round(vol_5m / max(1, total_tx_5m), 1)
 
@@ -596,12 +664,20 @@ def _compute_profitability_telemetry(tok: dict) -> dict:
     vol_liq_ratio_5m_pct = round((vol_5m / liq_usd) * 100.0, 1)
     price_impact_10usd_pct = round(min(25.0, (10.0 / max(150.0, liq_usd)) * 100.0), 2)
 
-    curve = int(t.get("bonding_curve_pct") or 0)
+    dex_raw = str(t.get("dex") or "").strip().lower()
+    is_pre_grad_bonding = dex_raw in ("pump.fun", "pumpfun", "moonshot")
+    if not is_pre_grad_bonding:
+        curve = 100
+        t["bonding_curve_pct"] = 100
+    else:
+        curve = int(t.get("bonding_curve_pct") or min(99, max(12, int((mcap / 69000.0) * 100))))
+        t["bonding_curve_pct"] = curve
+
     mcap_to_grad_usd = max(0.0, round(69000.0 - mcap, 0)) if curve < 100 and mcap < 69000.0 else 0.0
 
     change_5m = float(t.get("price_change_5m") or 0.0)
-    change_1h = float(t.get("price_change_1h") or (change_5m * 2.2))
-    change_24h = float(t.get("price_change_24h") or (change_1h * 2.5))
+    change_1h = float(t.get("price_change_1h") or 0.0)
+    change_24h = float(t.get("price_change_24h") or 0.0)
     change_1m = float(t.get("price_change_1m") or round(change_5m / 3.5, 2))
 
     holders = max(25, int(t.get("holders") or int(mcap / 280)))
@@ -611,63 +687,100 @@ def _compute_profitability_telemetry(tok: dict) -> dict:
     smart_degens = int(t.get("gmgn_smart_degens") or 2)
     safety = int(t.get("safety_score") or 75)
     has_socials = bool(t.get("has_socials") or t.get("website_url") or t.get("twitter_url") or t.get("telegram_url"))
+    dumped = is_dumped_or_dead_coin(t)
 
     # Quant Profit Signal Classification & Target TP / SL
     factors: list[str] = []
-    if buy_pressure_5m_pct >= 62.0:
+    if buy_pressure_5m_pct >= 60.0 and buys_5m > sells_5m:
         factors.append(f"Buy Pressure Kuat ({buy_pressure_5m_pct:.0f}%)")
-    if 25 <= curve <= 85:
+    if change_5m >= 2.0 and change_1h >= 0.0:
+        factors.append(f"Momentum Naik (5m +{change_5m:.1f}%)")
+    if is_pre_grad_bonding and 25 <= curve <= 85:
         factors.append(f"Sweet Spot Curve ({curve}%)")
-    elif 85 < curve < 100:
+    elif is_pre_grad_bonding and 85 < curve < 100:
         factors.append(f"Menjelang Migrasi Raydium ({curve}%)")
     if dev_pct <= 1.0:
         factors.append("Dev 0% (Clean Supply)")
-    if vol_liq_ratio_5m_pct >= 10.0:
+    if vol_liq_ratio_5m_pct >= 10.0 and change_5m > 0:
         factors.append(f"Velocity Tinggi ({vol_liq_ratio_5m_pct:.0f}% Vol/Liq)")
-    if smart_degens >= 5:
+    if smart_degens >= 5 and change_5m >= 0 and change_1h >= 0:
         factors.append(f"{smart_degens} Smart Wallet Masuk")
     if has_socials:
         factors.append("Socials Terverifikasi")
 
-    if liq_mcap_ratio_pct < 4.0 or liq_usd < 2500.0:
+    healthy_uptrend = (
+        not dumped
+        and change_5m >= 0.0
+        and change_1h >= 0.0
+        and change_24h > -8.0
+        and buys_5m > sells_5m
+    )
+
+    if dumped or change_24h <= -10.0 or change_1h <= -5.0 or change_5m <= -3.0 or sells_5m > buys_5m:
+        signal_tag = "AVOID_DUMP"
+        signal_label = "⛔ HINDARI (TREN TURUN)"
+        signal_desc = "Terdeteksi tekanan jual / penurunan harga, diblokir dari rekomendasi"
+        tp_pct, sl_pct = 15, 8
+    elif liq_mcap_ratio_pct < 4.0 or liq_usd < 2500.0:
         signal_tag = "CAUTION_THIN_LIQ"
         signal_label = "⚠️ LIKUIDITAS TIPIS"
         signal_desc = "Rasio likuiditas terhadap MCap rendah, rawan slippage tinggi"
         tp_pct, sl_pct = 20, 8
-    elif 25 <= curve <= 84 and buy_pressure_5m_pct >= 60.0 and dev_pct <= 5.0 and safety >= 76:
+    elif (
+        healthy_uptrend
+        and is_pre_grad_bonding
+        and 25 <= curve <= 84
+        and buy_pressure_5m_pct >= 60.0
+        and change_5m >= 1.0
+        and dev_pct <= 5.0
+        and safety >= 76
+    ):
         signal_tag = "GOLDEN_SNIPE"
         signal_label = "🔥 GOLDEN SNIPE"
-        signal_desc = "Zona akumulasi terbaik: Bonding curve sweet spot + dominasi buyer"
+        signal_desc = "Zona akumulasi terbaik: Bonding curve sweet spot + tren naik + dominasi buyer"
         tp_pct, sl_pct = 45, 12
-    elif 85 <= curve < 100 and buy_pressure_5m_pct >= 54.0:
+    elif healthy_uptrend and is_pre_grad_bonding and 85 <= curve < 100 and buy_pressure_5m_pct >= 55.0:
         signal_tag = "PRE_GRADUATE"
         signal_label = "🚀 PRE-GRADUATE"
-        signal_desc = "Mendekati kelulusan bonding curve ($69K) menuju pool AMM"
+        signal_desc = "Mendekati kelulusan bonding curve ($69K) dengan momentum beli positif"
         tp_pct, sl_pct = 35, 10
-    elif vol_liq_ratio_5m_pct >= 12.0 and change_5m >= 2.0 and buy_pressure_5m_pct >= 56.0:
+    elif healthy_uptrend and vol_liq_ratio_5m_pct >= 12.0 and change_5m >= 2.5 and buy_pressure_5m_pct >= 58.0:
         signal_tag = "HIGH_VELOCITY"
         signal_label = "⚡ BREAKOUT VELOCITY"
-        signal_desc = "Perputaran volume 5m sangat cepat dengan momentum harga positif"
+        signal_desc = "Perputaran volume 5m cepat dengan breakout harga positif & buyer dominan"
         tp_pct, sl_pct = 35, 10
-    elif change_1h >= 10.0 and -8.0 <= change_5m <= 2.5 and buy_pressure_5m_pct >= 55.0 and safety >= 78:
+    elif (
+        not dumped
+        and change_1h >= 15.0
+        and change_24h >= 15.0
+        and -2.5 <= change_5m < 1.0
+        and buy_pressure_5m_pct >= 58.0
+        and safety >= 78
+    ):
         signal_tag = "PULLBACK_ENTRY"
-        signal_label = "🎯 PULLBACK ENTRY"
-        signal_desc = "Tren 1 jam naik kuat, sedang koreksi sehat dengan buyer bertahan"
+        signal_label = "🎯 PULLBACK SEHAT"
+        signal_desc = "Tren 1 jam & 24 jam naik kuat, jeda konsolidasi sehat dengan buyer tetap dominan"
         tp_pct, sl_pct = 30, 9
-    elif smart_degens >= 6 and buy_pressure_5m_pct >= 55.0:
+    elif healthy_uptrend and smart_degens >= 6 and buy_pressure_5m_pct >= 58.0 and change_5m >= 1.0:
         signal_tag = "SMART_MONEY"
         signal_label = "🐋 SMART DEGEN FLOW"
-        signal_desc = "Akumulasi dompet Smart Money GMGN dengan arus beli bersih positif"
+        signal_desc = "Akumulasi dompet Smart Money GMGN pada tren naik aktif"
         tp_pct, sl_pct = 35, 10
-    else:
-        signal_tag = "ACCUMULATION" if buy_pressure_5m_pct >= 52.0 else "NEUTRAL_WATCH"
-        signal_label = "🛡️ AKUMULASI STABIL" if buy_pressure_5m_pct >= 52.0 else "👀 PANTAU ORDERFLOW"
-        signal_desc = "Orderflow stabil, tunggu lonjakan volume 5m untuk konfirmasi breakout"
+    elif healthy_uptrend and buy_pressure_5m_pct >= 54.0:
+        signal_tag = "ACCUMULATION"
+        signal_label = "🛡️ AKUMULASI NAIK"
+        signal_desc = "Tren harga positif dengan akumulasi buyer bertahap di atas seller"
         tp_pct, sl_pct = 25, 10
+    else:
+        signal_tag = "NEUTRAL_WATCH"
+        signal_label = "👀 PANTAU ORDERFLOW"
+        signal_desc = "Tunggu konfirmasi lonjakan volume & dominasi buyer sebelum entry"
+        tp_pct, sl_pct = 20, 9
 
     rr_ratio = round(tp_pct / max(1, sl_pct), 1)
 
     t.update({
+        "is_dumped": dumped,
         "volume_1h": round(vol_1h, 2),
         "volume_24h": round(vol_24h, 2),
         "price_change_1m": round(change_1m, 2),
@@ -734,7 +847,8 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     symbol = f"{base_sym}/{quote_sym}"
     dex_id = str(pair.get("dexId") or "raydium")
     chain_id = str(pair.get("chainId") or "solana")
-    is_bonding_dex = "pump" in dex_id.lower() or "moonshot" in dex_id.lower() or base_addr.endswith("pump")
+    is_pre_grad_bonding = dex_id.lower() in ("pumpfun", "moonshot")
+    is_bonding_dex = is_pre_grad_bonding or "pump" in dex_id.lower() or base_addr.endswith("pump")
 
     price_usd = float(pair.get("priceUsd") or 0.0)
     raw_liq_usd = float((pair.get("liquidity") or {}).get("usd") or 0.0)
@@ -742,7 +856,7 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
 
     # Pump.fun bonding curve pairs on DexScreener omit the "liquidity" object before graduation;
     # compute virtual bonding-curve reserve liquidity (~32% of MCap, min $1,800) so new creations are not dropped.
-    if raw_liq_usd <= 0 and mcap > 0:
+    if raw_liq_usd <= 0 and mcap > 0 and is_pre_grad_bonding:
         liq_usd = round(max(1800.0, min(42000.0, mcap * 0.32)), 2)
     else:
         liq_usd = raw_liq_usd
@@ -760,19 +874,15 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     txns_h1 = (pair.get("txns") or {}).get("h1") or {}
     buys_5m = int(txns_m5.get("buys") or 0)
     sells_5m = int(txns_m5.get("sells") or 0)
-    if buys_5m == 0 and sells_5m == 0 and int(txns_h1.get("buys") or 0) > 0:
-        buys_5m = max(1, int(txns_h1.get("buys") or 0) // 10)
-        sells_5m = max(0, int(txns_h1.get("sells") or 0) // 10)
 
-    default_age_h = 0.25 if is_bonding_dex else 24.0
+    default_age_h = 0.25 if is_pre_grad_bonding else 24.0
     age_str, age_hours = _format_age(pair.get("pairCreatedAt"), default_hours=default_age_h)
     age_minutes = round(age_hours * 60.0, 1)
 
-    # Bonding curve estimation based on liquidity & market cap graduation threshold (~$69k on Pump.fun)
-    if "pumpfun" in dex_id.lower() or (is_bonding_dex and mcap < 75000):
+    # Bonding curve estimation: ONLY pre-graduation DEX (pumpfun / moonshot) is < 100%.
+    # Once migrated to PumpSwap / Raydium / Meteora / Orca, bonding curve is 100% completed.
+    if is_pre_grad_bonding:
         bonding_pct = min(99, max(12, int((mcap / 69000.0) * 100)))
-    elif mcap < 69000:
-        bonding_pct = min(98, max(20, int((mcap / 69000.0) * 100)))
     else:
         bonding_pct = 100
 
@@ -806,10 +916,16 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     buys_1h = int(txns_h1.get("buys") or (buys_5m * 6))
     sells_1h = int(txns_h1.get("sells") or (sells_5m * 6))
 
-    # Anti-Honeypot & Rug Trap Detection on live DEX pair telemetry
+    # Anti-Honeypot & Rug/Dump Trap Detection on live DEX pair telemetry
     sell_blocked_honeypot = (buys_5m >= 10 and sells_5m == 0 and int(txns_h1.get("sells") or 0) == 0)
     fake_mcap_trap = (mcap > 60000 and (liq_usd / mcap) < 0.015)
-    extreme_dump = (change_5m <= -35.0 or change_1h <= -55.0)
+    post_grad_crash = (not is_pre_grad_bonding and mcap < 42000.0)
+    extreme_dump = (
+        change_5m <= -8.0
+        or change_1h <= -12.0
+        or change_24h <= -18.0
+        or post_grad_crash
+    )
     is_honeypot = bool(sell_blocked_honeypot or fake_mcap_trap)
 
     # Calculate real liquidity, orderflow & anti-honeypot safety score
@@ -822,14 +938,18 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         safety_score += 8
     if mcap > 0 and (liq_usd / mcap) >= 0.05:
         safety_score += 5
-    if buys_5m + sells_5m >= 4 and sells_5m > 0:
+    if buys_5m + sells_5m >= 4 and sells_5m > 0 and buys_5m >= sells_5m:
         safety_score += 4
+    if change_5m > 0 and change_1h >= 0:
+        safety_score += 3
     if has_socials:
         safety_score += 3
     if is_honeypot:
         safety_score -= 45
     if extreme_dump:
         safety_score -= 25
+    elif change_24h <= -10.0 or change_1h <= -5.0 or change_5m <= -3.0 or sells_5m > buys_5m:
+        safety_score -= 15
     safety_score = min(98, max(15, safety_score))
 
     gmgn_chain = "base" if chain_id.lower() == "base" else "sol"
@@ -854,7 +974,14 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     if is_charity:
         return None
     is_safe_to_trade = bool((not is_honeypot) and (not extreme_dump) and (not is_charity) and safety_score >= 65)
-    is_new_creation = (not is_legacy) and (not is_charity) and (not is_honeypot) and (age_hours <= 6.0 or (is_bonding_dex and mcap <= 250000.0)) and (mcap <= 600000.0)
+    is_new_creation = (
+        (not is_legacy)
+        and (not is_charity)
+        and (not is_honeypot)
+        and (not extreme_dump)
+        and (age_hours <= 6.0 or (is_pre_grad_bonding and mcap <= 69000.0))
+        and (mcap <= 500000.0)
+    )
 
     if dex_id.lower() == "pumpfun":
         dex_label = "Pump.fun"
@@ -893,7 +1020,7 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "market_cap_idr": round(mcap * usd_idr, 0),
         "liquidity": round(liq_usd, 2),
         "liquidity_idr": round(liq_usd * usd_idr, 0),
-        "volume_5m": round(vol_5m if vol_5m > 0 else vol_1h / 12.0, 2),
+        "volume_5m": round(vol_5m, 2),
         "volume_1h": round(vol_1h if vol_1h > 0 else vol_5m * 6.0, 2),
         "volume_24h": round(vol_24h, 2),
         "price_change_1m": round(change_1m, 2),
@@ -930,6 +1057,35 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     return _compute_profitability_telemetry(tok_dict)
 
 
+def _dex_pair_quality_key(p: dict) -> tuple:
+    """Sort key to prioritize active Solana pairs with positive momentum, buyer dominance, and real liquidity."""
+    chain_is_sol = 1 if str(p.get("chainId") or "").lower() == "solana" else 0
+    pc = p.get("priceChange") or {}
+    c5m = float(pc.get("m5") or 0.0)
+    c1h = float(pc.get("h1") or 0.0)
+    c24h = float(pc.get("h24") or 0.0)
+    tx_m5 = (p.get("txns") or {}).get("m5") or {}
+    b5 = int(tx_m5.get("buys") or 0)
+    s5 = int(tx_m5.get("sells") or 0)
+    vol_5m = float((p.get("volume") or {}).get("m5") or 0.0)
+    raw_liq = float((p.get("liquidity") or {}).get("usd") or 0.0)
+    mcap = float(p.get("marketCap") or p.get("fdv") or 0.0)
+    dex_id = str(p.get("dexId") or "").lower()
+    is_pre_grad = dex_id in ("pumpfun", "moonshot")
+    eff_liq = raw_liq if raw_liq > 0 else (mcap * 0.32 if is_pre_grad else 0.0)
+    healthy_mcap = (mcap >= 6000.0) if is_pre_grad else (mcap >= 42000.0)
+    is_uptrend = 1 if (
+        healthy_mcap
+        and c5m >= 0.0
+        and c1h >= 0.0
+        and c24h > -10.0
+        and b5 > s5
+        and b5 >= 2
+        and vol_5m >= 120.0
+    ) else 0
+    return (chain_is_sol, is_uptrend, vol_5m, eff_liq, mcap)
+
+
 def fetch_dexscreener_tokens_by_addresses(addresses: list[str], usd_idr: float, discovery_tag: str = "DexScreener Token Profiles + GMGN") -> list[dict]:
     """Fetch full pair data for a batch of token mint/contract addresses from DexScreener."""
     clean_addrs = []
@@ -957,6 +1113,9 @@ def fetch_dexscreener_tokens_by_addresses(addresses: list[str], usd_idr: float, 
                 with urllib.request.urlopen(req, timeout=7) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
                 pairs = data if isinstance(data, list) else (data.get("pairs") or [])
+                if isinstance(pairs, list):
+                    pairs.sort(key=_dex_pair_quality_key, reverse=True)
+                batch_added = 0
                 for p in pairs:
                     if not isinstance(p, dict):
                         continue
@@ -974,7 +1133,8 @@ def fetch_dexscreener_tokens_by_addresses(addresses: list[str], usd_idr: float, 
                         continue
                     seen.add(key)
                     results.append(tok)
-                if results:
+                    batch_added += 1
+                if batch_added > 0:
                     break
             except Exception:
                 continue
@@ -1183,6 +1343,7 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> l
     for endpoint in (
         "https://api.dexscreener.com/token-profiles/latest/v1",
         "https://api.dexscreener.com/token-boosts/latest/v1",
+        "https://api.dexscreener.com/token-boosts/top/v1",
     ):
         try:
             req = urllib.request.Request(endpoint, headers=HEADERS)
@@ -1213,8 +1374,8 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> l
         except Exception:
             continue
 
-    # 2. Prioritize active Pump.fun bonding-curve & PumpSwap tokens on Solana
-    for q in ("pumpfun", "pumpswap"):
+    # 2. Prioritize active Pump.fun bonding-curve & PumpSwap/Raydium tokens on Solana
+    for q in ("pumpfun", "pumpswap", "pump", "raydium", "ai", "agent", "sol"):
         try:
             pump_items = fetch_dexscreener_search(q, limit=25, allow_bonding_curve=True)
             for pi in pump_items:
@@ -1232,12 +1393,40 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> l
                     contract=pi.get("contract", ""),
                 ):
                     continue
+                if is_dumped_or_dead_coin(pi):
+                    continue
                 seen_c.add(k)
                 discovered.append(pi)
         except Exception:
             continue
 
-    # 3. Also pull brand-new Pump.fun mints from RugCheck recent/new stats
+    # 3. Pull trending & brand-new Solana pools from GeckoTerminal v2 API
+    for gt_ep in (
+        "https://api.geckoterminal.com/api/v2/networks/solana/trending_pools",
+        "https://api.geckoterminal.com/api/v2/networks/solana/new_pools",
+    ):
+        try:
+            req = urllib.request.Request(gt_ep, headers=HEADERS)
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                gt_data = json.loads(resp.read().decode("utf-8")).get("data") or []
+            if isinstance(gt_data, list):
+                for item in gt_data:
+                    raw_id = str(
+                        ((item.get("relationships") or {}).get("base_token") or {}).get("data", {}).get("id") or ""
+                    ).strip()
+                    mint_addr = raw_id[7:] if raw_id.startswith("solana_") else raw_id
+                    if (
+                        _SOLANA_BASE58_RE.match(mint_addr)
+                        and mint_addr not in candidate_addresses
+                        and mint_addr not in seen_c
+                        and not is_dismissed_ca(mint_addr)
+                        and mint_addr.lower() not in _CHARITY_BLACKLIST_CAS
+                    ):
+                        candidate_addresses.append(mint_addr)
+        except Exception:
+            continue
+
+    # 4. Also pull brand-new Pump.fun mints from RugCheck recent/new stats
     for rc_ep in (
         "https://api.rugcheck.xyz/v1/stats/recent",
         "https://api.rugcheck.xyz/v1/stats/new_tokens",
@@ -1262,17 +1451,17 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> l
 
     if candidate_addresses:
         profile_tokens = fetch_dexscreener_tokens_by_addresses(
-            candidate_addresses[:50],
+            candidate_addresses[:100],
             usd_idr,
-            discovery_tag="DexScreener Solana Profiles + Pump.fun Trench",
+            discovery_tag="DexScreener Solana Profiles + GeckoTerminal Trending + Pump.fun Trench",
         )
         for pt in profile_tokens:
             k = pt.get("contract") or pt.get("symbol")
-            if k and k not in seen_c and is_genuine_coin(pt):
+            if k and k not in seen_c and is_genuine_coin(pt) and not is_dumped_or_dead_coin(pt):
                 seen_c.add(k)
                 discovered.append(pt)
 
-    # Strictly filter for brand-new meme coins (never legacy tokens like BONK, NO charity coins, NO copied CAs)
+    # Strictly filter for active meme coins (never legacy tokens, NO charity coins, NO copied CAs, NO dumped coins)
     fresh_creations: list[dict] = []
     for tok in discovered:
         if not is_genuine_coin(tok):
@@ -1288,17 +1477,20 @@ def fetch_dexscreener_latest_new_creations(usd_idr: float, limit: int = 25) -> l
             contract=tok.get("contract", ""),
         ):
             continue
-        # Must be relatively young (<= 24 hours, or on Pump.fun bonding curve with MCap <= $800k)
-        if tok["age_hours"] <= 24.0 and tok["market_cap"] <= 800000.0:
-            tok["is_new_creation"] = True
+        if is_dumped_or_dead_coin(tok):
+            continue
+        if tok["age_hours"] <= 72.0 and tok["market_cap"] <= 25000000.0:
+            if tok["age_hours"] <= 12.0 and tok["market_cap"] <= 500000.0:
+                tok["is_new_creation"] = True
             fresh_creations.append(tok)
 
-    # Sort prioritizing Pump.fun verified tokens (...pump suffix first) with positive 5m orderflow, then newest age
+    # Sort prioritizing Pump.fun verified tokens (...pump suffix first) with strong positive momentum & buy pressure
     fresh_creations.sort(
         key=lambda x: (
+            0 if (x.get("buys_5m", 0) > x.get("sells_5m", 0) and float(x.get("price_change_5m", 0.0)) >= 1.0 and float(x.get("price_change_1h", 0.0)) >= 0.0) else 1,
             0 if str(x.get("contract") or "").endswith("pump") else (1 if x.get("is_pumpfun") else 2),
-            0 if (x.get("buys_5m", 0) > x.get("sells_5m", 0) and float(x.get("price_change_5m", 0.0)) >= 0.0) else 1,
-            0 if (x.get("buys_5m", 0) + x.get("sells_5m", 0)) > 0 else 1,
+            -float(x.get("buy_pressure_5m_pct") or 50.0),
+            -float(x.get("price_change_5m") or 0.0),
             x.get("age_hours", 99.0),
         )
     )
@@ -1315,16 +1507,7 @@ def fetch_dexscreener_search(query: str, limit: int = 20, allow_bonding_curve: b
         data = json.loads(resp.read().decode("utf-8"))
     pairs = data.get("pairs") or []
 
-    def _pair_sort_key(p: dict) -> tuple:
-        chain_is_sol = 1 if str(p.get("chainId") or "").lower() == "solana" else 0
-        raw_liq = float((p.get("liquidity") or {}).get("usd") or 0.0)
-        mcap = float(p.get("marketCap") or p.get("fdv") or 0.0)
-        dex_id = str(p.get("dexId") or "").lower()
-        eff_liq = raw_liq if raw_liq > 0 else (mcap * 0.32 if "pump" in dex_id else 0.0)
-        vol_24h = float((p.get("volume") or {}).get("h24") or 0.0)
-        return (chain_is_sol, eff_liq, vol_24h, mcap)
-
-    pairs.sort(key=_pair_sort_key, reverse=True)
+    pairs.sort(key=_dex_pair_quality_key, reverse=True)
     seen = set()
     results = []
     for p in pairs:
@@ -1360,51 +1543,65 @@ _SCAN_TICK_COUNTER = 0
 
 
 def _apply_live_micro_tick(tok: dict, usd_idr: float) -> dict:
+    """
+    Recompute deterministic profitability telemetry on 100% real DexScreener data.
+    Zero synthetic/random buys, sells, or price drift (strictly adheres to Aturan 1: ZERO DUMMY DATA).
+    """
     t = dict(tok)
-    # Realistic 10s orderflow ticks from active DEX swappers
-    delta_buys = random.randint(0, 4)
-    delta_sells = random.randint(0, 3)
-    t["buys_5m"] = int(t.get("buys_5m", 15)) + delta_buys
-    t["sells_5m"] = int(t.get("sells_5m", 10)) + delta_sells
-
-    # Dynamic price drift driven by orderflow momentum + micro volatility
-    net = delta_buys - delta_sells
-    drift = (net * 0.0035) + random.uniform(-0.012, 0.012)
-    old_price = float(t.get("price") or 0.00001)
-    new_price = max(1e-9, old_price * (1.0 + drift))
-    t["price"] = new_price
-    t["price_idr"] = round(new_price * usd_idr, 4) if new_price * usd_idr < 1.0 else round(new_price * usd_idr, 2)
-
-    # Market cap recalculation
-    old_mcap = float(t.get("market_cap") or 10000.0)
-    new_mcap = max(500.0, old_mcap * (new_price / old_price))
-    t["market_cap"] = round(new_mcap, 2)
-    t["market_cap_idr"] = round(new_mcap * usd_idr, 0)
-
-    # Volume increment
-    vol_increment = (delta_buys + delta_sells) * random.uniform(25.0, 300.0)
-    t["volume_5m"] = round(float(t.get("volume_5m") or 500.0) + vol_increment, 2)
-
-    # 5m Price change update
-    pct_5m = float(t.get("price_change_5m") or 0.0)
-    t["price_change_5m"] = round(pct_5m + (drift * 100.0), 2)
-
-    # Bonding curve micro-progress
-    if t.get("bonding_curve_pct") and t["bonding_curve_pct"] < 100:
-        if net > 0:
-            t["bonding_curve_pct"] = min(99, t["bonding_curve_pct"] + random.randint(0, 1))
-
-    # Smart degen presence
-    if random.random() < 0.25:
-        t["gmgn_smart_degens"] = max(0, int(t.get("gmgn_smart_degens", 2)) + random.choice([-1, 1]))
-
+    price = float(t.get("price") or 0.0)
+    mcap = float(t.get("market_cap") or 0.0)
+    liq = float(t.get("liquidity") or 0.0)
+    if price > 0:
+        t["price_idr"] = round(price * usd_idr, 4) if price * usd_idr < 1.0 else round(price * usd_idr, 2)
+    if mcap > 0:
+        t["market_cap_idr"] = round(mcap * usd_idr, 0)
+    if liq > 0:
+        t["liquidity_idr"] = round(liq * usd_idr, 0)
     return _compute_profitability_telemetry(t)
+
+
+def _pulse_recommendation_rank_key(t: dict) -> float:
+    """
+    Skor ranking kuantitatif untuk mengurutkan koin di Pulse Radar:
+    mengutamakan tren naik multi-timeframe (5m, 1h, 24h), dominasi buyer 5m, velocity volume, dan keamanan kontrak.
+    """
+    safety = float(t.get("safety_score") or 65.0)
+    bp = float(t.get("buy_pressure_5m_pct") or 50.0)
+    c5m = float(t.get("price_change_5m") or 0.0)
+    c1h = float(t.get("price_change_1h") or 0.0)
+    c24h = float(t.get("price_change_24h") or 0.0)
+    vol5m = float(t.get("volume_5m") or 0.0)
+    curve = float(t.get("bonding_curve_pct") or 0.0)
+    sig = str(t.get("signal_tag") or "")
+
+    sig_bonus = 0.0
+    if sig == "GOLDEN_SNIPE":
+        sig_bonus = 35.0
+    elif sig in ("PRE_GRADUATE", "HIGH_VELOCITY", "SMART_MONEY"):
+        sig_bonus = 25.0
+    elif sig in ("ACCUMULATION", "PULLBACK_ENTRY"):
+        sig_bonus = 12.0
+    elif sig == "AVOID_DUMP":
+        sig_bonus = -120.0
+
+    momentum_score = (
+        min(35.0, max(-40.0, c5m * 1.8))
+        + min(25.0, max(-35.0, c1h * 0.45))
+        + min(15.0, max(-35.0, c24h * 0.12))
+    )
+    orderflow_score = (bp - 50.0) * 1.2
+    vol_score = min(25.0, (vol5m / 1000.0) * 2.5)
+    curve_bonus = 12.0 if (25.0 <= curve <= 88.0) else 0.0
+    pump_bonus = 8.0 if str(t.get("contract") or "").endswith("pump") else 0.0
+
+    return (safety * 1.1) + sig_bonus + momentum_score + orderflow_score + vol_score + curve_bonus + pump_bonus
 
 
 def get_live_pulse_feed() -> dict:
     """
     Fetch 100% real Solana & Pump.fun meme coin market data from DexScreener + RugCheck + GMGN Trench Radar.
     Zero synthetic/dummy contract addresses — every CA is a verified on-chain Solana Base58 mint.
+    Strictly filters out dumped, crashed, rugged, or downtrending coins.
     """
     global _RADAR_POOL_PERSISTENT, _LAST_BASE_FETCH_TIME, _SCAN_TICK_COUNTER
     now = time.time()
@@ -1416,20 +1613,25 @@ def get_live_pulse_feed() -> dict:
     usd_idr = fx["usd_idr"]
     _SCAN_TICK_COUNTER += 1
 
-    # Fetch/refresh base pool from DexScreener every 45s or on initial start
-    if not _RADAR_POOL_PERSISTENT or (now - _LAST_BASE_FETCH_TIME > 45.0):
+    # Fetch/refresh base pool from DexScreener every 15s or on initial start
+    if not _RADAR_POOL_PERSISTENT or (now - _LAST_BASE_FETCH_TIME > 15.0):
         try:
-            fresh_new_tokens = fetch_dexscreener_latest_new_creations(usd_idr, limit=30)
+            fresh_new_tokens = fetch_dexscreener_latest_new_creations(usd_idr, limit=35)
             pool: list[dict] = list(fresh_new_tokens)
             seen_c: set[str] = {t["contract"] or t["symbol"] for t in pool}
-            for q in ("pumpfun", "pumpswap", "raydium", "pnut", "fartcoin", "goat", "popcat", "wif"):
+            for q in ("pumpfun", "pumpswap", "pump", "raydium", "meme", "ai", "agent", "cat", "dog"):
                 try:
-                    items = fetch_dexscreener_search(q, limit=15, allow_bonding_curve=True)
+                    items = fetch_dexscreener_search(q, limit=20, allow_bonding_curve=True)
                     for item in items:
                         if str(item.get("chain") or "").lower() != "solana":
                             continue
                         c = item.get("contract") or item.get("symbol")
-                        if c and c not in seen_c and is_genuine_coin(item):
+                        if (
+                            c
+                            and c not in seen_c
+                            and is_genuine_coin(item)
+                            and not is_dumped_or_dead_coin(item)
+                        ):
                             seen_c.add(c)
                             pool.append(item)
                 except Exception:
@@ -1441,11 +1643,12 @@ def get_live_pulse_feed() -> dict:
             pass
 
     if _RADAR_POOL_PERSISTENT:
-        # Strictly purge any invalid/non-Base58, copied/dismissed, or charity/donation tokens from persistent pool
+        # Strictly purge any invalid/non-Base58, copied/dismissed, charity/donation, or dumped/dead tokens
         _RADAR_POOL_PERSISTENT = [
             t for t in _RADAR_POOL_PERSISTENT
             if is_genuine_coin(t)
             and not is_dismissed_ca(t.get("contract") or "", t.get("symbol") or t.get("base_symbol") or "")
+            and not is_dumped_or_dead_coin(t)
             and not (
                 t.get("is_charity")
                 or is_charity_token(
@@ -1460,20 +1663,6 @@ def get_live_pulse_feed() -> dict:
         _RADAR_POOL_PERSISTENT = all_tokens
     else:
         all_tokens = []
-
-    if not all_tokens:
-        # Verified real on-chain Pump.fun & Solana Mainnet tokens only (if external APIs temporarily time out)
-        all_tokens = fetch_dexscreener_tokens_by_addresses(
-            [
-                "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",  # PNUT (Pump.fun)
-                "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",  # FARTCOIN (Pump.fun)
-                "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",  # GOAT (Pump.fun)
-                "GJAFwWjJ3vnTsrQVabjBVK2TYB1YtRCQXRDfDgUnpump",  # ACT (Pump.fun)
-                "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",  # POPCAT (Solana)
-            ],
-            usd_idr,
-            discovery_tag="Pump.fun Verified On-Chain",
-        )
 
     new_creations: list[dict] = []
     final_stretch: list[dict] = []
@@ -1494,7 +1683,10 @@ def get_live_pulse_feed() -> dict:
             contract=t.get("contract", ""),
         ):
             continue
-        # Strictly reject honeypots, sell-blocked tokens, active dumps, or low safety scores
+        # Strictly reject dumped, crashed, dead, or downtrending coins
+        if is_dumped_or_dead_coin(t) or t.get("signal_tag") == "AVOID_DUMP":
+            continue
+        # Strictly reject honeypots, sell-blocked tokens, or low safety scores
         if t.get("honeypot") is True or t.get("is_safe_to_trade") is False or int(t.get("safety_score") or 0) < 65:
             continue
         if int(t.get("buys_5m") or 0) >= 10 and int(t.get("sells_5m") or 0) == 0:
@@ -1503,56 +1695,45 @@ def get_live_pulse_feed() -> dict:
         _register_token_cache(t, now)
 
         is_leg = is_legacy_token(t["base_symbol"])
-        if not is_leg and ((t["age_hours"] <= 6.0 and t["market_cap"] <= 500000.0) or (t.get("is_pumpfun") and t["market_cap"] < 69000.0)):
-            t["is_new_creation"] = True
-            t["bonding_curve_pct"] = min(88, max(15, int((t["market_cap"] / 69000.0) * 85)))
+        if is_leg:
+            continue
+
+        dex_raw = str(t.get("dex") or "").strip().lower()
+        is_pre_grad = dex_raw in ("pump.fun", "pumpfun", "moonshot")
+
+        if is_pre_grad:
+            curve_pct = min(99, max(12, int((t["market_cap"] / 69000.0) * 100)))
+            t["bonding_curve_pct"] = curve_pct
             t = _compute_profitability_telemetry(t)
-            new_creations.append(t)
-        elif not is_leg and (t["market_cap"] < 1500000.0 or t.get("is_pumpfun") or t["age_hours"] <= 24.0):
-            t["bonding_curve_pct"] = min(99, max(80, int(80 + (t["market_cap"] / 1500000.0) * 18))) if t["market_cap"] < 69000.0 else 100
-            t = _compute_profitability_telemetry(t)
-            final_stretch.append(t)
+            if curve_pct < 65:
+                t["is_new_creation"] = True
+                new_creations.append(t)
+            else:
+                final_stretch.append(t)
         else:
+            # Already graduated to PumpSwap / Raydium / Meteora / Orca (with MCap >= $42,000)
             t["bonding_curve_pct"] = 100
             t = _compute_profitability_telemetry(t)
-            migrated.append(t)
+            if t["age_hours"] <= 1.5 and t["market_cap"] <= 200000.0:
+                t["is_new_creation"] = True
+                new_creations.append(t)
+            elif t["age_hours"] <= 12.0 and t["market_cap"] <= 600000.0:
+                final_stretch.append(t)
+            else:
+                migrated.append(t)
 
-    # Sort new_creations prioritizing verified Pump.fun (...pump) tokens and youngest age first
-    new_creations.sort(
-        key=lambda x: (
-            0 if str(x.get("contract") or "").endswith("pump") else (1 if x.get("is_pumpfun") else 2),
-            x.get("age_hours", 99.0),
-        )
-    )
+    # Sort each bucket by quantitative profit & momentum score
+    new_creations.sort(key=_pulse_recommendation_rank_key, reverse=True)
+    final_stretch.sort(key=_pulse_recommendation_rank_key, reverse=True)
+    migrated.sort(key=_pulse_recommendation_rank_key, reverse=True)
 
-    # Fallback ONLY using non-legacy micro-cap tokens if new_creations has < 3 items (NEVER include BONK/WIF/PEPE)
-    if len(new_creations) < 3:
-        non_legacy_extras = [
-            x for x in final_stretch
-            if not is_legacy_token(x["base_symbol"]) and x["market_cap"] < 600000.0
-        ]
-        for x in non_legacy_extras:
-            if x not in new_creations:
-                x["is_new_creation"] = True
-                new_creations.append(x)
-            if len(new_creations) >= 6:
-                break
-
-    if len(final_stretch) < 3 and len(all_tokens) >= 6:
-        for x in all_tokens:
-            if x not in new_creations and x not in final_stretch and not is_legacy_token(x["base_symbol"]):
-                final_stretch.append(x)
-            if len(final_stretch) >= 6:
-                break
-
-    if len(migrated) < 3 and len(all_tokens) >= 6:
-        by_mcap = sorted(all_tokens, key=lambda x: x["market_cap"], reverse=True)
-        for x in by_mcap:
-            if x not in new_creations and x not in migrated:
-                x["bonding_curve_pct"] = 100
-                migrated.append(x)
-            if len(migrated) >= 6:
-                break
+    # Ensure every bucket has tokens without EVER duplicating a token across buckets
+    if len(final_stretch) < 2 and len(migrated) > 3:
+        while len(final_stretch) < 3 and len(migrated) > 3:
+            final_stretch.append(migrated.pop(0))
+    if len(migrated) < 2 and len(final_stretch) > 3:
+        while len(migrated) < 3 and len(final_stretch) > 3:
+            migrated.append(final_stretch.pop(-1))
 
     result = {
         "fx": fx,

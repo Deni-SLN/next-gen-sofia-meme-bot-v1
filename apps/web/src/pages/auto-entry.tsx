@@ -271,6 +271,15 @@ export default function AutoEntryPage() {
       if (symLower && copiedSet.has(symLower)) return false;
       if (baseSymLower && copiedSet.has(baseSymLower)) return false;
       if (t.is_charity || excludedPattern.test(symLower) || excludedPattern.test(nameLower)) return false;
+      // Anti-Dump Guard: sembunyikan koin yang sudah jatuh / tren turun / seller dominan
+      const c5m = Number(t.price_change_5m) || 0;
+      const c1h = Number(t.price_change_1h) || 0;
+      const c24h = Number(t.price_change_24h) || 0;
+      const b5 = Number(t.buys_5m) || 0;
+      const s5 = Number(t.sells_5m) || 0;
+      if (c24h <= 0 || c1h < 0) return false;
+      if (c5m < 0 && !(c5m >= -2 && c1h >= 15 && c24h >= 20 && b5 > s5)) return false;
+      if (s5 >= b5) return false;
       return true;
     });
   }, [rawScannedTokens, copiedSet]);

@@ -276,6 +276,9 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
         if buys_5m >= 12 and sells_5m == 0:
             # Sell-blocked honeypot pattern
             continue
+        # Tolak koin yang sudah jatuh / tren turun / seller dominan
+        if market.is_dumped_or_dead_coin(c) or c.get("signal_tag") == "AVOID_DUMP":
+            continue
         eligible.append(c)
 
     if not eligible:
@@ -295,8 +298,15 @@ def _execute_auto_entry_tick_inner(db: Session) -> dict[str, Any]:
             _save_persisted_state()
         return {"status": "RUNNING", "action": "no_eligible_candidate"}
 
-    # Pick candidate with highest safety score & liquidity
-    eligible.sort(key=lambda x: (int(x.get("safety_score", 0)), float(x.get("liquidity", 0))), reverse=True)
+    # Pick candidate with strongest momentum + buyer dominance + safety (not merely highest liquidity)
+    eligible.sort(
+        key=lambda x: (
+            compute_profit_potential(x)["profit_score"],
+            int(x.get("safety_score", 0)),
+            float(x.get("liquidity", 0)),
+        ),
+        reverse=True,
+    )
     pick = eligible[0]
 
     pick_sym = pick.get("symbol") or pick.get("base_symbol") or "TOKEN"
@@ -438,12 +448,16 @@ def compute_profit_potential(token: dict[str, Any]) -> dict[str, Any]:
     sells = float(token.get("sells_5m") or 0)
     if (buys + sells) > 0:
         buy_ratio = buys / (buys + sells)
-        diff = (buy_ratio - 0.5) * 32.0
+        diff = (buy_ratio - 0.5) * 40.0
         score += diff
         if buy_ratio >= 0.65:
             catalysts.append(f"Inflow Dominan ({int(buy_ratio * 100)}% Buys)")
+    else:
+        score -= 20.0
+    if sells >= buys:
+        score -= 15.0
 
-    # 2. Price momentum (5m, 1h, 24h)
+    # 2. Price momentum (5m, 1h, 24h) — bonus jika naik, penalti berat jika turun
     chg_5m = float(token.get("price_change_5m") or 0)
     chg_1h = float(token.get("price_change_1h") or 0)
     chg_24h = float(token.get("price_change_24h") or 0)
@@ -451,10 +465,21 @@ def compute_profit_potential(token: dict[str, Any]) -> dict[str, Any]:
     if chg_5m > 0:
         score += min(14.0, chg_5m * 0.7)
         catalysts.append(f"Momentum 5m +{chg_5m:.1f}%")
+    else:
+        score -= min(30.0, abs(chg_5m) * 3.0)
     if chg_1h > 0:
         score += min(10.0, chg_1h * 0.25)
+    else:
+        score -= min(30.0, abs(chg_1h) * 2.0)
     if chg_24h > 30:
         catalysts.append(f"Reli 24h +{chg_24h:.0f}%")
+    elif chg_24h < 0:
+        score -= min(35.0, abs(chg_24h) * 0.8)
+
+    # Koin yang sudah jatuh / dump tidak boleh mendapat skor potensi tinggi
+    if market.is_dumped_or_dead_coin(token) or token.get("signal_tag") == "AVOID_DUMP":
+        score = min(score, 40.0)
+        catalysts = ["⛔ Tren Turun / Tekanan Jual"]
 
     # 3. Volume to liquidity turnover
     vol = float(token.get("volume_24h") or token.get("volume_5m") or 0)
@@ -570,6 +595,10 @@ def get_scanned_memecoins(
             or t.get("is_charity")
             or market.is_charity_token(sym, t.get("name"), website_url=t.get("website_url", ""), contract=ca)
         ):
+            continue
+
+        # Jangan tampilkan koin yang sudah jatuh / tren turun / seller dominan
+        if market.is_dumped_or_dead_coin(t) or t.get("signal_tag") == "AVOID_DUMP":
             continue
 
         profit_meta = compute_profit_potential(t)
