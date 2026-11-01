@@ -4,12 +4,15 @@ Satisfies PRD Section 13 (API Requirements: Entry Intelligence & Exit Intelligen
 """
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, desc
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("sofia.v2.routers.ai")
 
 from app.db.session import get_db
 from app.core.security import get_current_user_optional
@@ -27,6 +30,9 @@ from app.v2.services.entry_intelligence import entry_intelligence
 from app.v2.core.quality_gate import quality_gate
 from app.v2.services.scanner_bridge import scanner_bridge
 from app.v2.services.paper_executor import paper_executor
+from app.v2.services.exit_intelligence import exit_intelligence
+from app.v2.services.partial_exit_manager import partial_exit_manager
+from app.v2.agents.exit_agent import exit_agent
 
 router = APIRouter(tags=["V2 AI Intelligence"])
 
@@ -51,7 +57,18 @@ class AnalyzeExitRequest(BaseModel):
     symbol: str
     mint: Optional[str] = None
     mode: str = "PAPER"
+    strategy_mode: str = "DEFAULT"
     model_override: Optional[str] = None
+    force_deterministic: bool = True
+
+
+class ExecuteExitRequest(BaseModel):
+    symbol: str
+    sell_pct: float = Field(default=100.0, ge=1.0, le=100.0)
+    reason: str = "AI_RECOMMENDED_EXIT"
+    mode: str = "PAPER"
+    exit_decision_id: Optional[int] = None
+    exit_score: float = 0.0
 
 
 @router.get("/providers")
@@ -247,8 +264,8 @@ def analyze_position_exit(
 ):
     """
     Evaluates an active position through the Exit Intelligence Agent.
-    Monitors peak price, current executable quote, momentum decay, and whale distribution,
-    recommending partial profit taking (25/50/75/100%) or holding.
+    Calculates 6 analytical dimensions, tracks peak excursions & trailing stop ratchets,
+    and enforces deterministic risk policy overrides.
     """
     sym_clean = req.symbol.strip().upper()
     holding = portfolio.get_holding(db, sym_clean, mode=req.mode)
@@ -258,36 +275,82 @@ def analyze_position_exit(
     avg_entry = float(holding.avg_entry_price or 0.0)
     curr_price = float(holding.current_price or avg_entry)
     qty = float(holding.quantity or 0.0)
-    pnl_pct = round(((curr_price - avg_entry) / avg_entry * 100.0) if avg_entry > 0 else 0.0, 2)
 
-    sys_prompt = (
-        "You are the Exit Intelligence Agent for SOFIA MEME BOT V2 on Solana. "
-        "Analyze the active holding performance and suggest HOLD, REDUCE, TAKE_PROFIT, FULL_EXIT, or EMERGENCY_EXIT. "
-        "Support partial liquidations: 25%, 50%, 75%, 100%. "
-        "Do not panic exit on a single red candle if momentum and liquidity remain intact."
-    )
+    # Resolve live market data if contract/mint exists
+    from app.services import market
+    fx = market.get_fx_rate()
+    usd_idr = fx.get("usd_idr", 16000.0)
+    tok_info = market.resolve_holding_live_price(sym_clean, avg_entry_price=avg_entry, current_price=curr_price)
+    resolved_price = float(tok_info.get("price") or curr_price) if tok_info else curr_price
+    if resolved_price <= 0:
+        resolved_price = curr_price
 
-    user_prompt = (
-        f"Position: {sym_clean} (Mode: {req.mode})\n"
-        f"Entry Price: ${avg_entry:.8f} | Current Price: ${curr_price:.8f}\n"
-        f"Quantity: {qty:,.2f} | Unrealized PnL: {pnl_pct:+.2f}%\n"
-        f"Pool Liquidity: ${float(holding.liquidity_usd or 0.0):,.2f}"
-    )
+    mint_addr = req.mint or (tok_info.get("contract") if tok_info else "") or sym_clean
 
-    decision_out, db_record = orchestrator.execute_structured_agent(
+    position_data = {
+        "position_id": str(holding.id),
+        "symbol": sym_clean,
+        "mint": mint_addr,
+        "avg_entry_price": avg_entry,
+        "current_price": resolved_price,
+        "quantity": qty,
+        "liquidity_usd": float(holding.liquidity_usd or (tok_info.get("liquidity") if tok_info else 25000.0) or 25000.0),
+        "position_age_minutes": (
+            (datetime.now(timezone.utc) - (holding.updated_at.replace(tzinfo=timezone.utc) if holding.updated_at and not holding.updated_at.tzinfo else (holding.updated_at or datetime.now(timezone.utc)))).total_seconds() / 60.0
+        ),
+    }
+
+    market_data = {
+        "price": resolved_price,
+        "liquidity_usd": float((tok_info.get("liquidity") if tok_info else 0.0) or holding.liquidity_usd or 25000.0),
+        "price_change_5m_pct": float(tok_info.get("price_change_5m") or 0.0) if tok_info else 0.0,
+        "price_change_1h_pct": float(tok_info.get("price_change_1h") or 0.0) if tok_info else 0.0,
+        "volume_5m_usd": float(tok_info.get("volume_5m") or 0.0) if tok_info else 0.0,
+        "volume_1h_usd": float(tok_info.get("volume_1h") or 0.0) if tok_info else 0.0,
+        "txns": tok_info.get("txns") if tok_info else {},
+        "top10_concentration_pct": float(tok_info.get("top10_pct") or 25.0) if tok_info else 25.0,
+        "dev_holding_pct": float(tok_info.get("dev_holding_pct") or 3.0) if tok_info else 3.0,
+        "is_honeypot": False,
+    }
+
+    decision_out, _ = exit_intelligence.evaluate_position(
+        position_data=position_data,
+        market_data=market_data,
         db=db,
-        agent_name="exit_intelligence",
-        system_prompt=sys_prompt,
-        user_prompt=user_prompt,
-        schema_cls=ExitDecisionOutput,
-        target_mint=req.mint or sym_clean,
-        symbol=sym_clean,
-        model_override=req.model_override,
+        strategy_mode=req.strategy_mode,
+        force_deterministic=req.force_deterministic,
     )
-
-    agent_registry.record_decision("exit_intelligence", decision_out.decision, decision_out.exit_score)
 
     return decision_out
+
+
+@router.post("/exit/execute-partial")
+def execute_partial_exit_order(
+    req: ExecuteExitRequest,
+    db: Session = Depends(get_db),
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """
+    Executes a balance-reconciled partial (25%, 50%, 75%) or full (100%) exit order.
+    Calculates realized PnL, logs PositionEvent audit records,
+    and updates Decision Journal with MFE, MAE, and Profit Capture Ratio.
+    """
+    try:
+        res = partial_exit_manager.execute_partial_exit(
+            db=db,
+            symbol=req.symbol,
+            sell_pct=req.sell_pct,
+            exit_reason=req.reason,
+            mode=req.mode,
+            exit_decision_id=req.exit_decision_id,
+            exit_score=req.exit_score,
+        )
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as ex:
+        logger.error(f"Error executing partial exit for {req.symbol}: {ex}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Gagal mengeksekusi order exit: {str(ex)}")
 
 
 @router.get("/decisions")

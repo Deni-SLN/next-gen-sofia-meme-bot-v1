@@ -85,6 +85,9 @@ class ExitAssessment(Base):
     current_executable_price: Mapped[float] = mapped_column(Float, default=0.0)
     unrealized_pnl_pct: Mapped[float] = mapped_column(Float, default=0.0)
     trailing_stop_level: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    dimensions_score: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    risk_flags: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    input_snapshot: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 

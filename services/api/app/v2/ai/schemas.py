@@ -55,6 +55,27 @@ class EntryDecisionOutput(BaseModel):
     expires_at: str
 
 
+class ExitDimensionsScore(BaseModel):
+    momentum_deterioration: float = Field(default=0.0, ge=0.0, le=25.0, description="Max weight 25")
+    sell_pressure: float = Field(default=0.0, ge=0.0, le=20.0, description="Max weight 20")
+    smart_money_distribution: float = Field(default=0.0, ge=0.0, le=20.0, description="Max weight 20")
+    market_structure: float = Field(default=0.0, ge=0.0, le=15.0, description="Max weight 15")
+    liquidity_deterioration: float = Field(default=0.0, ge=0.0, le=10.0, description="Max weight 10")
+    time_thesis_deterioration: float = Field(default=0.0, ge=0.0, le=10.0, description="Max weight 10")
+
+    @property
+    def total_urgency_score(self) -> float:
+        return round(
+            self.momentum_deterioration
+            + self.sell_pressure
+            + self.smart_money_distribution
+            + self.market_structure
+            + self.liquidity_deterioration
+            + self.time_thesis_deterioration,
+            1,
+        )
+
+
 class ExitMarketConditions(BaseModel):
     momentum: Literal["strengthening", "stable", "weakening", "collapsed"] = "stable"
     sell_pressure: Literal["low", "normal", "increasing", "dominant"] = "normal"
@@ -72,10 +93,17 @@ class ExitDecisionOutput(BaseModel):
     exit_score: float = Field(ge=0.0, le=100.0, description="Urgency score 0-100")
     confidence: Literal["low", "medium", "high"]
     suggested_sell_percentage: int = Field(default=0, ge=0, le=100, description="0, 25, 50, 75, 100")
+    dimensions: Optional[ExitDimensionsScore] = None
     market_conditions: ExitMarketConditions = Field(default_factory=ExitMarketConditions)
     reasoning: List[str] = Field(default_factory=list)
+    risk_flags: List[str] = Field(default_factory=list)
     highest_price_observed: Optional[float] = None
     current_executable_price: Optional[float] = None
+    unrealized_pnl_pct: Optional[float] = None
+    trailing_stop_price: Optional[float] = None
+    input_snapshot: Optional[Dict[str, Any]] = None  # Mandatory: reproducible state snapshot (Directive Item 7)
+    model_version: str = "v2.0-adaptive"
+    strategy_mode: str = "DEFAULT"
     data_timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     expires_at: str
 

@@ -67,6 +67,9 @@ def _ensure_column_migrations() -> None:
         ("agent_decisions", "input_snapshot", "JSON"),
         ("entry_assessments", "input_snapshot", "JSON"),
         ("entry_assessments", "rejection_reason", "VARCHAR(120)"),
+        ("exit_assessments", "dimensions_score", "JSON"),
+        ("exit_assessments", "risk_flags", "JSON"),
+        ("exit_assessments", "input_snapshot", "JSON"),
     ]
     is_pg = not settings.database_url.startswith("sqlite")
     with engine.begin() as conn:
