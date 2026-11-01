@@ -1,4 +1,11 @@
+from pathlib import Path
+import sys
 import unittest
+
+_API_DIR = str(Path(__file__).resolve().parents[1])
+if _API_DIR not in sys.path:
+    sys.path.insert(0, _API_DIR)
+
 from fastapi.testclient import TestClient
 from app.main import app
 from app.core.config import settings
