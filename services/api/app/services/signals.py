@@ -191,7 +191,7 @@ CURATED_CRYPTO_METADATA = [
 def _clean_text(val: Optional[str]) -> str:
     if not val:
         return ""
-    return str(val).replace("\u2265", ">=").replace("\u2264", "<=").replace("", "•").replace("–", "-").strip()
+    return str(val).replace("\u2265", ">=").replace("\u2264", "<=").replace("–", "-").strip()
 
 
 def _build_single_stock_insight(meta: dict) -> dict:

@@ -406,13 +406,13 @@ export const api = {
       body: JSON.stringify(params),
     }),
   getSignals: (status?: string) =>
-    request<any>(`/signals${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+    request<any>(`/signals${status ? `?status=${encodeURIComponent(status)}` : ''}`, { timeoutMs: 25000 }),
   getSignalInsights: (refresh: boolean = false) =>
-    request<SignalInsightsResponse>(`/signals/insights${refresh ? '?refresh=true' : ''}`),
+    request<SignalInsightsResponse>(`/signals/insights${refresh ? '?refresh=true' : ''}`, { timeoutMs: 25000 }),
   getStockInsights: (refresh: boolean = false) =>
-    request<{ stocks: StockInsightItem[]; updated_at: string }>(`/signals/stock-insights${refresh ? '?refresh=true' : ''}`),
+    request<{ stocks: StockInsightItem[]; updated_at: string }>(`/signals/stock-insights${refresh ? '?refresh=true' : ''}`, { timeoutMs: 25000 }),
   getCryptoInsights: (refresh: boolean = false) =>
-    request<{ crypto: CryptoInsightItem[]; updated_at: string }>(`/signals/crypto-insights${refresh ? '?refresh=true' : ''}`),
+    request<{ crypto: CryptoInsightItem[]; updated_at: string }>(`/signals/crypto-insights${refresh ? '?refresh=true' : ''}`, { timeoutMs: 25000 }),
   createSignal: (data: any) =>
     request<any>('/signals', { method: 'POST', body: JSON.stringify(data) }),
   // Auto Entry Bot Endpoints
