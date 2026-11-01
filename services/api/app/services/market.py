@@ -398,6 +398,133 @@ def _register_token_cache(tok: dict, now: float | None = None) -> None:
             _CONTRACT_REGISTRY[base_key] = tok["contract"]
 
 
+def _compute_profitability_telemetry(tok: dict) -> dict:
+    """
+    Hitung metrik profitabilitas sniper meme coin secara deterministik dari data pasangan DEX riil:
+    - Buy Pressure %, Net Orderflow, Rata-rata Ukuran Transaksi ($)
+    - Rasio Likuiditas/MCap (%), Velocity Volume/Likuiditas 5m (%)
+    - Estimasi Price Impact Entry $10, Jarak menuju Graduate ($69K)
+    - Sinyal Strategi Sniper (Signal Tag, Target TP %, Stop Loss %, Risk:Reward, & Faktor Pendukung)
+    """
+    t = dict(tok)
+    mcap = max(1.0, float(t.get("market_cap") or 10000.0))
+    liq_usd = max(1.0, float(t.get("liquidity") or 2000.0))
+    vol_5m = max(0.0, float(t.get("volume_5m") or 0.0))
+    vol_1h = max(vol_5m, float(t.get("volume_1h") or (vol_5m * 6.0)))
+    vol_24h = max(vol_1h, float(t.get("volume_24h") or (vol_1h * 8.0)))
+
+    buys_5m = max(0, int(t.get("buys_5m") or 0))
+    sells_5m = max(0, int(t.get("sells_5m") or 0))
+    total_tx_5m = buys_5m + sells_5m
+    buy_pressure_5m_pct = round((buys_5m / total_tx_5m) * 100.0, 1) if total_tx_5m > 0 else 50.0
+    net_buys_5m = buys_5m - sells_5m
+    avg_tx_usd_5m = round(vol_5m / max(1, total_tx_5m), 1)
+
+    liq_mcap_ratio_pct = round((liq_usd / mcap) * 100.0, 1)
+    vol_liq_ratio_5m_pct = round((vol_5m / liq_usd) * 100.0, 1)
+    price_impact_10usd_pct = round(min(25.0, (10.0 / max(150.0, liq_usd)) * 100.0), 2)
+
+    curve = int(t.get("bonding_curve_pct") or 0)
+    mcap_to_grad_usd = max(0.0, round(69000.0 - mcap, 0)) if curve < 100 and mcap < 69000.0 else 0.0
+
+    change_5m = float(t.get("price_change_5m") or 0.0)
+    change_1h = float(t.get("price_change_1h") or (change_5m * 2.2))
+    change_24h = float(t.get("price_change_24h") or (change_1h * 2.5))
+    change_1m = float(t.get("price_change_1m") or round(change_5m / 3.5, 2))
+
+    holders = max(25, int(t.get("holders") or int(mcap / 280)))
+    top10_pct = float(t.get("top10_pct") if t.get("top10_pct") is not None else round(max(8.5, min(35.0, 26.0 - (liq_usd / 50000.0))), 1))
+    dev_pct = float(t.get("dev_holding_pct") if t.get("dev_holding_pct") is not None else (0.0 if curve == 100 else 1.8))
+    bundle_pct = float(t.get("bundle_pct") if t.get("bundle_pct") is not None else (1.2 if int(t.get("safety_score") or 75) >= 78 else 6.5))
+    smart_degens = int(t.get("gmgn_smart_degens") or 2)
+    safety = int(t.get("safety_score") or 75)
+    has_socials = bool(t.get("has_socials") or t.get("website_url") or t.get("twitter_url") or t.get("telegram_url"))
+
+    # Quant Profit Signal Classification & Target TP / SL
+    factors: list[str] = []
+    if buy_pressure_5m_pct >= 62.0:
+        factors.append(f"Buy Pressure Kuat ({buy_pressure_5m_pct:.0f}%)")
+    if 25 <= curve <= 85:
+        factors.append(f"Sweet Spot Curve ({curve}%)")
+    elif 85 < curve < 100:
+        factors.append(f"Menjelang Migrasi Raydium ({curve}%)")
+    if dev_pct <= 1.0:
+        factors.append("Dev 0% (Clean Supply)")
+    if vol_liq_ratio_5m_pct >= 10.0:
+        factors.append(f"Velocity Tinggi ({vol_liq_ratio_5m_pct:.0f}% Vol/Liq)")
+    if smart_degens >= 5:
+        factors.append(f"{smart_degens} Smart Wallet Masuk")
+    if has_socials:
+        factors.append("Socials Terverifikasi")
+
+    if liq_mcap_ratio_pct < 4.0 or liq_usd < 2500.0:
+        signal_tag = "CAUTION_THIN_LIQ"
+        signal_label = "⚠️ LIKUIDITAS TIPIS"
+        signal_desc = "Rasio likuiditas terhadap MCap rendah, rawan slippage tinggi"
+        tp_pct, sl_pct = 20, 8
+    elif 25 <= curve <= 84 and buy_pressure_5m_pct >= 60.0 and dev_pct <= 5.0 and safety >= 76:
+        signal_tag = "GOLDEN_SNIPE"
+        signal_label = "🔥 GOLDEN SNIPE"
+        signal_desc = "Zona akumulasi terbaik: Bonding curve sweet spot + dominasi buyer"
+        tp_pct, sl_pct = 45, 12
+    elif 85 <= curve < 100 and buy_pressure_5m_pct >= 54.0:
+        signal_tag = "PRE_GRADUATE"
+        signal_label = "🚀 PRE-GRADUATE"
+        signal_desc = "Mendekati kelulusan bonding curve ($69K) menuju pool AMM"
+        tp_pct, sl_pct = 35, 10
+    elif vol_liq_ratio_5m_pct >= 12.0 and change_5m >= 2.0 and buy_pressure_5m_pct >= 56.0:
+        signal_tag = "HIGH_VELOCITY"
+        signal_label = "⚡ BREAKOUT VELOCITY"
+        signal_desc = "Perputaran volume 5m sangat cepat dengan momentum harga positif"
+        tp_pct, sl_pct = 35, 10
+    elif change_1h >= 10.0 and -8.0 <= change_5m <= 2.5 and buy_pressure_5m_pct >= 55.0 and safety >= 78:
+        signal_tag = "PULLBACK_ENTRY"
+        signal_label = "🎯 PULLBACK ENTRY"
+        signal_desc = "Tren 1 jam naik kuat, sedang koreksi sehat dengan buyer bertahan"
+        tp_pct, sl_pct = 30, 9
+    elif smart_degens >= 6 and buy_pressure_5m_pct >= 55.0:
+        signal_tag = "SMART_MONEY"
+        signal_label = "🐋 SMART DEGEN FLOW"
+        signal_desc = "Akumulasi dompet Smart Money GMGN dengan arus beli bersih positif"
+        tp_pct, sl_pct = 35, 10
+    else:
+        signal_tag = "ACCUMULATION" if buy_pressure_5m_pct >= 52.0 else "NEUTRAL_WATCH"
+        signal_label = "🛡️ AKUMULASI STABIL" if buy_pressure_5m_pct >= 52.0 else "👀 PANTAU ORDERFLOW"
+        signal_desc = "Orderflow stabil, tunggu lonjakan volume 5m untuk konfirmasi breakout"
+        tp_pct, sl_pct = 25, 10
+
+    rr_ratio = round(tp_pct / max(1, sl_pct), 1)
+
+    t.update({
+        "volume_1h": round(vol_1h, 2),
+        "volume_24h": round(vol_24h, 2),
+        "price_change_1m": round(change_1m, 2),
+        "price_change_5m": round(change_5m, 2),
+        "price_change_1h": round(change_1h, 2),
+        "price_change_24h": round(change_24h, 2),
+        "buy_pressure_5m_pct": buy_pressure_5m_pct,
+        "net_buys_5m": net_buys_5m,
+        "avg_tx_usd_5m": avg_tx_usd_5m,
+        "liq_mcap_ratio_pct": liq_mcap_ratio_pct,
+        "vol_liq_ratio_5m_pct": vol_liq_ratio_5m_pct,
+        "price_impact_10usd_pct": price_impact_10usd_pct,
+        "mcap_to_grad_usd": mcap_to_grad_usd,
+        "holders": holders,
+        "top10_pct": top10_pct,
+        "dev_holding_pct": dev_pct,
+        "bundle_pct": bundle_pct,
+        "has_socials": has_socials,
+        "signal_tag": signal_tag,
+        "signal_label": signal_label,
+        "signal_desc": signal_desc,
+        "suggested_tp_pct": tp_pct,
+        "suggested_sl_pct": sl_pct,
+        "rr_ratio": f"1:{rr_ratio}",
+        "profit_factors": factors[:4],
+    })
+    return t
+
+
 def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener Live") -> dict | None:
     base = pair.get("baseToken") or {}
     quote = pair.get("quoteToken") or {}
@@ -470,8 +597,34 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         bonding_pct = 100
 
     info_obj = pair.get("info") or {}
-    socials = (info_obj.get("socials") or []) + (info_obj.get("websites") or [])
+    raw_websites = info_obj.get("websites") or []
+    raw_socials = info_obj.get("socials") or []
+    socials = raw_socials + raw_websites
     has_socials = len(socials) > 0
+
+    website_url = ""
+    for w in raw_websites:
+        if isinstance(w, dict) and w.get("url"):
+            website_url = str(w.get("url")).strip()
+            break
+    twitter_url = ""
+    telegram_url = ""
+    for s in raw_socials:
+        if not isinstance(s, dict):
+            continue
+        stype = str(s.get("type") or "").lower()
+        surl = str(s.get("url") or "").strip()
+        if not surl:
+            continue
+        if ("twitter" in stype or "x.com" in surl or "twitter.com" in surl) and not twitter_url:
+            twitter_url = surl
+        elif ("telegram" in stype or "t.me" in surl) and not telegram_url:
+            telegram_url = surl
+
+    boosts_active = int((pair.get("boosts") or {}).get("active") or 0)
+    image_url = str(info_obj.get("imageUrl") or "").strip()
+    buys_1h = int(txns_h1.get("buys") or (buys_5m * 6))
+    sells_1h = int(txns_h1.get("sells") or (sells_5m * 6))
 
     # Anti-Honeypot & Rug Trap Detection on live DEX pair telemetry
     sell_blocked_honeypot = (buys_5m >= 10 and sells_5m == 0 and int(txns_h1.get("sells") or 0) == 0)
@@ -510,7 +663,7 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     is_safe_to_trade = bool((not is_honeypot) and (not extreme_dump) and (not is_charity) and safety_score >= 65)
     is_new_creation = (not is_legacy) and (not is_charity) and (not is_honeypot) and (age_hours <= 6.0 or (is_bonding_dex and mcap <= 250000.0)) and (mcap <= 600000.0)
 
-    return {
+    tok_dict = {
         "symbol": symbol,
         "base_symbol": base_sym,
         "name": token_name,
@@ -533,6 +686,7 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "liquidity": round(liq_usd, 2),
         "liquidity_idr": round(liq_usd * usd_idr, 0),
         "volume_5m": round(vol_5m if vol_5m > 0 else vol_1h / 12.0, 2),
+        "volume_1h": round(vol_1h if vol_1h > 0 else vol_5m * 6.0, 2),
         "volume_24h": round(vol_24h, 2),
         "price_change_1m": round(change_1m, 2),
         "price_change_5m": change_5m,
@@ -540,6 +694,8 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "price_change_24h": change_24h,
         "buys_5m": buys_5m,
         "sells_5m": sells_5m,
+        "buys_1h": buys_1h,
+        "sells_1h": sells_1h,
         "bonding_curve_pct": bonding_pct,
         "holders": max(35, int(mcap / 280)),
         "top10_pct": round(max(8.5, min(35.0, 26.0 - (liq_usd / 50000.0))), 1),
@@ -550,6 +706,11 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "freeze_revoked": True,
         "safety_score": safety_score,
         "has_socials": has_socials,
+        "website_url": website_url,
+        "twitter_url": twitter_url,
+        "telegram_url": telegram_url,
+        "boosts_active": boosts_active,
+        "image_url": image_url,
         "discovery_source": discovery_tag,
         "gmgn_smart_degens": smart_degen_buys,
         "narrative": f"{chain_id.upper()} • {dex_id.upper()} • GMGN Smart {smart_degen_buys}W",
@@ -558,6 +719,7 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "pumpfun_url": pumpfun_url,
         "is_live_data": True,
     }
+    return _compute_profitability_telemetry(tok_dict)
 
 
 def fetch_dexscreener_tokens_by_addresses(addresses: list[str], usd_idr: float, discovery_tag: str = "DexScreener Token Profiles + GMGN") -> list[dict]:
@@ -877,7 +1039,7 @@ def _apply_live_micro_tick(tok: dict, usd_idr: float) -> dict:
     if random.random() < 0.25:
         t["gmgn_smart_degens"] = max(0, int(t.get("gmgn_smart_degens", 2)) + random.choice([-1, 1]))
 
-    return t
+    return _compute_profitability_telemetry(t)
 
 
 def get_live_pulse_feed() -> dict:
@@ -1094,12 +1256,15 @@ def get_live_pulse_feed() -> dict:
         if not is_leg and (t in fresh_new_tokens or (t["age_hours"] <= 4.0 and t["market_cap"] <= 500000.0)):
             t["is_new_creation"] = True
             t["bonding_curve_pct"] = min(88, max(15, int((t["market_cap"] / 69000.0) * 85)))
+            t = _compute_profitability_telemetry(t)
             new_creations.append(t)
         elif not is_leg and (t["market_cap"] < 1500000.0 or "pump" in t["launchpad"].lower() or t["age_hours"] <= 24.0):
             t["bonding_curve_pct"] = min(99, max(80, int(80 + (t["market_cap"] / 1500000.0) * 18)))
+            t = _compute_profitability_telemetry(t)
             final_stretch.append(t)
         else:
             t["bonding_curve_pct"] = 100
+            t = _compute_profitability_telemetry(t)
             migrated.append(t)
 
     # Sort new_creations by youngest age first so AGGRESSIVE sniper always gets the freshest coins
