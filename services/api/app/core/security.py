@@ -70,3 +70,13 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depen
             headers={"WWW-Authenticate": "Bearer"},
         )
     return verify_token(credentials.credentials)
+
+
+def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)) -> Optional[dict]:
+    if credentials is None or not credentials.credentials:
+        return None
+    try:
+        return verify_token(credentials.credentials)
+    except Exception:
+        return None
+

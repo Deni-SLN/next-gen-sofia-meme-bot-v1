@@ -271,4 +271,18 @@ class ChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+# Import V2 Models so they are automatically registered with Base metadata
+try:
+    from app.v2.db.models import (
+        AgentDecision,
+        EntryAssessment,
+        ExitAssessment,
+        DecisionJournal,
+        PositionEvent,
+    )
+except ImportError:
+    pass
+
+
+
 
