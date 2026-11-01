@@ -25,12 +25,13 @@ def login(body: LoginRequest):
     primary_p = (settings.primary_password or os.environ.get("SOFIA_PRIMARY_PASSWORD") or "Ronaldo07@").strip()
 
     if primary_u and primary_p:
+        canonical_actor = "Deni26" if primary_u.lower() == "deni26" else primary_u
         if input_user.lower() == primary_u.lower() and input_pass == primary_p:
             is_valid = True
-            actor_name = primary_u
+            actor_name = canonical_actor
         elif input_pass == primary_p and input_user.lower() in ("", "admin"):
             is_valid = True
-            actor_name = primary_u
+            actor_name = canonical_actor
 
     if not is_valid:
         fallback_p = (settings.admin_password or os.environ.get("SOFIA_ADMIN_PASSWORD") or "changeme").strip()
