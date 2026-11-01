@@ -50,6 +50,10 @@ client = TestClient(app)
 
 
 def _clean_symbol(db, sym):
+    try:
+        db.rollback()
+    except Exception:
+        pass
     db.execute(delete(PortfolioHolding).where(PortfolioHolding.symbol == sym))
     db.execute(delete(Trade).where(Trade.symbol == sym))
     db.execute(delete(PositionEvent).where(PositionEvent.symbol == sym))
@@ -511,16 +515,24 @@ def test_18_remaining_token_balance_retention():
         h1 = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == sym, PortfolioHolding.mode == "PAPER")).scalar_one()
         assert abs(h1.quantity - 75.0) < 0.1
         assert abs(h1.avg_entry_price - entry_p) < 1e-6
-
-        # Step 2: Sell 50% of remainder (37.5 tokens), 37.5 tokens remain
-        res2 = partial_exit_manager.execute_partial_exit(db=db, symbol=sym, sell_pct=50.0, mode="PAPER")
-        h2 = db.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == sym, PortfolioHolding.mode == "PAPER")).scalar_one()
-        assert abs(h2.quantity - 37.5) < 0.1
-        assert abs(h2.avg_entry_price - entry_p) < 1e-6
-        print(f"[PASS] Test 18: Retention verified: 100 -> 75 (25% sold) -> 37.5 (50% sold). Cost basis preserved at ${entry_p}")
-    finally:
-        _clean_symbol(db, sym)
         db.close()
+
+        # Step 2: Open fresh session and sell 50% of remainder (37.5 tokens), 37.5 tokens remain
+        db2 = SessionLocal()
+        try:
+            res2 = partial_exit_manager.execute_partial_exit(db=db2, symbol=sym, sell_pct=50.0, mode="PAPER")
+            h2 = db2.execute(select(PortfolioHolding).where(PortfolioHolding.symbol == sym, PortfolioHolding.mode == "PAPER")).scalar_one()
+            assert abs(h2.quantity - 37.5) < 0.1
+            assert abs(h2.avg_entry_price - entry_p) < 1e-6
+            print(f"[PASS] Test 18: Retention verified: 100 -> 75 (25% sold) -> 37.5 (50% sold). Cost basis preserved at ${entry_p}")
+        finally:
+            _clean_symbol(db2, sym)
+            db2.close()
+    except Exception:
+        db_clean = SessionLocal()
+        _clean_symbol(db_clean, sym)
+        db_clean.close()
+        raise
 
 
 def test_19_decision_journal_mfe_mae_capture():
