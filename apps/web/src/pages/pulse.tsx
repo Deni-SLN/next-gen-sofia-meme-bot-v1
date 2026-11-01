@@ -25,17 +25,9 @@ export default function PulsePage() {
   const [executingCardKey, setExecutingCardKey] = useState<string | null>(null);
   const [entryNotice, setEntryNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [lastScannedTime, setLastScannedTime] = useState<string>('');
-  const [copiedAddresses, setCopiedAddresses] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('sofia_copied_wallets');
-        return raw ? JSON.parse(raw) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  const [lookedUpToken, setLookedUpToken] = useState<any | null>(null);
+  const [isLookingUpCa, setIsLookingUpCa] = useState<boolean>(false);
+  const [copiedAddresses, setCopiedAddresses] = useState<string[]>([]);
 
   const copiedSet = useMemo(() => new Set(copiedAddresses.map((a) => a.toLowerCase())), [copiedAddresses]);
 
@@ -110,38 +102,45 @@ export default function PulsePage() {
     return () => clearInterval(timer);
   }, [autoScan, refetchPulse]);
 
-  // Handle copy text & sembunyikan wallet/token yang sudah dicopy alamatnya dari scanner
-  const handleCopyText = (text: string, key: string, tokenData?: any) => {
+  // Handle copy text (salin alamat CA murni Base58 ke clipboard tanpa menyembunyikan kartu)
+  const handleCopyText = (text: string, key: string, _tokenData?: any) => {
+    const cleanCa = String(text || '').trim();
+    if (!cleanCa) return;
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(cleanCa);
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2500);
-
-      const toAdd: string[] = [];
-      const cleanText = (text || '').trim().toLowerCase();
-      if (cleanText.length >= 10) toAdd.push(cleanText);
-      if (tokenData?.contract) {
-        const c = String(tokenData.contract).trim().toLowerCase();
-        if (c.length >= 10) toAdd.push(c);
-      }
-      if (tokenData?.creator_address) {
-        const ca = String(tokenData.creator_address).trim().toLowerCase();
-        if (ca.length >= 10) toAdd.push(ca);
-      }
-
-      if (toAdd.length > 0) {
-        setCopiedAddresses((prev) => {
-          const next = Array.from(new Set([...prev, ...toAdd]));
-          if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem('sofia_copied_wallets', JSON.stringify(next));
-            } catch {}
-          }
-          return next;
-        });
-      }
     }
   };
+
+  // Live lookup ketika pengguna mem-paste CA atau URL Pump.fun di kotak pencarian
+  useEffect(() => {
+    const raw = searchQuery.trim();
+    if (!raw || (raw.length < 28 && !raw.toLowerCase().includes('pump.fun'))) {
+      setLookedUpToken(null);
+      setIsLookingUpCa(false);
+      return;
+    }
+    let cancelled = false;
+    setIsLookingUpCa(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.lookupMemeToken(raw);
+        if (!cancelled && res && res.contract) {
+          setLookedUpToken(res);
+          setActiveColumnTab('ALL');
+        }
+      } catch {
+        if (!cancelled) setLookedUpToken(null);
+      } finally {
+        if (!cancelled) setIsLookingUpCa(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -209,6 +208,18 @@ export default function PulsePage() {
       // 2. Blokir ketat koin amal, donasi, dan mayhem
       if (t.is_charity || isExcludedTokenClient(t.symbol, t.name)) return false;
 
+      // Jika pengguna sedang mencari spesifik dengan kata kunci / CA / URL Pump.fun, prioritaskan kecocokan langsung
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const caL = ca.toLowerCase();
+        return (
+          sym.toLowerCase().includes(q) ||
+          name.includes(q) ||
+          caL.includes(q) ||
+          (caL.length >= 32 && q.includes(caL))
+        );
+      }
+
       // 3. Filter Platform / Venue DEX (Pump.fun vs Raydium vs Lainnya)
       if (platformFilter !== 'ALL') {
         const lp = String(t.launchpad || '').toLowerCase();
@@ -216,6 +227,7 @@ export default function PulsePage() {
         const caLower = ca.toLowerCase();
 
         const isPump =
+          Boolean(t.is_pumpfun) ||
           lp.includes('pump') ||
           dx.includes('pump') ||
           caLower.endsWith('pump');
@@ -247,9 +259,7 @@ export default function PulsePage() {
       if (onlyCleanSupply && (devPct > 3.0 || top10Pct > 25.0)) return false;
       if (onlyWithSocials && !hasSoc) return false;
 
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      return sym.toLowerCase().includes(q) || name.includes(q) || ca.toLowerCase().includes(q);
+      return true;
     });
   };
 
@@ -331,12 +341,21 @@ export default function PulsePage() {
   };
 
   const allRawTokens = useMemo(() => {
-    return [
+    const base = [
       ...(pulseQuery.data?.new_creations || []),
       ...(pulseQuery.data?.final_stretch || []),
       ...(pulseQuery.data?.migrated || []),
     ];
-  }, [pulseQuery.data]);
+    if (lookedUpToken && lookedUpToken.contract) {
+      const exists = base.some(
+        (x) => String(x.contract || '').toLowerCase() === String(lookedUpToken.contract).toLowerCase()
+      );
+      if (!exists) {
+        return [lookedUpToken, ...base];
+      }
+    }
+    return base;
+  }, [pulseQuery.data, lookedUpToken]);
 
   const filterDeps = [
     allRawTokens,
@@ -613,16 +632,16 @@ export default function PulsePage() {
                   const lp = String(t.launchpad || '').toLowerCase();
                   const dx = String(t.dex || '').toLowerCase();
                   const ca = String(t.contract || '').toLowerCase();
-                  const isPump = lp.includes('pump') || dx.includes('pump') || ca.endsWith('pump');
+                  const isPump = Boolean(t.is_pumpfun) || lp.includes('pump') || dx.includes('pump') || ca.endsWith('pump');
                   const isRay = lp.includes('raydium') || dx.includes('raydium');
 
                   if (isPump) {
                     return (
                       <span
                         className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 shadow-sm flex items-center gap-1"
-                        title="Token aktif di ekosistem Pump.fun (Bonding Curve / PumpSwap)"
+                        title="Token terverifikasi aktif di Pump.fun (CA dapat langsung di-paste di pump.fun)"
                       >
-                        <span>💊 PUMP.FUN</span>
+                        <span>💊 PUMP.FUN READY</span>
                       </span>
                     );
                   }
@@ -630,15 +649,15 @@ export default function PulsePage() {
                     return (
                       <span
                         className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm flex items-center gap-1"
-                        title="Token aktif di pool Raydium AMM / CLMM"
+                        title="Token pool Raydium AMM murni (Tidak diluncurkan di Pump.fun — trade via Raydium/Jupiter)"
                       >
-                        <span>⚡ RAYDIUM</span>
+                        <span>⚡ RAYDIUM ONLY</span>
                       </span>
                     );
                   }
                   return (
                     <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-obsidian-950 text-indigo-300 border border-obsidian-800 flex items-center gap-1">
-                      <span>🌐 {t.launchpad || 'DEX'}</span>
+                      <span>🌐 {t.launchpad || 'DEX'} ONLY</span>
                     </span>
                   );
                 })()}
@@ -950,7 +969,7 @@ export default function PulsePage() {
                   ? 'bg-emerald-500 text-obsidian-950 shadow-emerald-500/20'
                   : 'bg-obsidian-950 hover:bg-obsidian-850 text-cyan-300 border border-obsidian-750 hover:border-cyan-500/40'
               }`}
-              title="Salin Mint Contract Address (CA) & Sembunyikan dari Radar"
+              title="Salin Mint Contract Address (CA) Base58 asli (Siap di-paste ke Pump.fun / DEX)"
             >
               <LucideIcon name={isCardCaCopied ? 'check' : 'copy'} className="w-3.5 h-3.5" />
               <span>{isCardCaCopied ? '✓ CA Tersalin' : 'Salin CA'}</span>

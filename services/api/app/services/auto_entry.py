@@ -575,8 +575,9 @@ def get_scanned_memecoins(
         composite_score = round(profit_meta["profit_score"] * 0.55 + safety_score * 0.45, 1)
 
         # Apply venue / pool filter (Pump.fun vs Raydium vs Lainnya)
-        is_pump = (
-            str(t.get("launchpad", "")).strip().lower() == "pump.fun"
+        is_pump = bool(
+            t.get("is_pumpfun")
+            or str(t.get("launchpad", "")).strip().lower() == "pump.fun"
             or "pump" in str(t.get("dex", "")).strip().lower()
             or str(ca).strip().lower().endswith("pump")
         )
@@ -601,8 +602,10 @@ def get_scanned_memecoins(
             "name": t.get("name") or sym,
             "contract": ca,
             "chain": t.get("chain", "Solana"),
-            "dex": t.get("dex", "Raydium"),
-            "launchpad": t.get("launchpad", "Pump.fun"),
+            "dex": t.get("dex") or ("Pump.fun" if is_pump else "Raydium"),
+            "launchpad": t.get("launchpad") or ("Pump.fun" if is_pump else "Raydium"),
+            "is_pumpfun": is_pump,
+            "pumpfun_url": t.get("pumpfun_url") or (f"https://pump.fun/coin/{ca}" if is_pump else ""),
             "price": float(t.get("price") or 0.0),
             "price_idr": float(t.get("price_idr") or 0.0),
             "price_change_5m": float(t.get("price_change_5m") or 0.0),

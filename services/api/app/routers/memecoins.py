@@ -38,6 +38,17 @@ def get_pulse():
     return memecoins.get_pulse_feed()
 
 
+@router.get("/lookup")
+def lookup_token(q: str = Query(..., description="Token symbol, contract address, or Pump.fun URL")):
+    tok = market.get_live_token_info(q, max_cache_age=5.0)
+    if not tok:
+        return JSONResponse(
+            status_code=404,
+            content={"error": {"code": "TOKEN_NOT_FOUND", "message": f"Koin atau CA '{q}' tidak ditemukan di jaringan Solana / Pump.fun."}},
+        )
+    return tok
+
+
 @router.get("/rugcheck")
 def rug_check(q: str = Query(..., description="Token symbol or contract address")):
     return memecoins.analyze_rug_check(q)
