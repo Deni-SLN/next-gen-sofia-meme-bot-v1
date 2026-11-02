@@ -162,3 +162,49 @@ class SupervisorStatusOutput(BaseModel):
     circuit_breaker_active: bool
     registered_agents: List[Dict[str, Any]]
     last_reconciled_at: Optional[str] = None
+
+
+PositionLifecycleState = Literal[
+    "DISCOVERED",
+    "ENTRY_APPROVED",
+    "BUY_PENDING",
+    "POSITION_OPEN",
+    "MONITORING",
+    "SELL_PENDING",
+    "RECONCILIATION",
+    "CLOSED",
+]
+
+
+class PositionStateInfo(BaseModel):
+    position_id: str
+    symbol: str
+    mint: str
+    mode: str = "PAPER"
+    current_state: PositionLifecycleState = "DISCOVERED"
+    quantity: float = 0.0
+    remaining_quantity: float = 0.0
+    avg_entry_price: float = 0.0
+    current_price: float = 0.0
+    highest_price: float = 0.0
+    unrealized_pnl_pct: float = 0.0
+    realized_pnl_usd: float = 0.0
+    entry_tx_hash: Optional[str] = None
+    exit_tx_hash: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    transition_history: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ConflictResolutionOutput(BaseModel):
+    scenario: str
+    entry_recommendation: Optional[str] = None
+    exit_recommendation: Optional[str] = None
+    risk_veto_active: bool = False
+    resolution: str  # REJECT, SELL, PARTIAL_SELL, HOLD_NO_BUY, DETERMINISTIC_FALLBACK, PROCEED
+    action: str
+    reasoning: str
+    priority_component: str
+    is_blocked: bool = False
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+

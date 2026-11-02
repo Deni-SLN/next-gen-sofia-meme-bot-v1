@@ -5,7 +5,8 @@ Satisfies PRD Section 8 (Trade Supervisor) & Section 13 (Supervisor API).
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select, desc, func
 from sqlalchemy.orm import Session
 
@@ -14,8 +15,32 @@ from app.v2.ai.orchestrator import orchestrator
 from app.v2.agents.registry import agent_registry
 from app.v2.db.models import PositionEvent
 from app.db.models import PortfolioHolding, Trade, BotState
+from app.v2.core.supervisor import trade_supervisor
+from app.v2.core.position_state_machine import position_state_machine
+from app.v2.core.conflict_resolver import conflict_resolver
 
 router = APIRouter(tags=["V2 Trade Supervisor"])
+
+
+class KillSwitchRequest(BaseModel):
+    engage: bool
+    reason: str = "MANUAL_OPERATOR_COMMAND"
+
+
+class ConflictResolutionRequest(BaseModel):
+    entry_decision: Optional[str] = "BUY"
+    risk_veto: bool = False
+    veto_reason: Optional[str] = None
+    is_stale_data: bool = False
+    ai_provider_available: bool = True
+    current_open_positions: int = 0
+    max_open_positions: int = 5
+    daily_drawdown_limit_hit: bool = False
+
+
+class SuperviseTickRequest(BaseModel):
+    strategy_mode: str = "DEFAULT"
+    mode: str = "PAPER"
 
 
 @router.get("/status")
@@ -103,4 +128,79 @@ def list_supervisor_events(
             }
             for r in rows
         ],
+    }
+
+
+@router.get("/positions")
+def list_tracked_positions(
+    mode: Optional[str] = Query(default=None, description="PAPER or LIVE"),
+):
+    """Retrieves state-machine status and lifecycle transitions for all monitored positions."""
+    positions = position_state_machine.list_positions(mode=mode)
+    return {
+        "count": len(positions),
+        "positions": [p.model_dump() for p in positions],
+    }
+
+
+@router.post("/tick")
+def execute_supervision_tick(
+    req: SuperviseTickRequest,
+    db: Session = Depends(get_db),
+):
+    """Executes an autonomous monitoring tick across all active holdings."""
+    results = trade_supervisor.supervise_positions_tick(
+        db=db,
+        strategy_mode=req.strategy_mode,
+        mode=req.mode,
+    )
+    return {
+        "status": "success",
+        "evaluated_at": datetime.now(timezone.utc).isoformat(),
+        "positions_evaluated": len(results),
+        "results": results,
+    }
+
+
+@router.post("/resolve-conflict")
+def evaluate_conflict_resolution(req: ConflictResolutionRequest):
+    """Audits and arbitrates a potential conflict between entry/exit agents and risk rules."""
+    out = conflict_resolver.resolve_entry_conflict(
+        entry_decision=req.entry_decision or "BUY",
+        risk_veto=req.risk_veto,
+        veto_reason=req.veto_reason,
+        is_stale_data=req.is_stale_data,
+        ai_provider_available=req.ai_provider_available,
+        current_open_positions=req.current_open_positions,
+        max_open_positions=req.max_open_positions,
+        daily_drawdown_limit_hit=req.daily_drawdown_limit_hit,
+    )
+    return out.model_dump()
+
+
+@router.post("/kill-switch")
+def toggle_emergency_kill_switch(req: KillSwitchRequest):
+    """Engages or disengages global autonomous emergency stop."""
+    if req.engage:
+        trade_supervisor.engage_kill_switch(reason=req.reason)
+    else:
+        trade_supervisor.disengage_kill_switch()
+    return {
+        "kill_switch_engaged": trade_supervisor._kill_switch_engaged,
+        "circuit_breaker_active": trade_supervisor._circuit_breaker_active,
+        "status": "halted" if req.engage else "operational",
+    }
+
+
+@router.post("/recover")
+def recover_positions_from_db(
+    mode: str = Query(default="PAPER"),
+    db: Session = Depends(get_db),
+):
+    """Rebuilds position state-machine tracking and excursion levels after server reload."""
+    recovered = trade_supervisor.recover_positions_after_restart(db=db, mode=mode)
+    return {
+        "status": "success",
+        "recovered_positions_count": recovered,
+        "last_reconciled_at": trade_supervisor._last_reconciled_at,
     }
