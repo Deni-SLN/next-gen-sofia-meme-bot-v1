@@ -208,3 +208,57 @@ class ConflictResolutionOutput(BaseModel):
     is_blocked: bool = False
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+
+class PerformanceScorecard(BaseModel):
+    total_closed_trades: int = 0
+    total_winning_trades: int = 0
+    total_losing_trades: int = 0
+    win_rate_pct: Optional[float] = None
+    profit_factor: Optional[float] = None
+    expectancy_usd: float = 0.0
+    net_pnl_usd: float = 0.0
+    avg_win_usd: float = 0.0
+    avg_loss_usd: float = 0.0
+    max_drawdown_usd: float = 0.0
+    max_drawdown_pct: float = 0.0
+    avg_mfe_pct: float = 0.0
+    avg_mae_pct: float = 0.0
+    avg_profit_capture_ratio: float = 0.0
+    entry_efficiency: float = 0.0
+    exit_efficiency: float = 0.0
+    false_positive_rate: float = 0.0
+    mode: str = "PAPER"
+    generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class DecisionJournalItem(BaseModel):
+    id: Optional[int] = None
+    trade_id: Optional[int] = None
+    symbol: str
+    mint: str = ""
+    mode: str = "PAPER"
+    entry_score: float = 0.0
+    exit_score: float = 0.0
+    initial_risk_pct: float = 0.0
+    mfe_pct: float = 0.0
+    mae_pct: float = 0.0
+    profit_capture_ratio: float = 0.0
+    final_realized_pnl_usd: float = 0.0
+    final_realized_pnl_pct: float = 0.0
+    exit_reason: str = "NORMAL_EXIT"
+    ai_post_mortem: Optional[str] = None
+    lessons_learned: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class OptimizationResult(BaseModel):
+    strategy_version: str = "2.1-optimized"
+    parameter_set: Dict[str, Any]
+    in_sample_metrics: Dict[str, Any]
+    out_of_sample_metrics: Dict[str, Any]
+    net_improvement_pct: float = 0.0
+    requires_manual_approval: bool = True
+    approved_by_human: bool = False
+    status: str = "RECOMMENDED_PENDING_APPROVAL"
+
+
