@@ -257,11 +257,4 @@ def get_canary_paper_scorecard(db: Session = Depends(get_db)):
     """
     Returns the latest Canary PAPER scorecard and audit metrics across Strategy A, B, and C.
     """
-    return CanaryPaperEngine.generate_canary_scorecard(
-        db=db,
-        candidate_journal=[],
-        rejected_journal=[],
-        circuit_breaker_logs=[],
-        stale_data_logs=[],
-        error_logs=[],
-    )
+    return CanaryPaperEngine.get_latest_scorecard(db=db)

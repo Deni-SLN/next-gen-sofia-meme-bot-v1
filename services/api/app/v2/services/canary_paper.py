@@ -45,6 +45,9 @@ class CanaryPaperEngine:
     CIRCUIT_BREAKER_PRIORITY_FEE_THRESHOLD_USD = 0.050
     DEX_FEE_PCT = 0.0025  # 0.25% LP fee
 
+    # Class variable caching the latest Canary run scorecard
+    _latest_run_scorecard: Optional[Dict[str, Any]] = None
+
     @classmethod
     def run_canary_evaluation(
         cls,
@@ -355,13 +358,31 @@ class CanaryPaperEngine:
             db.commit()
 
         # Generate complete Canary Scorecard
-        return cls.generate_canary_scorecard(
+        scorecard = cls.generate_canary_scorecard(
             db=db,
             candidate_journal=candidate_journal,
             rejected_journal=rejected_journal,
             circuit_breaker_logs=circuit_breaker_logs,
             stale_data_logs=stale_data_logs,
             error_logs=error_logs,
+        )
+        cls._latest_run_scorecard = scorecard
+        return scorecard
+
+    @classmethod
+    def get_latest_scorecard(cls, db: Session) -> Dict[str, Any]:
+        """
+        Returns cached scorecard from the latest run, or generates from database if no cache exists.
+        """
+        if cls._latest_run_scorecard is not None:
+            return cls._latest_run_scorecard
+        return cls.generate_canary_scorecard(
+            db=db,
+            candidate_journal=[],
+            rejected_journal=[],
+            circuit_breaker_logs=[],
+            stale_data_logs=[],
+            error_logs=[],
         )
 
     @classmethod
