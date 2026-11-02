@@ -48,6 +48,7 @@ def get_position_lifecycles(
 
     return [
         {
+            "position_id": lc.position_id,
             "symbol": lc.symbol,
             "mode": lc.mode,
             "status": lc.status,
@@ -56,6 +57,7 @@ def get_position_lifecycles(
             "entry_price": lc.entry_price,
             "total_entry_cost_usd": lc.total_entry_cost_usd,
             "total_exit_proceeds_usd": lc.total_exit_proceeds_usd,
+            "unrealized_cost_usd": lc.unrealized_cost_usd,
             "net_pnl_usd": lc.net_pnl_usd,
             "net_pnl_pct": lc.net_pnl_pct,
             "partial_exits_count": lc.partial_exits_count,
@@ -63,12 +65,35 @@ def get_position_lifecycles(
             "holding_time_seconds": lc.holding_time_seconds,
             "mfe_pct": lc.mfe_pct,
             "mae_pct": lc.mae_pct,
+            "network_fee_usd": lc.network_fee_usd,
+            "priority_fee_usd": lc.priority_fee_usd,
+            "dex_fee_usd": lc.dex_fee_usd,
+            "slippage_cost_usd": lc.slippage_cost_usd,
+            "total_execution_costs_usd": lc.total_execution_costs_usd,
             "exit_reasons": lc.exit_reasons,
             "exit_trades": lc.exit_trades,
             "contemporaneous_regime": lc.contemporaneous_regime,
         }
         for lc in lifecycles[:limit]
     ]
+
+
+@router.post("/run-statistical-benchmark")
+def run_statistical_observation_benchmark(
+    target_lifecycles: int = Query(100, ge=10, le=200, description="Minimum lifecycles per strategy"),
+    reset_existing: bool = Query(True, description="Reset previous benchmark data before running"),
+    db: Session = Depends(get_db),
+):
+    """
+    Executes a synchronized, deterministic observation benchmark of at least `target_lifecycles`
+    completed position lifecycles per strategy (Strategy A, B, and C).
+    Enforces sample size observation (minimum 100 lifecycles) and statistical rigor (Audit Directives 3 & 4).
+    """
+    return ThreeStrategyExperiment.run_statistical_observation_benchmark(
+        db=db,
+        target_lifecycles=target_lifecycles,
+        reset_existing=reset_existing,
+    )
 
 
 @router.post("/evaluate-candidate")
