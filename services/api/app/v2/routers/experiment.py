@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.db.models import Trade
 from app.v2.services.paper_experiment import ThreeStrategyExperiment
 from app.v2.services.ablation_engine import AblationExperimentEngine, ExecutionCostSensitivityEngine
+from app.v2.services.canary_paper import CanaryPaperEngine
 from app.v2.feedback.lifecycle_aggregator import LifecycleAggregator
 from app.v2.feedback.paired_bootstrap import PairedStatisticalEngine
 from app.v2.feedback.optimizer import ParameterOptimizer
@@ -206,3 +207,61 @@ def get_strategy_pnl_distributions(
         "distribution_moments": PairedStatisticalEngine.compute_distribution_moments(pnls),
         "outlier_sensitivity": PairedStatisticalEngine.sensitivity_analysis(pnls),
     }
+
+
+@router.get("/cost-sensitivity/bridge")
+def get_stress_test_reconciliation_bridge(
+    mode: str = Query("PAPER_V2_AI", description="Strategy mode"),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns the reproducible cost and PnL bridge reconciling the Strategy C stress-test figures
+    and explains the double-counting discrepancy behind the +$16.72 reported earlier (CEO Directive Section 2.A).
+    """
+    return ExecutionCostSensitivityEngine.reconcile_stress_test_accounting(db=db, mode=mode.upper())
+
+
+@router.get("/cost-sensitivity/slippage-sweep")
+def get_slippage_sensitivity_sweep(
+    mode: str = Query("PAPER_V2_AI", description="Strategy mode"),
+    db: Session = Depends(get_db),
+):
+    """
+    Runs the exact sensitivity sweep across slippage multipliers 2.0x, 2.1x, 2.2x, 2.25x, 2.3x, and 2.4x
+    and reports the exact positive-to-negative expectancy transition (CEO Directive Section 2.B).
+    """
+    return ExecutionCostSensitivityEngine.run_slippage_sweep(db=db, mode=mode.upper())
+
+
+@router.post("/canary/run")
+def run_canary_paper_evaluation(
+    total_candidates: int = Query(50, ge=10, le=100, description="Total candidates to evaluate"),
+    simulate_circuit_breaker: bool = Query(True, description="Simulate priority fee circuit breaker spike"),
+    reset_existing: bool = Query(True, description="Reset previous canary paper trades"),
+    db: Session = Depends(get_db),
+):
+    """
+    Executes the Canary PAPER Forward Evaluation across 50 forward market candidates (CEO Directive Section 2).
+    Evaluates Strategy A, Strategy B, and Strategy C in parallel with frozen parameters.
+    """
+    return CanaryPaperEngine.run_canary_evaluation(
+        db=db,
+        total_candidates=total_candidates,
+        simulate_circuit_breaker=simulate_circuit_breaker,
+        reset_existing=reset_existing,
+    )
+
+
+@router.get("/canary/scorecard")
+def get_canary_paper_scorecard(db: Session = Depends(get_db)):
+    """
+    Returns the latest Canary PAPER scorecard and audit metrics across Strategy A, B, and C.
+    """
+    return CanaryPaperEngine.generate_canary_scorecard(
+        db=db,
+        candidate_journal=[],
+        rejected_journal=[],
+        circuit_breaker_logs=[],
+        stale_data_logs=[],
+        error_logs=[],
+    )

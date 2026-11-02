@@ -149,17 +149,18 @@ class PairedStatisticalEngine:
         cls,
         samples_x: List[float],
         samples_y: List[float],
-        n_bootstraps: int = 2000,
+        n_bootstraps: int = 10000,
         alpha: float = 0.05,
         seed: int = 42,
     ) -> Dict[str, Any]:
         """
         Calculates paired difference bootstrap for two synchronized strategies (X vs Y).
         Computes 95% Confidence Interval for (X - Y) and empirical two-sided p-value.
+        Uses 10,000 resamples with fixed seed (42) for exact reproducibility.
         """
         n = min(len(samples_x), len(samples_y))
         if n == 0:
-            return {"mean_difference": 0.0, "ci_lower": 0.0, "ci_upper": 0.0, "p_value": 1.0}
+            return {"mean_difference": 0.0, "ci_lower": 0.0, "ci_upper": 0.0, "p_value": 1.0, "n_bootstraps": n_bootstraps}
 
         diffs = [samples_x[i] - samples_y[i] for i in range(n)]
         mean_diff = sum(diffs) / n
@@ -192,6 +193,8 @@ class PairedStatisticalEngine:
 
         return {
             "n_pairs": n,
+            "n_bootstraps": n_bootstraps,
+            "seed": seed,
             "mean_difference": round(mean_diff, 3),
             "t_statistic": t_stat,
             "p_value": p_val,
@@ -208,12 +211,13 @@ class PairedStatisticalEngine:
         samples_x: List[float],
         samples_y: List[float],
         block_size: int = 5,
-        n_bootstraps: int = 2000,
+        n_bootstraps: int = 10000,
         alpha: float = 0.05,
         seed: int = 42,
     ) -> Dict[str, Any]:
         """
-        Block bootstrap by time/session to preserve temporal autocorrelation and regime clustering.
+        Block bootstrap by time/session (block size L=5) to preserve temporal autocorrelation and regime clustering.
+        Uses 10,000 resamples with fixed seed (42).
         """
         n = min(len(samples_x), len(samples_y))
         if n < block_size:
@@ -250,7 +254,10 @@ class PairedStatisticalEngine:
         p_val = round(2.0 * min(count_le_zero / n_bootstraps, count_ge_zero / n_bootstraps), 4)
 
         return {
+            "n_pairs": n,
             "block_size": block_size,
+            "n_bootstraps": n_bootstraps,
+            "seed": seed,
             "mean_difference": round(mean_diff, 3),
             "block_bootstrap_ci_95": {
                 "lower": ci_lower,
