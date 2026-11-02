@@ -12,7 +12,9 @@ from sqlalchemy import select
 from app.db.session import get_db
 from app.db.models import Trade
 from app.v2.services.paper_experiment import ThreeStrategyExperiment
+from app.v2.services.ablation_engine import AblationExperimentEngine, ExecutionCostSensitivityEngine
 from app.v2.feedback.lifecycle_aggregator import LifecycleAggregator
+from app.v2.feedback.paired_bootstrap import PairedStatisticalEngine
 from app.v2.feedback.optimizer import ParameterOptimizer
 
 router = APIRouter()
@@ -142,3 +144,65 @@ def get_walk_forward_validation_report(
     )
 
     return ParameterOptimizer.run_walk_forward_optimization(trades=trades, train_test_split=0.70)
+
+
+@router.post("/run-ablation")
+def run_four_way_ablation_benchmark(
+    target_lifecycles: int = Query(100, ge=10, le=200, description="Minimum lifecycles per ablation arm"),
+    reset_existing: bool = Query(True, description="Reset previous ablation trades"),
+    db: Session = Depends(get_db),
+):
+    """
+    Runs synchronized 4-way ablation benchmark (CEO Directive Section 4):
+    - B1: V2 Deterministic Entry + Deterministic Exit
+    - C1: AI Entry + Deterministic Exit
+    - C2: Deterministic Entry + AI Exit
+    - C3: Full AI Entry + Full AI Exit
+    """
+    return AblationExperimentEngine.run_ablation_benchmark(
+        db=db,
+        target_lifecycles=target_lifecycles,
+        reset_existing=reset_existing,
+    )
+
+
+@router.get("/ablation")
+def get_four_way_ablation_scorecard(db: Session = Depends(get_db)):
+    """
+    Returns the 4-way ablation scorecard measuring incremental contributions of AI Entry vs AI Exit.
+    """
+    return AblationExperimentEngine.generate_ablation_scorecard(db=db)
+
+
+@router.get("/cost-sensitivity")
+def get_execution_cost_sensitivity(
+    mode: str = Query("PAPER_V2_AI", description="Strategy mode to evaluate"),
+    db: Session = Depends(get_db),
+):
+    """
+    Evaluates strategy resilience under 4 stressed execution cost scenarios:
+    1. Baseline Realistic
+    2. 2.0x Stressed Slippage
+    3. Network Congestion Spike ($0.10 Priority Fee)
+    4. Worst-Case Stressed (2x Slippage + High Fees + 2500ms Latency)
+    """
+    return ExecutionCostSensitivityEngine.evaluate_cost_scenarios(db=db, mode=mode.upper())
+
+
+@router.get("/pnl-distributions")
+def get_strategy_pnl_distributions(
+    mode: str = Query("PAPER_V2_AI", description="Strategy mode"),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns full distribution moments (median, IQR, skewness, kurtosis, percentiles)
+    and outlier sensitivity analysis (trimmed/winsorized means, ex-max, ex-min).
+    """
+    lifecycles = [lc for lc in LifecycleAggregator.aggregate_lifecycles(db, mode=mode.upper()) if lc.status == "CLOSED"]
+    pnls = [lc.net_pnl_usd for lc in lifecycles]
+    return {
+        "mode": mode.upper(),
+        "lifecycles_count": len(lifecycles),
+        "distribution_moments": PairedStatisticalEngine.compute_distribution_moments(pnls),
+        "outlier_sensitivity": PairedStatisticalEngine.sensitivity_analysis(pnls),
+    }

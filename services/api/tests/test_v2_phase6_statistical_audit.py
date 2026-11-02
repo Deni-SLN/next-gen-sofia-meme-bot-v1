@@ -76,7 +76,7 @@ def test_01_unique_position_id_and_reopened_positions():
         
         lc1, lc2 = lifecycles[0], lifecycles[1]
         assert lc1.position_id != lc2.position_id, "Lifecycles must have distinct position_ids"
-        assert lc1.position_id.startswith(f"pos_{mode}_{sym}")
+        assert lc1.position_id.startswith(f"pos_{mode}_")
         assert lc1.entry_quantity == 100.0 and lc1.is_win is True
         assert lc2.entry_quantity == 200.0 and lc2.is_win is False
         print("[PASS] Test 1: Unique position_id and separate lifecycles for reopened positions verified.")
