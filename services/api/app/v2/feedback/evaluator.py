@@ -16,6 +16,7 @@ from sqlalchemy import select, func, desc, or_
 from app.db.models import Trade
 from app.v2.db.models import DecisionJournal, AgentDecision, PositionEvent, EntryAssessment, ExitAssessment
 from app.v2.ai.schemas import PerformanceScorecard, DecisionJournalItem
+from app.v2.feedback.lifecycle_aggregator import LifecycleAggregator, PositionLifecycle
 
 
 class TradeEvaluator:
@@ -48,6 +49,7 @@ class TradeEvaluator:
                 total_losing_trades=0,
                 win_rate_pct=None,
                 profit_factor=None,
+                profit_factor_note=None,
                 expectancy_usd=0.0,
                 net_pnl_usd=0.0,
                 avg_win_usd=0.0,
@@ -60,6 +62,10 @@ class TradeEvaluator:
                 entry_efficiency=0.0,
                 exit_efficiency=0.0,
                 false_positive_rate=0.0,
+                completed_position_lifecycles=0,
+                lifecycle_win_rate_pct=None,
+                avg_holding_time_seconds=0.0,
+                total_execution_costs_usd=0.0,
                 mode=mode,
             )
 
@@ -74,12 +80,15 @@ class TradeEvaluator:
         gross_loss = abs(sum(float(t.pnl or 0.0) for t in losing_trades))
         net_pnl = round(sum(float(t.pnl or 0.0) for t in closed_trades), 2)
 
+        # Pre-Validation Correction 1: Handle gross loss = 0 strictly per CEO Directive
+        profit_factor_note = None
         if gross_loss > 0.0:
             profit_factor = round(gross_profit / gross_loss, 2)
         elif gross_profit > 0.0:
-            profit_factor = 999.0  # Infinite / perfect profit factor
+            profit_factor = None  # Undefined when zero gross loss
+            profit_factor_note = "UNDEFINED_ZERO_LOSS"
         else:
-            profit_factor = 1.0
+            profit_factor = None
 
         avg_win = round(gross_profit / total_wins, 2) if total_wins > 0 else 0.0
         avg_loss = round(gross_loss / total_losses, 2) if total_losses > 0 else 0.0
@@ -87,6 +96,25 @@ class TradeEvaluator:
         win_rate_dec = total_wins / total_closed
         loss_rate_dec = total_losses / total_closed
         expectancy = round((win_rate_dec * avg_win) - (loss_rate_dec * avg_loss), 2)
+
+        # Pre-Validation Correction 2 & 3: Aggregate partial sells into complete position lifecycles
+        lifecycles = LifecycleAggregator.aggregate_lifecycles(db=db, mode=mode)
+        closed_lifecycles = [lc for lc in lifecycles if lc.status == "CLOSED"]
+        completed_lifecycles_count = len(closed_lifecycles)
+        winning_lifecycles = [lc for lc in closed_lifecycles if lc.is_win]
+        lifecycle_win_rate_pct = (
+            round((len(winning_lifecycles) / completed_lifecycles_count) * 100.0, 2)
+            if completed_lifecycles_count > 0
+            else None
+        )
+        avg_holding_time = (
+            round(sum(lc.holding_time_seconds for lc in closed_lifecycles) / completed_lifecycles_count, 1)
+            if completed_lifecycles_count > 0
+            else 0.0
+        )
+        total_execution_costs = round(
+            sum(lc.total_entry_fees_usd + lc.total_exit_fees_usd for lc in lifecycles), 4
+        )
 
         # Calculate Maximum Peak-to-Trough Drawdown from cumulative PnL
         cumulative_pnl = 0.0
@@ -148,6 +176,7 @@ class TradeEvaluator:
             total_losing_trades=total_losses,
             win_rate_pct=win_rate_pct,
             profit_factor=profit_factor,
+            profit_factor_note=profit_factor_note,
             expectancy_usd=expectancy,
             net_pnl_usd=net_pnl,
             avg_win_usd=avg_win,
@@ -160,6 +189,10 @@ class TradeEvaluator:
             entry_efficiency=entry_eff,
             exit_efficiency=exit_eff,
             false_positive_rate=false_positive_rate,
+            completed_position_lifecycles=completed_lifecycles_count,
+            lifecycle_win_rate_pct=lifecycle_win_rate_pct,
+            avg_holding_time_seconds=avg_holding_time,
+            total_execution_costs_usd=total_execution_costs,
             mode=mode,
         )
 

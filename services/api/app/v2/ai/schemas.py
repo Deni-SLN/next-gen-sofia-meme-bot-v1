@@ -215,6 +215,7 @@ class PerformanceScorecard(BaseModel):
     total_losing_trades: int = 0
     win_rate_pct: Optional[float] = None
     profit_factor: Optional[float] = None
+    profit_factor_note: Optional[str] = None  # None or "UNDEFINED_ZERO_LOSS" (Correction 1)
     expectancy_usd: float = 0.0
     net_pnl_usd: float = 0.0
     avg_win_usd: float = 0.0
@@ -227,6 +228,10 @@ class PerformanceScorecard(BaseModel):
     entry_efficiency: float = 0.0
     exit_efficiency: float = 0.0
     false_positive_rate: float = 0.0
+    completed_position_lifecycles: int = 0  # Aggregated position lifecycles (Correction 2)
+    lifecycle_win_rate_pct: Optional[float] = None  # True lifecycle win rate (Correction 2)
+    avg_holding_time_seconds: float = 0.0  # Average lifecycle holding time
+    total_execution_costs_usd: float = 0.0  # Fees + simulated slippage costs (Correction 7)
     mode: str = "PAPER"
     generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 

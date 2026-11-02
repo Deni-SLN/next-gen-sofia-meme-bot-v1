@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import init_db, SessionLocal
 from app.routers import auth, bot, portfolio, signals, ai, risk, performance, wallets, memecoins, journal, news, stocks, gold, crypto, chat, telegram, mcp as mcp_router, auto_entry, macro
-from app.v2.routers import ai as v2_ai, supervisor as v2_supervisor, feedback as v2_feedback
+from app.v2.routers import ai as v2_ai, supervisor as v2_supervisor, feedback as v2_feedback, experiment as v2_experiment
 from app.mcp_server import mcp
 from app.services import treasury, bot as bot_service, auto_entry as auto_entry_service
 
@@ -120,6 +120,7 @@ app.include_router(v2_ai.router, prefix="/api/v2/ai", tags=["V2 AI Intelligence"
 app.include_router(v2_supervisor.router, prefix="/api/v2/supervisor", tags=["V2 Trade Supervisor"])
 app.include_router(v2_feedback.router, prefix="/api/v2/feedback", tags=["V2 Feedback & Learning Engine"])
 app.include_router(v2_feedback.router, prefix="/api/v2/analytics", tags=["V2 Analytics & Feedback"])
+app.include_router(v2_experiment.router, prefix="/api/v2/experiment", tags=["V2 Three-Strategy Experiment"])
 
 # Mount FastMCP SSE Endpoint for Hermes Agent, OpenClaw, and Networked MCP Clients
 app.mount("/mcp", mcp.sse_app())
