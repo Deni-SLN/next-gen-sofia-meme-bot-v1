@@ -6,7 +6,7 @@ import { LucideIcon } from '@/components/LucideIcon';
 import { CalendarPnLChart } from '@/components/CalendarPnLChart';
 import { useUltrawide, toggleUltrawide } from '@/lib/useUltrawide';
 
-const DEFAULT_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
+const DEFAULT_SOL_WALLET = '';
 
 export default function CalendarPage() {
   const isUltrawide = useUltrawide();

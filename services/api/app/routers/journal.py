@@ -28,7 +28,7 @@ class TradeRecordRequest(BaseModel):
 
 
 class SyncWalletRequest(BaseModel):
-    wallet_address: str = "8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos"
+    wallet_address: str = ""
 
 
 @router.get("")

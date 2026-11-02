@@ -18,14 +18,16 @@ except ImportError:
 
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
-SOLANA_SHIELD_RPC = getattr(settings, "solana_shield_rpc_url", None) or "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A"
-SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9"
+SOLANA_SHIELD_RPC = getattr(settings, "solana_shield_rpc_url", None) or os.environ.get("SOFIA_SOLANA_SHIELD_RPC_URL", "")
+SOLANA_MAINNET_RPC = settings.solana_rpc_url or os.environ.get("SOFIA_SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 SOLANA_RPC_POOL = [
-    SOLANA_SHIELD_RPC,
-    SOLANA_MAINNET_RPC,
-    "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92",
-    "https://solana-rpc.publicnode.com",
-    "https://api.mainnet.solana.com",
+    r for r in [
+        SOLANA_SHIELD_RPC,
+        SOLANA_MAINNET_RPC,
+        os.environ.get("SOFIA_HELIUS_RPC_URL", ""),
+        "https://solana-rpc.publicnode.com",
+        "https://api.mainnet.solana.com",
+    ] if r
 ]
 
 BASE_MAINNET_RPC = "https://mainnet.base.org"
@@ -285,9 +287,12 @@ def _fetch_tokens_via_multiple_accounts(addr: str) -> list[dict] | None:
             "params": [ata_list[:90], {"encoding": "jsonParsed"}],
         }
         fast_rpcs = [
-            "https://solana-rpc.publicnode.com",
-            "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92",
-            "https://api.mainnet-beta.solana.com",
+            r for r in [
+                SOLANA_MAINNET_RPC,
+                "https://solana-rpc.publicnode.com",
+                os.environ.get("SOFIA_HELIUS_RPC_URL", ""),
+                "https://api.mainnet-beta.solana.com",
+            ] if r
         ]
         with httpx.Client(timeout=2.5) as client:
             for ep in fast_rpcs:

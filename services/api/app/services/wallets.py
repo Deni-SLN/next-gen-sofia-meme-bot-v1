@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 import threading
 import time
@@ -7,14 +8,16 @@ from app.db.models import Wallet
 from app.services import market, portfolio, treasury
 
 
+from app.core.config import settings
+
 _SPL_TTL_SECONDS = 60.0
 _BG_SYNC_LOCK = threading.Lock()
 _BG_SYNC_RUNNING = False
-DEFAULT_USER_SOLANA_WALLET = "8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos"
+DEFAULT_USER_SOLANA_WALLET = (getattr(settings, "default_solana_wallet", "") or os.environ.get("SOFIA_DEFAULT_SOLANA_WALLET", "")).strip()
 
 
 def get_or_ensure_primary_solana_wallet(db: Session) -> Wallet:
-    """Return the user's primary Solana wallet recorded in system settings (defaulting to 8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos)."""
+    """Return the user's primary Solana wallet recorded in system settings."""
     w = (
         db.execute(
             select(Wallet)

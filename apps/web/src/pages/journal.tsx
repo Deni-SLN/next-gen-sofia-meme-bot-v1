@@ -4,7 +4,7 @@ import { api, useApiQuery, formatIdr, formatUsd } from '@/lib/api';
 import { QueryState } from '@/components/QueryState';
 import { LucideIcon } from '@/components/LucideIcon';
 
-const DEFAULT_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
+const DEFAULT_SOL_WALLET = '';
 
 export default function JournalPage() {
   const [selectedMode, setSelectedMode] = useState<'LIVE' | 'WALLET'>('WALLET');

@@ -143,3 +143,44 @@ def stop(db: Session = Depends(get_db)):
             content={"error": {"code": code, "message": f"Cannot stop bot: {code}"}},
         )
 
+
+class EmergencyKillRequest(BaseModel):
+    liquidate_all: bool = False
+    reason: str = "Operator manual emergency panic kill"
+
+
+@router.post("/emergency-kill")
+@router.post("/panic-kill")
+def emergency_kill(body: EmergencyKillRequest = EmergencyKillRequest(), db: Session = Depends(get_db)):
+    """
+    EMERGENCY PANIC KILL SWITCH:
+    1. Immediately halts bot execution loop.
+    2. Engages supervisor kill switch, blocking any on-chain trades.
+    3. Revokes live trading authorization.
+    4. If liquidate_all is True, triggers immediate panic sell of all open positions.
+    """
+    from app.v2.services.live_executor import live_supervisor
+    from app.services import portfolio
+
+    # 1. Stop bot
+    state = bot.stop_bot(db)
+
+    # 2. Engage supervisor kill switch & revoke authorization
+    live_supervisor.engage_emergency_kill_switch(reason=body.reason)
+    live_supervisor.revoke_live_authorization()
+
+    # 3. Optional panic sell all
+    liquidation_res = None
+    if body.liquidate_all:
+        try:
+            liquidation_res = portfolio.panic_sell_all(db, mode=state.mode)
+        except Exception as err:
+            liquidation_res = {"error": str(err)}
+
+    data = _row_to_dict(state)
+    data["kill_switch_engaged"] = True
+    data["live_authorized"] = False
+    data["liquidation"] = liquidation_res
+    data["message"] = "🚨 TOMBOL DARURAT DIAKTIFKAN: Bot dihentikan seketika dan izin live dicabut!"
+    return data
+

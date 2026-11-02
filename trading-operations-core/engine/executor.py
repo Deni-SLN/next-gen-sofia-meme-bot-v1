@@ -68,10 +68,12 @@ KNOWN_TOKEN_MINTS: dict[str, tuple[str, int]] = {
 }
 
 SOLANA_RPC_ENDPOINTS = [
-    os.environ.get("SOFIA_SOLANA_SHIELD_RPC_URL", "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A"),
-    os.environ.get("SOFIA_SOLANA_RPC_URL", "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9"),
-    "https://solana-rpc.publicnode.com",
-    "https://api.mainnet-beta.solana.com",
+    r for r in [
+        os.environ.get("SOFIA_SOLANA_SHIELD_RPC_URL", ""),
+        os.environ.get("SOFIA_SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"),
+        "https://solana-rpc.publicnode.com",
+        "https://api.mainnet-beta.solana.com",
+    ] if r
 ]
 
 JUPITER_QUOTE_ENDPOINTS = [

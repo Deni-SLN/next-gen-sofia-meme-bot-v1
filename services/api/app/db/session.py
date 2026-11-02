@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from typing import Generator
 from sqlalchemy import create_engine, select, text
@@ -191,8 +192,8 @@ def init_db() -> None:
             )
             db.add(treasury)
 
-        # 5. Ensure user's primary Solana Wallet (8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos) is registered
-        default_sol_addr = "8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos"
+        # 5. Ensure user's primary Solana Wallet is registered (configurable via SOFIA_DEFAULT_SOLANA_WALLET)
+        default_sol_addr = (getattr(settings, "default_solana_wallet", "") or os.environ.get("SOFIA_DEFAULT_SOLANA_WALLET", "")).strip()
         sol_wallet = (
             db.execute(
                 select(Wallet).where(

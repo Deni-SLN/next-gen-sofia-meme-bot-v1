@@ -567,18 +567,18 @@ export default function CopyTradePage() {
                     {/* RIGHT SECTION: METRICS (WIN RATE, 24H PNL, 7D PNL, HOLD, COPY SIZE) & ACTION BUTTON */}
                     <div className="flex flex-wrap items-center justify-between lg:justify-end gap-4 sm:gap-5 font-mono pt-3 lg:pt-0 border-t lg:border-t-0 border-obsidian-800">
                       <div>
-                        <div className="text-[10px] text-slate-500 uppercase">Win Rate ({w.trades_7d || 40} Tx)</div>
-                        <div className="text-base sm:text-lg font-extrabold text-emerald-400">{w.win_rate}%</div>
-                        <div className="text-[10px] text-slate-400">Hold: {w.avg_hold_time}</div>
+                        <div className="text-[10px] text-slate-500 uppercase">Win Rate ({w.trades_7d || 0} Tx)</div>
+                        <div className="text-base sm:text-lg font-extrabold text-emerald-400">{w.win_rate != null ? `${w.win_rate}%` : '—'}</div>
+                        <div className="text-[10px] text-slate-400">Hold: {w.avg_hold_time || '—'}</div>
                       </div>
 
                       <div>
                         <div className="text-[10px] text-slate-500 uppercase">24H Realized PnL</div>
                         <div className="text-sm sm:text-base font-bold text-cyan-300">
-                          +{formatUsd(w.pnl_24h || w.pnl_7d / 6)}
+                          {w.pnl_24h != null && w.pnl_24h > 0 ? `+${formatUsd(w.pnl_24h)}` : '—'}
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          ≈ +{formatIdr((w.pnl_24h || w.pnl_7d / 6) * usdIdr)}
+                          {w.pnl_24h != null && w.pnl_24h > 0 ? `≈ +${formatIdr(w.pnl_24h * usdIdr)}` : 'Live On-Chain'}
                         </div>
                       </div>
 

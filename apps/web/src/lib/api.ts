@@ -396,6 +396,11 @@ export const api = {
       body: JSON.stringify({ mode, strategy_mode, ...(params || {}) }),
     }),
   stopBot: () => request<any>('/bot/stop', { method: 'POST' }),
+  emergencyKillBot: (liquidate_all: boolean = false) =>
+    request<any>('/bot/emergency-kill', {
+      method: 'POST',
+      body: JSON.stringify({ liquidate_all, reason: 'Operator Emergency Panic Kill Switch' }),
+    }),
   getPortfolio: (mode?: string) =>
     request<any>(`/portfolio/overview${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`, { timeoutMs: 25000 }),
   addHolding: (data: { symbol: string; quantity: number; avg_entry_price: number; current_price?: number }) =>

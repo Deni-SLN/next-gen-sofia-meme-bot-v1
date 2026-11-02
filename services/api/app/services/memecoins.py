@@ -612,15 +612,16 @@ def execute_snipe(db: Session, data: dict) -> dict:
         except Exception as swap_err:
             raise RuntimeError(f"EKSEKUSI_SWAP_ONCHAIN_GAGAL: {swap_err}") from swap_err
 
-        fill_price_est = live_price * (1.0 + eff_slippage_pct / 100.0)
+        from app.services.token_verifier import get_token_decimals
+        token_dec = get_token_decimals(resolved_contract, fallback=6)
         net_swap_usd_est = max(0.0001, amount_usd - dex_fee_usd)
-        est_qty = round(net_swap_usd_est / fill_price_est, 6) if fill_price_est > 0 else 0.0
         if onchain_out_raw and int(onchain_out_raw) > 0:
-            cand_qty = round(int(onchain_out_raw) / 1e6, 6)
-            # Only use raw 1e6 division if its implied USD value aligns within 12% of net_swap_usd_est
-            # (prevents 9-decimal SPL tokens or Jupiter/DexScreener feed skew from creating a 50% fake initial loss)
-            if est_qty > 0 and 0.88 <= (cand_qty / est_qty) <= 1.12:
-                est_qty = cand_qty
+            est_qty = round(int(onchain_out_raw) / (10 ** token_dec), 6)
+            effective_entry_price = round(net_swap_usd_est / est_qty, 8) if est_qty > 0 else live_price
+        else:
+            fill_price_est = live_price * (1.0 + eff_slippage_pct / 100.0)
+            effective_entry_price = round(fill_price_est, 8)
+            est_qty = round(net_swap_usd_est / fill_price_est, 6) if fill_price_est > 0 else 0.0
 
         # Immediately inject the newly bought token into _SPL_CACHE so even if Solana RPC returns 429
         # right after confirmation, sync_onchain_holdings_to_portfolio keeps 100% parity with Phantom Wallet!
@@ -774,32 +775,30 @@ def execute_snipe(db: Session, data: dict) -> dict:
 
 
 def _compute_daily_wallet_metrics(w: dict, date_str: str) -> dict:
-    """Compute deterministic daily updated PnL, Win Rate, and composite ranking score for a given date (YYYY-MM-DD)."""
-    seed_hex = hashlib.sha256(f"sofia-sm-daily:{date_str}:{w['address']}".encode("utf-8")).hexdigest()
-    seed_val = int(seed_hex[:8], 16)
-    # Daily multiplier between 0.72 and 1.38 so rankings naturally shift day-to-day based on performance
-    daily_mult = 0.72 + ((seed_val % 660) / 1000.0)
-    win_delta = ((int(seed_hex[8:12], 16) % 70) - 35) / 10.0  # -3.5% to +3.5%
-    trades_delta = (int(seed_hex[12:16], 16) % 15) - 5
+    """
+    Return genuine wallet metrics without synthetic hash random jitter (Strict Rule 1: ZERO DUMMY DATA).
+    Uses on-chain balance and verified database trade records.
+    """
+    from app.services import solana_trader
+    live_bal = 0.0
+    try:
+        live_bal = solana_trader.get_sol_balance(w.get("address"))
+    except Exception:
+        pass
 
-    base_pnl_7d = float(w.get("pnl_7d", 100000.0))
-    base_pnl_24h = float(w.get("pnl_24h", 15000.0))
-    base_win = float(w.get("win_rate", 78.0))
-    base_trades = int(w.get("trades_7d", 45))
+    base_pnl_7d = float(w.get("pnl_7d", 0.0))
+    base_pnl_24h = float(w.get("pnl_24h", 0.0))
+    base_win = float(w.get("win_rate", 0.0))
+    base_trades = int(w.get("trades_7d", 0))
 
-    adj_pnl_24h = round(max(4500.0, base_pnl_24h * daily_mult), 0)
-    adj_pnl_7d = round(max(45000.0, base_pnl_7d * (0.85 + (daily_mult - 0.72) * 0.45)), 0)
-    adj_win = round(min(94.8, max(68.2, base_win + win_delta)), 1)
-    adj_trades = max(18, base_trades + trades_delta)
-
-    # Composite daily score combining 7D PnL, 24h momentum PnL, and Win Rate
-    composite_score = round((adj_pnl_7d / 1000.0) * 0.50 + (adj_pnl_24h / 250.0) * 0.35 + (adj_win * 2.4), 2)
+    composite_score = round(live_bal * 5.0 + (base_pnl_7d / 1000.0), 2)
     return {
-        "pnl_7d": adj_pnl_7d,
-        "pnl_24h": adj_pnl_24h,
-        "win_rate": adj_win,
-        "trades_7d": adj_trades,
+        "pnl_7d": base_pnl_7d,
+        "pnl_24h": base_pnl_24h,
+        "win_rate": base_win if base_win > 0 else None,
+        "trades_7d": base_trades,
         "composite_score": composite_score,
+        "sol_balance": round(live_bal, 4),
     }
 
 

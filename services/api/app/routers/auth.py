@@ -21,21 +21,21 @@ def login(body: LoginRequest):
     is_valid = False
     actor_name = input_user if input_user else "admin"
 
-    primary_u = (settings.primary_username or os.environ.get("SOFIA_PRIMARY_USERNAME") or "Deni26").strip()
-    primary_p = (settings.primary_password or os.environ.get("SOFIA_PRIMARY_PASSWORD") or "Ronaldo07@").strip()
+    primary_u = (settings.primary_username or os.environ.get("SOFIA_PRIMARY_USERNAME") or "operator").strip()
+    primary_p = (settings.primary_password or os.environ.get("SOFIA_PRIMARY_PASSWORD") or "").strip()
 
     if primary_u and primary_p:
-        canonical_actor = "Deni26" if primary_u.lower() == "deni26" else primary_u
+        canonical_actor = primary_u
         if input_user.lower() == primary_u.lower() and input_pass == primary_p:
             is_valid = True
             actor_name = canonical_actor
-        elif input_pass == primary_p and input_user.lower() in ("", "admin"):
+        elif input_pass == primary_p and input_user.lower() in ("", "admin", primary_u.lower()):
             is_valid = True
             actor_name = canonical_actor
 
     if not is_valid:
-        fallback_p = (settings.admin_password or os.environ.get("SOFIA_ADMIN_PASSWORD") or "changeme").strip()
-        if input_pass == fallback_p and input_user.lower() in ("admin", ""):
+        fallback_p = (settings.admin_password or os.environ.get("SOFIA_ADMIN_PASSWORD") or "").strip()
+        if fallback_p and input_pass == fallback_p and input_user.lower() in ("admin", ""):
             is_valid = True
             actor_name = "admin"
 

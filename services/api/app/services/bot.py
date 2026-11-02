@@ -1282,6 +1282,18 @@ def _run_bot_scan_tick_locked(
             and (force_trade or _has_bullish_orderflow(pick) or bool(bullish_pool))
         )
 
+        # 100% Genuine On-Chain Anti-Rug Gate (Validates SPL Mint Authority & Freeze Authority before entry)
+        if can_snipe and contract_addr:
+            from app.services.token_verifier import verify_token_mint_onchain
+            onchain_check = verify_token_mint_onchain(contract_addr)
+            if onchain_check.get("is_valid"):
+                if _SNIPER_CONFIG.get("require_mint_revoked", True) and not onchain_check.get("mint_revoked"):
+                    can_snipe = False
+                    skip_reason = f"On-Chain Anti-Rug: Mint Authority masih aktif pada {contract_addr[:8]}... (Batal snipe demi keamanan dana)"
+                elif _SNIPER_CONFIG.get("require_freeze_revoked", True) and not onchain_check.get("freeze_revoked"):
+                    can_snipe = False
+                    skip_reason = f"On-Chain Anti-Rug: Freeze Authority masih aktif pada {contract_addr[:8]}... (Risiko blacklist wallet)"
+
         if can_snipe:
             if active_mode == "LIVE":
                 # Adapt buy size to available spendable SOL cash, bounded by cfg_buy_idr

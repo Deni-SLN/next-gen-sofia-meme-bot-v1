@@ -12,14 +12,16 @@ logger = logging.getLogger("sofia.solana_trader")
 
 NATIVE_SOL_MINT = "So11111111111111111111111111111111111111112"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-SOLANA_SHIELD_RPC = getattr(settings, "solana_shield_rpc_url", None) or "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A"
-SOLANA_MAINNET_RPC = settings.solana_rpc_url or "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9"
+SOLANA_SHIELD_RPC = getattr(settings, "solana_shield_rpc_url", None) or os.environ.get("SOFIA_SOLANA_SHIELD_RPC_URL", "")
+SOLANA_MAINNET_RPC = settings.solana_rpc_url or os.environ.get("SOFIA_SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 SOLANA_RPC_POOL = [
-    SOLANA_SHIELD_RPC,
-    SOLANA_MAINNET_RPC,
-    "https://solana-rpc.publicnode.com",
-    "https://mainnet.helius-rpc.com/?api-key=15319bf4-5b40-4958-ac8d-6313aa55eb92",
-    "https://api.mainnet.solana.com",
+    r for r in [
+        SOLANA_SHIELD_RPC,
+        SOLANA_MAINNET_RPC,
+        "https://solana-rpc.publicnode.com",
+        os.environ.get("SOFIA_HELIUS_RPC_URL", ""),
+        "https://api.mainnet-beta.solana.com",
+    ] if r
 ]
 
 JUPITER_QUOTE_ENDPOINTS = [
@@ -136,12 +138,64 @@ def build_and_sign_swap_tx(quote_resp: dict, kp: Keypair) -> tuple[VersionedTran
     return signed_tx, expected_sig
 
 
+JITO_BLOCK_ENGINES = [
+    "https://mainnet.block-engine.jito.wtf/api/v1/transactions",
+    "https://amsterdam.mainnet.block-engine.jito.wtf/api/v1/transactions",
+    "https://frankfurt.mainnet.block-engine.jito.wtf/api/v1/transactions",
+    "https://ny.mainnet.block-engine.jito.wtf/api/v1/transactions",
+]
+
+JITO_TIP_ACCOUNTS = [
+    "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
+    "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
+    "Cw8CFyM9FkoMi7K7Crnq6HNQqf4uAzNWARkgUtg3v69B",
+    "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
+    "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
+    "ADuUkR4vqLUMWXxW9gh6D6L8pWHLnjvnxKLQm3AoZbxv",
+    "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
+    "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
+]
+
+
+def broadcast_jito_transaction(signed_tx: VersionedTransaction) -> str | None:
+    """Submit transaction directly to Jito Block Engine for zero-slot private MEV protection."""
+    b64_tx = base64.b64encode(bytes(signed_tx)).decode("utf-8")
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "sendTransaction",
+        "params": [
+            b64_tx,
+            {"encoding": "base64"},
+        ],
+    }
+    with httpx.Client(timeout=8.0) as client:
+        for engine in JITO_BLOCK_ENGINES:
+            try:
+                res = client.post(engine, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    if "result" in data and "error" not in data:
+                        logger.info(f"Transaksi berhasil disiarkan melalui Jito Block Engine (Tx: {data['result']})")
+                        return data["result"]
+            except Exception as e:
+                logger.debug(f"Jito engine {engine} gagal: {e}")
+    return None
+
+
 def broadcast_transaction(
     signed_tx: VersionedTransaction,
     rpc_url: str = SOLANA_MAINNET_RPC,
     skip_preflight: bool = False,
+    use_jito: bool = False,
 ) -> str:
-    """Broadcast signed VersionedTransaction to Solana Mainnet RPC node (with multi-node failover for Alpenglow v4.3+)."""
+    """Broadcast signed VersionedTransaction with optional private Jito anti-MEV relay and multi-RPC fallback."""
+    if use_jito:
+        jito_sig = broadcast_jito_transaction(signed_tx)
+        if jito_sig:
+            return jito_sig
+        logger.warning("Jito relay gagal atau tidak merespons, beralih ke node RPC standard...")
+
     b64_tx = base64.b64encode(bytes(signed_tx)).decode("utf-8")
     payload = {
         "jsonrpc": "2.0",
@@ -234,6 +288,7 @@ def execute_onchain_sol_to_token(
     target_token_mint: str,
     amount_sol: float,
     slippage_pct: float = 1.5,
+    anti_mev: bool = True,
 ) -> dict:
     """
     Execute REAL On-Chain Swap from SOL -> Target Token Mint on Solana Mainnet!
@@ -260,8 +315,8 @@ def execute_onchain_sol_to_token(
     logger.info("Menandatangani transaksi swap dengan Keypair Phantom...")
     signed_tx, expected_sig = build_and_sign_swap_tx(quote, kp)
 
-    logger.info(f"Menyiarkan transaksi ke Solana Mainnet (Tx: {expected_sig})...")
-    actual_sig = broadcast_transaction(signed_tx)
+    logger.info(f"Menyiarkan transaksi ke Solana Mainnet (Tx: {expected_sig}, Anti-MEV Jito: {anti_mev})...")
+    actual_sig = broadcast_transaction(signed_tx, use_jito=anti_mev)
 
     logger.info(f"Menunggu konfirmasi on-chain (Tx: {actual_sig})...")
     conf = wait_for_confirmation(actual_sig)

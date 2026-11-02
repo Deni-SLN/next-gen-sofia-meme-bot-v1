@@ -377,6 +377,24 @@ export default function TradingPage() {
     }
   };
 
+  const handleEmergencyKill = async () => {
+    if (!window.confirm('🚨 PERINGATAN DARURAT: Anda yakin ingin menghentikan SEMUA operasi bot seketika dan mencabut izin live trading?')) {
+      return;
+    }
+    setActionError('');
+    setActionSuccess('');
+    try {
+      await api.emergencyKillBot(false);
+      setActionSuccess('🚨 TOMBOL DARURAT DIAKTIFKAN: Bot dihentikan seketika dan izin live trading dibekukan!');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sofia-bot-status-change', { detail: { running: false } }));
+      }
+      botQuery.refetch();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Gagal mengeksekusi tombol darurat.');
+    }
+  };
+
   const handleConfirmStartBot = async (params: StartBotParams) => {
     setActionError('');
     setActionSuccess('');
@@ -739,6 +757,16 @@ export default function TradingPage() {
                 {isRunning
                   ? '⏹ HENTIKAN BOT SEKARANG'
                   : `▶️ JALANKAN BOT (${selectedMode} • ${strategyMode})`}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleEmergencyKill}
+                title="Hentikan bot seketika dan bekukan izin trading live"
+                className="px-3 py-2 rounded-lg font-mono font-extrabold text-xs transition bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-600/60 shadow-glow-rose flex items-center gap-1.5"
+              >
+                <LucideIcon name="alert-triangle" className="w-3.5 h-3.5 text-red-400" />
+                🚨 TOMBOL DARURAT
               </button>
             </div>
           </div>

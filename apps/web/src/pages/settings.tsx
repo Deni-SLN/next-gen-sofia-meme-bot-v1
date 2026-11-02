@@ -31,8 +31,8 @@ export default function SettingsPage() {
   const [testingTg, setTestingTg] = useState<boolean>(false);
   const [tgNotice, setTgNotice] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  // 3. Wallet Settings State (Default User Solana Wallet: 8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos)
-  const DEFAULT_USER_SOL_WALLET = '8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos';
+  // 3. Wallet Settings State (Configurable User Solana Wallet)
+  const DEFAULT_USER_SOL_WALLET = '';
   const [solanaAddress, setSolanaAddress] = useState<string>(DEFAULT_USER_SOL_WALLET);
   const [evmAddress, setEvmAddress] = useState<string>('');
   const [solanaRpc, setSolanaRpc] = useState<string>('https://api.mainnet.solana.com');
@@ -71,7 +71,7 @@ export default function SettingsPage() {
     setTelegramToken(localStorage.getItem('sofia_tg_token') || '');
     setTelegramChatId(localStorage.getItem('sofia_tg_chat_id') || '');
 
-    // Wallet & RPC (Migrate old demo address automatically to 8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos)
+    // Wallet & RPC
     const savedSol = localStorage.getItem('sofia_sol_addr');
     const resolvedSol =
       !savedSol || savedSol === 'BYyj6C1tykoREhVFQKbmoNc6axT1tUrdMNZZT6XHoYZ8'
@@ -845,7 +845,7 @@ export default function SettingsPage() {
                       type="text"
                       value={solanaAddress}
                       onChange={(e) => setSolanaAddress(e.target.value)}
-                      placeholder="8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos"
+                      placeholder="Contoh: BYyj... atau alamat wallet Solana Anda"
                       className="w-full px-3.5 py-2 rounded-xl bg-obsidian-950 border border-obsidian-700 text-emerald-300 font-bold text-xs focus:outline-none focus:border-purple-400"
                     />
                     <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400">

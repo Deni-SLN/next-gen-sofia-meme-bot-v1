@@ -238,9 +238,11 @@ class V2LiveExecutor:
         sol_price_usd = float(solana_trader.get_sol_price_usd() or 180.0)
         trade_usd_value = round(final_alloc_sol * sol_price_usd, 4)
 
-        # Token price estimation from swap execution
-        token_qty = float(out_amount_raw)  # raw units (decimals adjusted in token holding)
-        token_price_usd = round(trade_usd_value / max(token_qty, 1.0), 8)
+        # Token decimals precision conversion from on-chain mint
+        from app.services.token_verifier import get_token_decimals
+        token_dec = get_token_decimals(target_token_mint, fallback=6)
+        token_qty = round(float(out_amount_raw) / (10 ** token_dec), 6)
+        token_price_usd = round(trade_usd_value / max(token_qty, 0.000001), 8)
 
         # Create or update PortfolioHolding (Rule 4: Case-insensitive)
         stmt = select(PortfolioHolding).where(

@@ -879,10 +879,14 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
     age_str, age_hours = _format_age(pair.get("pairCreatedAt"), default_hours=default_age_h)
     age_minutes = round(age_hours * 60.0, 1)
 
-    # Bonding curve estimation: ONLY pre-graduation DEX (pumpfun / moonshot) is < 100%.
-    # Once migrated to PumpSwap / Raydium / Meteora / Orca, bonding curve is 100% completed.
+    # Bonding curve verification: Query on-chain bonding curve PDA account for pumpfun tokens
     if is_pre_grad_bonding:
-        bonding_pct = min(99, max(12, int((mcap / 69000.0) * 100)))
+        from app.services.token_verifier import get_pumpfun_bonding_curve_onchain
+        curve_info = get_pumpfun_bonding_curve_onchain(pair.get("pairAddress") or "")
+        if curve_info:
+            bonding_pct = curve_info["bonding_curve_pct"]
+        else:
+            bonding_pct = min(99, max(12, int((mcap / 69000.0) * 100)))
     else:
         bonding_pct = 100
 
@@ -1037,8 +1041,8 @@ def _pair_to_token(pair: dict, usd_idr: float, discovery_tag: str = "DexScreener
         "dev_holding_pct": 0.0 if bonding_pct == 100 else 2.4,
         "bundle_pct": 1.2 if safety_score >= 78 else 9.5,
         "lp_burned": liq_usd >= 1800,
-        "mint_revoked": True,
-        "freeze_revoked": True,
+        "mint_revoked": (not is_honeypot) and (safety_score >= 60),
+        "freeze_revoked": (not is_honeypot) and (safety_score >= 50),
         "safety_score": safety_score,
         "has_socials": has_socials,
         "website_url": website_url,
@@ -2222,9 +2226,9 @@ def live_rug_audit(query: str) -> dict:
         except Exception:
             pass
 
-        # 7. Real-time On-Chain Verification via Flux Shield RPC (Anti-Rug & MEV Firewall)
+        # 7. Real-time On-Chain Verification via Solana RPC (Anti-Rug & Mint Check)
         try:
-            shield_rpc = "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A"
+            shield_rpc = getattr(settings, "solana_shield_rpc_url", None) or getattr(settings, "solana_rpc_url", None) or os.environ.get("SOFIA_SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
             rpc_payload = json.dumps({
                 "jsonrpc": "2.0",
                 "id": 1,

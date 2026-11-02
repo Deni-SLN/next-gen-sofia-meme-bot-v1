@@ -33,7 +33,7 @@ SOLANA_WALLET_SPL_PAIRS = [
 
 
 def _load_verified_wallet_ledger() -> dict[str, dict]:
-    """Load the verified on-chain ledger for 8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos."""
+    """Load the verified on-chain ledger for the configured wallet."""
     data_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "verified_wallet_8muJ3h_ledger.json")
     if not os.path.exists(data_path):
         return {}
@@ -47,7 +47,7 @@ def _load_verified_wallet_ledger() -> dict[str, dict]:
 
 def _derive_onchain_tx_metrics(sig_str: str, slot: int | None, addr: str, memo_raw: str | None) -> dict:
     """
-    Lookup verified on-chain metrics for 8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos
+    Lookup verified on-chain metrics for the configured primary wallet
     or derive micro-swap metrics (~0.01 SOL) for any brand-new signatures after Oct 28.
     """
     verified_map = _load_verified_wallet_ledger()
@@ -116,7 +116,7 @@ def _derive_onchain_tx_metrics(sig_str: str, slot: int | None, addr: str, memo_r
 def sync_solana_wallet_onchain_trades(db: Session, wallet_address: str) -> dict:
     """
     Sync verified on-chain Solana transactions (372 txs) and any new RPC signatures for
-    the user's configured wallet (8muJ3h4PPLmXhAVpJf8dnp9m17WsSaPNm9dSHcTsMVos) under mode='WALLET'.
+    the user's configured wallet under mode='WALLET'.
     """
     addr = (wallet_address or "").strip()
     if not addr or len(addr) < 32:
@@ -156,9 +156,12 @@ def sync_solana_wallet_onchain_trades(db: Session, wallet_address: str) -> dict:
         "params": [addr, {"limit": 50}],
     }
     rpcs = [
-        getattr(settings, "solana_shield_rpc_url", None) or "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A",
-        settings.solana_rpc_url or "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9",
-        "https://solana-rpc.publicnode.com",
+        r for r in [
+            getattr(settings, "solana_shield_rpc_url", None),
+            settings.solana_rpc_url,
+            "https://solana-rpc.publicnode.com",
+            "https://api.mainnet-beta.solana.com",
+        ] if r
     ]
     with httpx.Client(timeout=5.0) as client:
         for ep in rpcs:
@@ -309,9 +312,12 @@ def get_wallet_live_onchain_equity(address: str) -> dict:
     rpc_connected = False
 
     rpc_pool = [
-        getattr(settings, "solana_shield_rpc_url", None) or "https://eu.shield.fluxrpc.com?key=QrpekiPs1SeekuEwSi_25A",
-        settings.solana_rpc_url or "https://eu.fluxrpc.com?key=24252d08-b2ec-4d3f-8baf-9650199b77a9",
-        "https://solana-rpc.publicnode.com",
+        r for r in [
+            getattr(settings, "solana_shield_rpc_url", None),
+            settings.solana_rpc_url,
+            "https://solana-rpc.publicnode.com",
+            "https://api.mainnet-beta.solana.com",
+        ] if r
     ]
 
     with httpx.Client(timeout=4.0) as client:
