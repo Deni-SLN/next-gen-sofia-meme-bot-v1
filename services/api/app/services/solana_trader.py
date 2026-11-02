@@ -45,6 +45,22 @@ def get_trading_keypair() -> Keypair | None:
         return None
 
 
+def get_sol_balance(wallet_pubkey: str | None = None) -> float:
+    """Query live on-chain SOL balance for a given wallet address."""
+    if not wallet_pubkey:
+        kp = get_trading_keypair()
+        wallet_pubkey = str(kp.pubkey()) if kp else None
+    if not wallet_pubkey:
+        return 0.0
+    try:
+        from app.services import live_engine
+        res = live_engine.query_onchain_wallet_balance(wallet_pubkey, "Solana")
+        return float(res.get("onchain_balance") or 0.0)
+    except Exception as e:
+        logger.warning(f"Failed to query SOL balance for {wallet_pubkey}: {e}")
+        return 0.0
+
+
 def get_jupiter_quote(
     input_mint: str,
     output_mint: str,

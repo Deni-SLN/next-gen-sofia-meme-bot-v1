@@ -18,6 +18,7 @@ from app.db.models import PortfolioHolding, Trade, BotState
 from app.v2.core.supervisor import trade_supervisor
 from app.v2.core.position_state_machine import position_state_machine
 from app.v2.core.conflict_resolver import conflict_resolver
+from app.v2.services.live_executor import V2LiveExecutor
 
 router = APIRouter(tags=["V2 Trade Supervisor"])
 
@@ -204,3 +205,78 @@ def recover_positions_from_db(
         "recovered_positions_count": recovered,
         "last_reconciled_at": trade_supervisor._last_reconciled_at,
     }
+
+
+# -------------------------------------------------------------------------
+# Phase 7: Controlled LIVE Deployment & Pre-Flight Endpoints
+# -------------------------------------------------------------------------
+
+class AuthorizeLiveRequest(BaseModel):
+    authority: str = "DSLN Capital CEO"
+    confirmation_code: str = "DSLN-LIVE-AUTHORIZATION-CONFIRMED"
+
+
+class RevokeLiveRequest(BaseModel):
+    reason: str = "OPERATOR_MANUAL_HALT"
+
+
+@router.get("/live/preflight")
+def get_live_preflight_audit(
+    requested_sol: float = Query(0.02, ge=0.005, le=0.10, description="Requested trade allocation in SOL"),
+):
+    """
+    Phase 7 Pre-Flight Safety Audit:
+    Verifies Solana wallet connection, live SOL balance, 0.05 SOL gas reserve invariant,
+    allocation ceiling, and executive authorization status.
+    """
+    return V2LiveExecutor.run_preflight_checks(requested_sol=requested_sol)
+
+
+@router.get("/live/status")
+def get_live_deployment_status():
+    """
+    Phase 7 Controlled LIVE Deployment Status:
+    Returns authorization state, hardware risk parameters, allocation caps, and kill-switch telemetry.
+    """
+    preflight = V2LiveExecutor.run_preflight_checks(requested_sol=0.02)
+    return {
+        "phase": "PHASE_7_CONTROLLED_LIVE",
+        "is_authorized": V2LiveExecutor.is_authorized(),
+        "authorized_by": V2LiveExecutor._authorized_by,
+        "authorized_at": V2LiveExecutor._authorization_timestamp,
+        "supervisor_kill_switch_engaged": trade_supervisor._kill_switch_engaged,
+        "supervisor_circuit_breaker_active": trade_supervisor._circuit_breaker_active,
+        "min_sol_reserve": V2LiveExecutor.MIN_SOL_RESERVE,
+        "max_canary_allocation_sol": V2LiveExecutor.MAX_CANARY_ALLOCATION_SOL,
+        "max_canary_allocation_usd": V2LiveExecutor.MAX_CANARY_ALLOCATION_USD,
+        "max_permitted_slippage_bps": V2LiveExecutor.MAX_PERMITTED_SLIPPAGE_BPS,
+        "wallet_telemetry": {
+            "wallet_pubkey": preflight.get("wallet_pubkey"),
+            "sol_balance": preflight.get("sol_balance"),
+            "available_trading_sol": preflight.get("available_trading_sol"),
+            "rpc_endpoint": preflight.get("rpc_endpoint"),
+        },
+    }
+
+
+@router.post("/live/authorize")
+def authorize_live_deployment(req: AuthorizeLiveRequest):
+    """
+    Unlocks Controlled LIVE Trading (requires valid confirmation code).
+    """
+    try:
+        return V2LiveExecutor.authorize_live_deployment(
+            authority=req.authority,
+            confirmation_code=req.confirmation_code,
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=403, detail=str(err))
+
+
+@router.post("/live/revoke")
+def revoke_live_deployment(req: RevokeLiveRequest):
+    """
+    Revokes LIVE trading authorization immediately, restoring system to safe/locked state.
+    """
+    return V2LiveExecutor.revoke_live_deployment(reason=req.reason)
+
